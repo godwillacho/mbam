@@ -1,0 +1,29 @@
+#!/bin/sh
+# ─────────────────────────────────────────────────────────────────────────────
+# .git/hooks/post-commit
+#
+# PURPOSE:
+#   Automatically pushes to GitHub after every local commit.
+#   This hook is installed by scripts/setup-hooks.sh.
+#   It runs silently on success and warns loudly on failure
+#   so it never blocks your workflow.
+#
+# RULE: Never force-push. If the push fails (e.g. remote has diverged),
+#       it prints a warning and exits cleanly — you resolve manually.
+# ─────────────────────────────────────────────────────────────────────────────
+
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+echo "→ Auto-pushing $BRANCH to origin..."
+
+# Push to origin. If it fails, warn but don't block.
+if git push origin "$BRANCH" --quiet; then
+  echo "✓ Pushed to origin/$BRANCH"
+else
+  echo ""
+  echo "⚠ Auto-push failed. Run 'git push' manually when ready."
+  echo "  (Remote may have diverged — run 'git pull --rebase' first)"
+  echo ""
+fi
+
+exit 0
