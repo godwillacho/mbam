@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import type { Business, BusinessUnit, CustomerProfile, ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
-import { formatMoney } from "../../utils/formatters";
+import { formatDateTime, formatMoney } from "../../utils/formatters";
 import "./MasterDashboard.css";
 
 type DashboardMetricKey =
@@ -40,6 +40,10 @@ function sumTransactions(records: TransactionRecord[]): number {
 
 function sumPending(customers: CustomerProfile[]): number {
   return customers.reduce((sum, customer) => sum + customer.pendingBalance, 0);
+}
+
+function formatOptionalDate(value?: string): string {
+  return value ? formatDateTime(value) : "—";
 }
 
 function getMemberScopeLabel(member: TeamMember): string {
@@ -219,12 +223,22 @@ export default function MasterDashboard() {
     }
 
     return (
-      <div className="list-stack">
+      <div className="pending-payment-report">
         {pendingCustomers.map((customer) => (
-          <div className="list-item" key={customer.id}>
-            <div>
+          <div className="pending-payment-row" key={customer.id}>
+            <div className="pending-payment-customer">
               <strong>{customer.name}</strong>
               <small>{customer.contact ?? t("transactionRecord.noContactSaved")}</small>
+            </div>
+            <div className="pending-payment-meta">
+              <span>
+                <strong>{t("roleDashboard.labels.lastPayment")}</strong>
+                <small>{formatOptionalDate(customer.lastPaymentAt)}</small>
+              </span>
+              <span>
+                <strong>{t("roleDashboard.labels.paymentDate")}</strong>
+                <small>{customer.paymentDate ? formatOptionalDate(customer.paymentDate) : t("roleDashboard.labels.noPaymentDate")}</small>
+              </span>
             </div>
             <span className="badge warning">{formatMoney(customer.pendingBalance, selectedBusiness?.currency ?? workspace.masterAccount.currency)}</span>
           </div>
