@@ -15,6 +15,9 @@ type DashboardMetricId =
   | "products";
 
 type RevenueDrillLevel = "businesses" | "branches" | "workers" | "transactions";
+type DashboardPeriod = "day" | "month" | "year";
+
+const dashboardPeriods: DashboardPeriod[] = ["day", "month", "year"];
 
 interface DashboardMetric {
   id: DashboardMetricId;
@@ -53,6 +56,28 @@ function getInitialRevenueDrill(member: TeamMember): RevenueDrillState {
     return { level: "branches", businessId: member.businessId };
   }
   return { level: "businesses" };
+}
+
+function getReferenceDate() {
+  const latestTimestamp = Math.max(...workspace.transactions.map((transaction) => new Date(transaction.createdAt).getTime()));
+  return Number.isFinite(latestTimestamp) ? new Date(latestTimestamp) : new Date();
+}
+
+function isWithinPeriod(transaction: TransactionRecord, period: DashboardPeriod, referenceDate: Date) {
+  const transactionDate = new Date(transaction.createdAt);
+
+  if (period === "day") {
+    return transactionDate.getUTCFullYear() === referenceDate.getUTCFullYear()
+      && transactionDate.getUTCMonth() === referenceDate.getUTCMonth()
+      && transactionDate.getUTCDate() === referenceDate.getUTCDate();
+  }
+
+  if (period === "month") {
+    return transactionDate.getUTCFullYear() === referenceDate.getUTCFullYear()
+      && transactionDate.getUTCMonth() === referenceDate.getUTCMonth();
+  }
+
+  return transactionDate.getUTCFullYear() === referenceDate.getUTCFullYear();
 }
 
 function getAccessibleUnits(member: TeamMember): BusinessUnit[] {
@@ -140,15 +165,21 @@ function MiniBarChart({ items, formatValue }: { items: ChartItem[]; formatValue:
 
 export default function MasterDashboard() {
   const { t } = useTranslation();
+  const referenceDate = useMemo(() => getReferenceDate(), []);
   const [selectedMemberId, setSelectedMemberId] = useState(workspace.teamMembers[0]?.id ?? "");
   const [selectedMetric, setSelectedMetric] = useState<DashboardMetricId>("todayRevenue");
+  const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriod>("day");
 
   const selectedMember = workspace.teamMembers.find((member) => member.id === selectedMemberId) ?? workspace.teamMembers[0];
   const [revenueDrill, setRevenueDrill] = useState<RevenueDrillState>(() => getInitialRevenueDrill(selectedMember));
   const role = selectedMember ? getMemberRole(selectedMember) : undefined;
 
   const scopedUnits = useMemo(() => selectedMember ? getAccessibleUnits(selectedMember) : [], [selectedMember]);
-  const scopedTransactions = useMemo(() => selectedMember ? getAccessibleTransactions(selectedMember) : [], [selectedMember]);
+  const allScopedTransactions = useMemo(() => selectedMember ? getAccessibleTransactions(selectedMember) : [], [selectedMember]);
+  const scopedTransactions = useMemo(
+    () => allScopedTransactions.filter((transaction) => isWithinPeriod(transaction, selectedPeriod, referenceDate)),
+    [allScopedTransactions, selectedPeriod, referenceDate],
+  );
   const scopedBusinessIds = new Set(scopedUnits.map((unit) => unit.businessId));
   const scopedRevenue = sumTransactions(scopedTransactions);
   const scopedQueued = scopedUnits.reduce((sum, unit) => sum + unit.queuedTransactions, 0);
@@ -362,6 +393,22 @@ export default function MasterDashboard() {
 
         {selectedMetric === "todayRevenue" && (
           <div className="drilldown-panel">
+            <div className="period-toggle" aria-label={t("roleDashboard.period.label")}>
+              <span>{t("roleDashboard.period.label")}</span>
+              <div>
+                {dashboardPeriods.map((period) => (
+                  <button
+                    key={period}
+                    type="button"
+                    className={selectedPeriod === period ? "active" : ""}
+                    onClick={() => setSelectedPeriod(period)}
+                  >
+                    {t(`roleDashboard.period.${period}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="drill-breadcrumbs">
               <button type="button" onClick={resetRevenueDrill}>{t("roleDashboard.drill.overview")}</button>
               {selectedBusiness && <span>/ {selectedBusiness.name}</span>}
