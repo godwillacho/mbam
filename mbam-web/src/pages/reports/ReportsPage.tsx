@@ -1,7 +1,9 @@
+import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { formatMoney } from "../../utils/formatters";
 
 export default function ReportsPage() {
+  const { t } = useTranslation();
   const completed = workspace.transactions.filter((transaction) => transaction.status === "completed");
   const completedRevenue = completed.reduce((sum, transaction) => sum + transaction.amount, 0);
   const queued = workspace.transactions.filter((transaction) => transaction.status === "queued");
@@ -10,44 +12,42 @@ export default function ReportsPage() {
     <section className="page-grid">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Reports</span>
-          <h2>Business insight overview</h2>
-          <p>
-            Reports will later respect each user’s permission scope. Master owners can see everything, business admins see one business, and shop workers see their assigned unit.
-          </p>
+          <span className="eyebrow">{t("reports.eyebrow")}</span>
+          <h2>{t("reports.title")}</h2>
+          <p>{t("reports.description")}</p>
         </div>
       </div>
 
       <div className="metrics-grid">
         <article className="metric-card">
-          <span>Completed revenue</span>
+          <span>{t("reports.completedRevenue")}</span>
           <strong>{formatMoney(completedRevenue, workspace.masterAccount.currency)}</strong>
-          <small>{completed.length} completed records</small>
+          <small>{t("reports.completedRecords", { count: completed.length })}</small>
         </article>
         <article className="metric-card">
-          <span>Queued amount</span>
+          <span>{t("reports.queuedAmount")}</span>
           <strong>{formatMoney(queued.reduce((sum, transaction) => sum + transaction.amount, 0), workspace.masterAccount.currency)}</strong>
-          <small>{queued.length} waiting for sync</small>
+          <small>{t("reports.waitingForSync", { count: queued.length })}</small>
         </article>
         <article className="metric-card">
-          <span>Average sale</span>
+          <span>{t("reports.averageSale")}</span>
           <strong>{formatMoney(completedRevenue / Math.max(completed.length, 1), workspace.masterAccount.currency)}</strong>
-          <small>Completed records only</small>
+          <small>{t("reports.completedOnly")}</small>
         </article>
         <article className="metric-card">
-          <span>Active units</span>
+          <span>{t("reports.activeUnits")}</span>
           <strong>{workspace.businessUnits.length}</strong>
-          <small>Across all businesses</small>
+          <small>{t("reports.acrossBusinesses")}</small>
         </article>
       </div>
 
       <article className="card">
-        <h3>Next report sections</h3>
+        <h3>{t("reports.nextSections")}</h3>
         <div className="list-stack">
-          <div className="list-item"><strong>Revenue by business</strong><span className="badge">Planned</span></div>
-          <div className="list-item"><strong>Revenue by shop or unit</strong><span className="badge">Planned</span></div>
-          <div className="list-item"><strong>Worker sales performance</strong><span className="badge">Planned</span></div>
-          <div className="list-item"><strong>Offline sync health</strong><span className="badge warning">Important</span></div>
+          <div className="list-item"><strong>{t("reports.revenueByBusiness")}</strong><span className="badge">{t("common.planned")}</span></div>
+          <div className="list-item"><strong>{t("reports.revenueByUnit")}</strong><span className="badge">{t("common.planned")}</span></div>
+          <div className="list-item"><strong>{t("reports.workerPerformance")}</strong><span className="badge">{t("common.planned")}</span></div>
+          <div className="list-item"><strong>{t("reports.offlineSyncHealth")}</strong><span className="badge warning">{t("common.important")}</span></div>
         </div>
       </article>
     </section>
