@@ -41,6 +41,24 @@ export interface CustomerProfile {
   pendingBalance: number;
 }
 
+export interface ProductCustomerPrice {
+  customerId: string;
+  price: number;
+  lastSoldAt: string;
+}
+
+export interface ProductProfile {
+  id: string;
+  name: string;
+  sku?: string;
+  category: string;
+  businessId?: string;
+  defaultPrice: number;
+  timesSold: number;
+  lastSoldAt?: string;
+  customerPrices?: ProductCustomerPrice[];
+}
+
 export interface TransactionRecord {
   id: string;
   reference: string;
@@ -77,6 +95,7 @@ export interface WorkspaceData {
   businesses: Business[];
   businessUnits: BusinessUnit[];
   customers: CustomerProfile[];
+  products: ProductProfile[];
   transactions: TransactionRecord[];
   roles: RoleSummary[];
   teamMembers: TeamMember[];
