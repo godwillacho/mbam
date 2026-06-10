@@ -1,12 +1,20 @@
+import { useState } from "react";
 import type { AuthMode } from "../../pages/auth/AuthPage";
+import { signInWithProvider } from "../../services/authService";
+import type { AuthProvider, AuthSession } from "../../types/auth";
 
 interface Props {
   mode: AuthMode;
+  onSuccess: (session: AuthSession) => void;
 }
 
 const verb = (mode: AuthMode) => (mode === "login" ? "Continue" : "Sign up");
 
-const PROVIDERS = [
+const PROVIDERS: Array<{
+  id: AuthProvider;
+  label: string;
+  icon: JSX.Element;
+}> = [
   {
     id: "google",
     label: "Google",
@@ -42,32 +50,53 @@ const PROVIDERS = [
   },
 ];
 
-export default function SSOButtons({ mode }: Props) {
-  const handleSSO = (provider: string) => {
-    // In production: redirect to /api/v1/auth/sso/{provider}
-    // which initiates OAuth flow via the Rust backend
-    console.log(`SSO with ${provider}`);
-    alert(`SSO with ${provider} — connect OAuth in mbam-api`);
+export default function SSOButtons({ mode, onSuccess }: Props) {
+  const [activeProvider, setActiveProvider] = useState<AuthProvider | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSSO = async (provider: AuthProvider) => {
+    setActiveProvider(provider);
+    setError(null);
+
+    try {
+      const session = await signInWithProvider(provider);
+      onSuccess(session);
+    } catch {
+      setError("We could not complete social sign-in. Please try again.");
+    } finally {
+      setActiveProvider(null);
+    }
   };
 
   return (
     <div className="sso-group">
-      {PROVIDERS.map((p) => (
-        <button
-          key={p.id}
-          className="sso-btn"
-          onClick={() => handleSSO(p.id)}
-          type="button"
-        >
-          <span className="sso-icon">{p.icon}</span>
-          <span className="sso-label">
-            {verb(mode)} with {p.label}
-          </span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink-3)" }}>
-            <path d="M9 18l6-6-6-6"/>
-          </svg>
-        </button>
-      ))}
+      {error && (
+        <div className="alert alert-danger" role="alert">
+          {error}
+        </div>
+      )}
+
+      {PROVIDERS.map((provider) => {
+        const isLoading = activeProvider === provider.id;
+
+        return (
+          <button
+            key={provider.id}
+            className="sso-btn"
+            onClick={() => handleSSO(provider.id)}
+            type="button"
+            disabled={activeProvider !== null}
+          >
+            <span className="sso-icon">{provider.icon}</span>
+            <span className="sso-label">
+              {isLoading ? `Connecting ${provider.label}…` : `${verb(mode)} with ${provider.label}`}
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink-3)" }}>
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
+        );
+      })}
     </div>
   );
 }
