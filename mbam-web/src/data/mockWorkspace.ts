@@ -105,6 +105,86 @@ export const workspace: WorkspaceData = {
       pendingBalance: 0,
     },
   ],
+  products: [
+    {
+      id: "product-rice-bag-25kg",
+      name: "Rice bag 25kg",
+      sku: "GRC-RICE-25",
+      category: "Groceries",
+      businessId: "business-grocery",
+      defaultPrice: 25000,
+      timesSold: 42,
+      lastSoldAt: "2026-06-09T15:12:00Z",
+      customerPrices: [
+        {
+          customerId: "customer-mama-grace",
+          price: 23500,
+          lastSoldAt: "2026-06-09T15:12:00Z",
+        },
+      ],
+    },
+    {
+      id: "product-oil-bottle-5l",
+      name: "Cooking oil 5L",
+      sku: "GRC-OIL-5L",
+      category: "Groceries",
+      businessId: "business-grocery",
+      defaultPrice: 6500,
+      timesSold: 35,
+      lastSoldAt: "2026-06-08T13:40:00Z",
+      customerPrices: [
+        {
+          customerId: "customer-bella-market",
+          price: 6200,
+          lastSoldAt: "2026-06-08T13:40:00Z",
+        },
+      ],
+    },
+    {
+      id: "product-sugar-carton",
+      name: "Sugar carton",
+      sku: "GRC-SUGAR-CTN",
+      category: "Groceries",
+      businessId: "business-grocery",
+      defaultPrice: 18000,
+      timesSold: 18,
+      lastSoldAt: "2026-06-07T10:30:00Z",
+    },
+    {
+      id: "product-bluetooth-speaker",
+      name: "Bluetooth speaker",
+      sku: "ELC-SPK-BT",
+      category: "Electronics",
+      businessId: "business-electronics",
+      defaultPrice: 45000,
+      timesSold: 12,
+      lastSoldAt: "2026-06-10T09:20:00Z",
+      customerPrices: [
+        {
+          customerId: "customer-divine-stores",
+          price: 42000,
+          lastSoldAt: "2026-06-10T09:20:00Z",
+        },
+      ],
+    },
+    {
+      id: "product-phone-charger",
+      name: "Fast phone charger",
+      sku: "ELC-CHG-FAST",
+      category: "Electronics",
+      businessId: "business-electronics",
+      defaultPrice: 12000,
+      timesSold: 64,
+      lastSoldAt: "2026-06-10T11:05:00Z",
+      customerPrices: [
+        {
+          customerId: "customer-nexus-repairs",
+          price: 10500,
+          lastSoldAt: "2026-06-10T11:05:00Z",
+        },
+      ],
+    },
+  ],
   transactions: [
     {
       id: "txn-001",
