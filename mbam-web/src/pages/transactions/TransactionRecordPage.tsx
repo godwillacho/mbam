@@ -17,8 +17,13 @@ interface SaleLineItem {
 }
 
 function createLineItem(): SaleLineItem {
+  const fallbackId = `${Date.now()}-${Math.random()}`;
+  const id = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : fallbackId;
+
   return {
-    id: window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+    id,
     itemName: "",
     quantity: "1",
     fixedPrice: "",
@@ -50,7 +55,7 @@ export default function TransactionRecordPage() {
   const [customerContact, setCustomerContact] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
   const [useItemizedDetails, setUseItemizedDetails] = useState(false);
-  const [lineItems, setLineItems] = useState<SaleLineItem[]>([createLineItem]);
+  const [lineItems, setLineItems] = useState<SaleLineItem[]>(() => [createLineItem()]);
 
   const isPendingPayment = paymentStatus === "pending";
   const customerQuery = customerName.trim().toLowerCase();
