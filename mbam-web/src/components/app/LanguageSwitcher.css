@@ -1,0 +1,34 @@
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.language-switcher select {
+  border: 0;
+  background: transparent;
+  color: var(--forest);
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 980px) {
+  .topbar-actions {
+    justify-content: flex-start;
+  }
+}
