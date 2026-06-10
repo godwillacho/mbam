@@ -19,6 +19,12 @@ const en = {
     manageBusinesses: "Manage businesses",
     manageTeam: "Manage team",
     viewReports: "View reports",
+    period: {
+      label: "Data period",
+      day: "Day",
+      month: "Month",
+      year: "Year",
+    },
     drill: {
       overview: "Overview",
       businessLevel: "Business revenue tree",
@@ -131,6 +137,12 @@ const fr = {
     manageBusinesses: "Gérer les entreprises",
     manageTeam: "Gérer l’équipe",
     viewReports: "Voir les rapports",
+    period: {
+      label: "Période des données",
+      day: "Jour",
+      month: "Mois",
+      year: "Année",
+    },
     drill: {
       overview: "Vue d’ensemble",
       businessLevel: "Arbre du revenu par entreprise",
