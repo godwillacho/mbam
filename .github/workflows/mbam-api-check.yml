@@ -1,0 +1,33 @@
+name: Mbam API Cargo Check
+
+on:
+  push:
+    paths:
+      - "mbam-api/**"
+      - ".github/workflows/mbam-api-check.yml"
+  pull_request:
+    paths:
+      - "mbam-api/**"
+      - ".github/workflows/mbam-api-check.yml"
+  workflow_dispatch:
+
+jobs:
+  cargo-check:
+    name: cargo check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mbam-api
+
+      - name: Check API crate
+        working-directory: mbam-api
+        run: cargo check
