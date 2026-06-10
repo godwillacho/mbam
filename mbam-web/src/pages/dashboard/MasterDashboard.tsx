@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
-import type { BusinessUnit, TeamMember, TransactionRecord } from "../../types/workspace";
+import type { Business, BusinessUnit, TeamMember, TransactionRecord } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
 
 type DashboardMetricId =
@@ -13,11 +13,28 @@ type DashboardMetricId =
   | "pendingCustomers"
   | "products";
 
+type RevenueDrillLevel = "businesses" | "branches" | "workers" | "transactions";
+
 interface DashboardMetric {
   id: DashboardMetricId;
   labelKey: string;
   value: string;
   hintKey: string;
+}
+
+interface ChartItem {
+  id: string;
+  label: string;
+  value: number;
+  meta?: string;
+  onClick?: () => void;
+}
+
+interface RevenueDrillState {
+  level: RevenueDrillLevel;
+  businessId?: string;
+  unitId?: string;
+  workerName?: string;
 }
 
 function getMemberRole(member: TeamMember) {
@@ -46,6 +63,10 @@ function getAccessibleTransactions(member: TeamMember): TransactionRecord[] {
   return scopedTransactions;
 }
 
+function sumTransactions(transactions: TransactionRecord[]) {
+  return transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
+}
+
 function getRevenueLabelKey(member: TeamMember) {
   if (member.scopeLevel === "master") return "roleDashboard.metrics.totalRevenue";
   if (member.scopeLevel === "business") return "roleDashboard.metrics.businessRevenue";
@@ -59,10 +80,55 @@ function getRevenueHintKey(member: TeamMember) {
   return "roleDashboard.hints.assignedScope";
 }
 
+function getBusinessRevenue(business: Business, transactions: TransactionRecord[]) {
+  return sumTransactions(transactions.filter((transaction) => transaction.businessId === business.id));
+}
+
+function getUnitRevenue(unit: BusinessUnit, transactions: TransactionRecord[]) {
+  return sumTransactions(transactions.filter((transaction) => transaction.businessUnitId === unit.id));
+}
+
+function getWorkerRevenue(workerName: string, transactions: TransactionRecord[]) {
+  return sumTransactions(transactions.filter((transaction) => transaction.recordedBy === workerName));
+}
+
+function MiniBarChart({ items, formatValue }: { items: ChartItem[]; formatValue: (value: number) => string }) {
+  const { t } = useTranslation();
+  const maxValue = Math.max(...items.map((item) => item.value), 0);
+
+  if (items.length === 0 || maxValue === 0) {
+    return <p className="card-muted">{t("roleDashboard.drill.graphEmpty")}</p>;
+  }
+
+  return (
+    <div className="mini-chart" aria-label={t("roleDashboard.drill.graphTitle")}>
+      {items.map((item) => {
+        const width = Math.max((item.value / maxValue) * 100, 6);
+        return (
+          <button
+            key={item.id}
+            type="button"
+            className={item.onClick ? "chart-row clickable" : "chart-row"}
+            onClick={item.onClick}
+            disabled={!item.onClick}
+          >
+            <span className="chart-label">{item.label}</span>
+            <span className="chart-bar-track">
+              <span className="chart-bar" style={{ width: `${width}%` }} />
+            </span>
+            <strong>{formatValue(item.value)}</strong>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function MasterDashboard() {
   const { t } = useTranslation();
   const [selectedMemberId, setSelectedMemberId] = useState(workspace.teamMembers[0]?.id ?? "");
   const [selectedMetric, setSelectedMetric] = useState<DashboardMetricId>("todayRevenue");
+  const [revenueDrill, setRevenueDrill] = useState<RevenueDrillState>({ level: "businesses" });
 
   const selectedMember = workspace.teamMembers.find((member) => member.id === selectedMemberId) ?? workspace.teamMembers[0];
   const role = selectedMember ? getMemberRole(selectedMember) : undefined;
@@ -70,7 +136,7 @@ export default function MasterDashboard() {
   const scopedUnits = useMemo(() => selectedMember ? getAccessibleUnits(selectedMember) : [], [selectedMember]);
   const scopedTransactions = useMemo(() => selectedMember ? getAccessibleTransactions(selectedMember) : [], [selectedMember]);
   const scopedBusinessIds = new Set(scopedUnits.map((unit) => unit.businessId));
-  const scopedRevenue = scopedTransactions.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const scopedRevenue = sumTransactions(scopedTransactions);
   const scopedQueued = scopedUnits.reduce((sum, unit) => sum + unit.queuedTransactions, 0);
   const scopedTeam = workspace.teamMembers.filter((member) => {
     if (!selectedMember) return false;
@@ -87,6 +153,22 @@ export default function MasterDashboard() {
     if (selectedMember?.scopeLevel === "master") return true;
     return product.businessId ? scopedBusinessIds.has(product.businessId) : false;
   });
+
+  const resetRevenueDrill = () => {
+    if (selectedMember.roleId === "role-cashier") {
+      setRevenueDrill({ level: "transactions", workerName: selectedMember.fullName });
+      return;
+    }
+    if (selectedMember.scopeLevel === "unit") {
+      setRevenueDrill({ level: "workers", unitId: selectedMember.businessUnitId });
+      return;
+    }
+    if (selectedMember.scopeLevel === "business") {
+      setRevenueDrill({ level: "branches", businessId: selectedMember.businessId });
+      return;
+    }
+    setRevenueDrill({ level: "businesses" });
+  };
 
   const metrics: DashboardMetric[] = [
     {
@@ -115,7 +197,7 @@ export default function MasterDashboard() {
     },
     {
       id: "team",
-      labelKey: "roleDashboard.metrics.team",
+      labelKey: selectedMember.roleId === "role-cashier" ? "roleDashboard.metrics.workers" : "roleDashboard.metrics.team",
       value: String(scopedTeam.length),
       hintKey: "roleDashboard.hints.activeTeam",
     },
@@ -128,6 +210,96 @@ export default function MasterDashboard() {
   ];
 
   const selectedMetricConfig = metrics.find((metric) => metric.id === selectedMetric) ?? metrics[0];
+
+  const selectedBusiness = revenueDrill.businessId
+    ? workspace.businesses.find((business) => business.id === revenueDrill.businessId)
+    : undefined;
+  const selectedUnit = revenueDrill.unitId
+    ? workspace.businessUnits.find((unit) => unit.id === revenueDrill.unitId)
+    : undefined;
+  const selectedWorkerTransactions = revenueDrill.workerName
+    ? scopedTransactions.filter((transaction) => transaction.recordedBy === revenueDrill.workerName)
+    : [];
+
+  const businessChartItems: ChartItem[] = workspace.businesses
+    .filter((business) => scopedBusinessIds.has(business.id))
+    .map((business) => ({
+      id: business.id,
+      label: business.name,
+      value: getBusinessRevenue(business, scopedTransactions),
+      meta: business.type,
+      onClick: () => setRevenueDrill({ level: "branches", businessId: business.id }),
+    }));
+
+  const branchChartItems: ChartItem[] = scopedUnits
+    .filter((unit) => !revenueDrill.businessId || unit.businessId === revenueDrill.businessId)
+    .map((unit) => ({
+      id: unit.id,
+      label: unit.name,
+      value: getUnitRevenue(unit, scopedTransactions),
+      meta: unit.location,
+      onClick: () => setRevenueDrill({ level: "workers", businessId: unit.businessId, unitId: unit.id }),
+    }));
+
+  const workerNames = Array.from(new Set(
+    scopedTransactions
+      .filter((transaction) => !revenueDrill.unitId || transaction.businessUnitId === revenueDrill.unitId)
+      .map((transaction) => transaction.recordedBy),
+  ));
+
+  const workerChartItems: ChartItem[] = workerNames.map((workerName) => ({
+    id: workerName,
+    label: workerName,
+    value: getWorkerRevenue(
+      workerName,
+      scopedTransactions.filter((transaction) => !revenueDrill.unitId || transaction.businessUnitId === revenueDrill.unitId),
+    ),
+    meta: t("roleDashboard.labels.worker"),
+    onClick: () => setRevenueDrill({
+      level: "transactions",
+      businessId: revenueDrill.businessId,
+      unitId: revenueDrill.unitId,
+      workerName,
+    }),
+  }));
+
+  const goBackRevenueLevel = () => {
+    if (revenueDrill.level === "transactions") {
+      setRevenueDrill({ level: "workers", businessId: revenueDrill.businessId, unitId: revenueDrill.unitId });
+      return;
+    }
+    if (revenueDrill.level === "workers") {
+      if (selectedMember.scopeLevel === "unit") return;
+      setRevenueDrill({ level: "branches", businessId: revenueDrill.businessId });
+      return;
+    }
+    if (revenueDrill.level === "branches") {
+      if (selectedMember.scopeLevel === "business") return;
+      setRevenueDrill({ level: "businesses" });
+    }
+  };
+
+  const revenueTitleKey = revenueDrill.level === "businesses"
+    ? "roleDashboard.drill.businessLevel"
+    : revenueDrill.level === "branches"
+      ? "roleDashboard.drill.branchLevel"
+      : revenueDrill.level === "workers"
+        ? "roleDashboard.drill.workerLevel"
+        : "roleDashboard.drill.transactionLevel";
+
+  const revenueHelpKey = revenueDrill.level === "businesses"
+    ? "roleDashboard.drill.clickBusiness"
+    : revenueDrill.level === "branches"
+      ? "roleDashboard.drill.clickBranch"
+      : revenueDrill.level === "workers"
+        ? "roleDashboard.drill.clickWorker"
+        : selectedMember.roleId === "role-cashier"
+          ? "roleDashboard.drill.cashierList"
+          : "roleDashboard.drill.transactionLevel";
+
+  const canGoBack = revenueDrill.level === "transactions"
+    || (revenueDrill.level === "workers" && selectedMember.scopeLevel !== "unit")
+    || (revenueDrill.level === "branches" && selectedMember.scopeLevel === "master");
 
   return (
     <section className="page-grid">
@@ -148,7 +320,14 @@ export default function MasterDashboard() {
             {role ? t(`roleDashboard.roleNames.${role.id}`) : t("common.unknownRole")} · {selectedMember ? t(`roleDashboard.scopeLabels.${selectedMember.scopeLevel}`) : ""}
           </p>
         </div>
-        <select value={selectedMemberId} onChange={(event) => setSelectedMemberId(event.target.value)}>
+        <select
+          value={selectedMemberId}
+          onChange={(event) => {
+            setSelectedMemberId(event.target.value);
+            setSelectedMetric("todayRevenue");
+            setRevenueDrill({ level: "businesses" });
+          }}
+        >
           {workspace.teamMembers.map((member) => (
             <option key={member.id} value={member.id}>
               {member.fullName} — {t(`roles.${member.roleId}`)}
@@ -163,7 +342,10 @@ export default function MasterDashboard() {
             key={metric.id}
             type="button"
             className={selectedMetric === metric.id ? "metric-card metric-button active" : "metric-card metric-button"}
-            onClick={() => setSelectedMetric(metric.id)}
+            onClick={() => {
+              setSelectedMetric(metric.id);
+              if (metric.id === "todayRevenue") resetRevenueDrill();
+            }}
           >
             <span>{t(metric.labelKey)}</span>
             <strong>{metric.value}</strong>
@@ -176,27 +358,92 @@ export default function MasterDashboard() {
         <header>
           <div>
             <span className="eyebrow">{t("roleDashboard.detailHeading")}</span>
-            <h3>{t(`roleDashboard.detail.${selectedMetricConfig.id}`)}</h3>
-            <p className="card-muted">{t(selectedMetricConfig.hintKey)}</p>
+            <h3>{selectedMetric === "todayRevenue" ? t(revenueTitleKey) : t(`roleDashboard.detail.${selectedMetricConfig.id}`)}</h3>
+            <p className="card-muted">{selectedMetric === "todayRevenue" ? t(revenueHelpKey) : t(selectedMetricConfig.hintKey)}</p>
           </div>
           <span className="badge">{t(selectedMetricConfig.labelKey)}: {selectedMetricConfig.value}</span>
         </header>
 
         {selectedMetric === "todayRevenue" && (
-          <div className="list-stack">
-            {scopedUnits.map((unit) => {
-              const unitTransactions = scopedTransactions.filter((transaction) => transaction.businessUnitId === unit.id);
-              const unitRevenue = unitTransactions.reduce((sum, transaction) => sum + transaction.amount, 0);
-              return (
-                <div className="list-item" key={unit.id}>
+          <div className="drilldown-panel">
+            <div className="drill-breadcrumbs">
+              <button type="button" onClick={resetRevenueDrill}>{t("roleDashboard.drill.overview")}</button>
+              {selectedBusiness && <span>/ {selectedBusiness.name}</span>}
+              {selectedUnit && <span>/ {selectedUnit.name}</span>}
+              {revenueDrill.workerName && <span>/ {revenueDrill.workerName}</span>}
+              {canGoBack && <button type="button" className="secondary-btn" onClick={goBackRevenueLevel}>{t("roleDashboard.back")}</button>}
+            </div>
+
+            <section className="chart-card">
+              <h4>{t("roleDashboard.drill.graphTitle")}</h4>
+              {revenueDrill.level === "businesses" && (
+                <MiniBarChart items={businessChartItems} formatValue={(value) => formatMoney(value, workspace.masterAccount.currency)} />
+              )}
+              {revenueDrill.level === "branches" && (
+                <MiniBarChart items={branchChartItems} formatValue={(value) => formatMoney(value, workspace.masterAccount.currency)} />
+              )}
+              {revenueDrill.level === "workers" && (
+                <MiniBarChart items={workerChartItems} formatValue={(value) => formatMoney(value, workspace.masterAccount.currency)} />
+              )}
+              {revenueDrill.level === "transactions" && (
+                <MiniBarChart
+                  items={selectedWorkerTransactions.map((transaction) => ({
+                    id: transaction.id,
+                    label: transaction.reference,
+                    value: transaction.amount,
+                    meta: transaction.customerName,
+                  }))}
+                  formatValue={(value) => formatMoney(value, workspace.masterAccount.currency)}
+                />
+              )}
+            </section>
+
+            <div className="list-stack">
+              {revenueDrill.level === "businesses" && businessChartItems.map((item) => (
+                <button key={item.id} type="button" className="list-item list-button" onClick={item.onClick}>
                   <div>
-                    <strong>{unit.name}</strong>
-                    <small>{unit.location} · {unitTransactions.length} {t("roleDashboard.metrics.transactions")}</small>
+                    <strong>{item.label}</strong>
+                    <small>{item.meta} · {t("roleDashboard.drill.clickBusiness")}</small>
                   </div>
-                  <span className="badge">{formatMoney(unitRevenue, workspace.masterAccount.currency)}</span>
-                </div>
-              );
-            })}
+                  <span className="badge">{formatMoney(item.value, workspace.masterAccount.currency)}</span>
+                </button>
+              ))}
+
+              {revenueDrill.level === "branches" && branchChartItems.map((item) => (
+                <button key={item.id} type="button" className="list-item list-button" onClick={item.onClick}>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <small>{item.meta} · {t("roleDashboard.drill.clickBranch")}</small>
+                  </div>
+                  <span className="badge">{formatMoney(item.value, workspace.masterAccount.currency)}</span>
+                </button>
+              ))}
+
+              {revenueDrill.level === "workers" && workerChartItems.map((item) => (
+                <button key={item.id} type="button" className="list-item list-button" onClick={item.onClick}>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <small>{t("roleDashboard.labels.salesCount", {
+                      count: scopedTransactions.filter((transaction) => transaction.recordedBy === item.label && (!revenueDrill.unitId || transaction.businessUnitId === revenueDrill.unitId)).length,
+                    })}</small>
+                  </div>
+                  <span className="badge">{formatMoney(item.value, workspace.masterAccount.currency)}</span>
+                </button>
+              ))}
+              {revenueDrill.level === "workers" && workerChartItems.length === 0 && <p className="card-muted">{t("roleDashboard.labels.noWorkers")}</p>}
+
+              {revenueDrill.level === "transactions" && (
+                selectedWorkerTransactions.length === 0 ? <p className="card-muted">{t("roleDashboard.labels.noRecords")}</p> : selectedWorkerTransactions.map((transaction) => (
+                  <div className="list-item" key={transaction.id}>
+                    <div>
+                      <strong>{transaction.reference} · {transaction.customerName}</strong>
+                      <small>{t("paymentMethods." + transaction.paymentMethod)} · {t("common." + transaction.status)}</small>
+                    </div>
+                    <span className="badge">{formatMoney(transaction.amount, workspace.masterAccount.currency)}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
