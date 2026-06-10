@@ -3,6 +3,7 @@ import AppShell from "./components/app/AppShell";
 import AuthPage from "./pages/auth/AuthPage";
 import BusinessStructurePage from "./pages/business/BusinessStructurePage";
 import MasterDashboard from "./pages/dashboard/MasterDashboard";
+import PendingPaymentsPage from "./pages/dashboard/PendingPaymentsPage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import TeamAccessPage from "./pages/team/TeamAccessPage";
 import TransactionRecordPage from "./pages/transactions/TransactionRecordPage";
@@ -16,6 +17,7 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<MasterDashboard />} />
+          <Route path="/dashboard/pending-payments" element={<PendingPaymentsPage />} />
           <Route path="/transactions/new" element={<TransactionRecordPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/businesses" element={<BusinessStructurePage />} />
