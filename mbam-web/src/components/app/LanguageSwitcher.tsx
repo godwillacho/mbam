@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { SupportedLanguage } from "../../i18n";
+import "./LanguageSwitcher.css";
 
 const languageOptions: Array<{ value: SupportedLanguage; labelKey: string }> = [
   { value: "en", labelKey: "common.english" },
