@@ -1,6 +1,8 @@
 import i18n from "i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
+import { authEn } from "./i18n/authEn";
+import { authFr } from "./i18n/authFr";
 
 export const supportedLanguages = ["en", "fr"] as const;
 export type SupportedLanguage = typeof supportedLanguages[number];
@@ -244,6 +246,7 @@ const resources = {
         offlineSyncHealth: "Offline sync health",
       },
       transactionRecord: transactionRecordEn,
+      auth: authEn,
     },
   },
   fr: {
@@ -376,6 +379,7 @@ const resources = {
         offlineSyncHealth: "Santé de la synchronisation hors ligne",
       },
       transactionRecord: transactionRecordFr,
+      auth: authFr,
     },
   },
 };
