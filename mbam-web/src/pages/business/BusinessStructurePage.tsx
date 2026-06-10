@@ -1,18 +1,19 @@
+import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { formatMoney } from "../../utils/formatters";
 
 export default function BusinessStructurePage() {
+  const { t } = useTranslation();
+
   return (
     <section className="page-grid">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Businesses and shops</span>
-          <h2>Structure the master account</h2>
-          <p>
-            This design supports one master account controlling many businesses, and each business controlling many shops, branches, warehouses, or sales units.
-          </p>
+          <span className="eyebrow">{t("businesses.eyebrow")}</span>
+          <h2>{t("businesses.title")}</h2>
+          <p>{t("businesses.description")}</p>
         </div>
-        <button className="primary-btn" type="button">Create business</button>
+        <button className="primary-btn" type="button">{t("businesses.createBusiness")}</button>
       </div>
 
       <div className="card-grid two">
@@ -29,14 +30,14 @@ export default function BusinessStructurePage() {
                   <div className="list-item" key={unit.id}>
                     <div>
                       <strong>{unit.name}</strong>
-                      <small>{unit.type.replace("_", " ")} · {unit.location}</small>
+                      <small>{t(`unitTypes.${unit.type}`)} · {unit.location}</small>
                     </div>
                     <span className="badge">{formatMoney(unit.todayRevenue, business.currency)}</span>
                   </div>
                 ))}
               </div>
               <p className="card-muted" style={{ marginTop: 14 }}>
-                Total today: {formatMoney(revenue, business.currency)}
+                {t("businesses.totalToday")}: {formatMoney(revenue, business.currency)}
               </p>
             </article>
           );
