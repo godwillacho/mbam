@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/app/AppShell";
 import AuthPage from "./pages/auth/AuthPage";
 import BusinessStructurePage from "./pages/business/BusinessStructurePage";
+import DashboardMetricDetailPage from "./pages/dashboard/DashboardMetricDetailPage";
 import MasterDashboard from "./pages/dashboard/MasterDashboard";
 import PendingPaymentsPage from "./pages/dashboard/PendingPaymentsPage";
 import ReportsPage from "./pages/reports/ReportsPage";
@@ -17,6 +18,7 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<MasterDashboard />} />
+          <Route path="/dashboard/detail/:metricKey" element={<DashboardMetricDetailPage />} />
           <Route path="/dashboard/pending-payments" element={<PendingPaymentsPage />} />
           <Route path="/transactions/new" element={<TransactionRecordPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
