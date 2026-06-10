@@ -1,34 +1,35 @@
+import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 
 export default function TransactionsPage() {
+  const { t } = useTranslation();
+
   return (
     <section className="page-grid">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Transactions</span>
-          <h2>Sales history and sync queue</h2>
-          <p>
-            This page shows completed and queued transactions across the master account. Filters will later use the business, unit, date range, and worker scope from the backend.
-          </p>
+          <span className="eyebrow">{t("transactions.eyebrow")}</span>
+          <h2>{t("transactions.title")}</h2>
+          <p>{t("transactions.description")}</p>
         </div>
       </div>
 
       <article className="table-card">
         <header>
-          <h3>Recent records</h3>
-          <small>{workspace.transactions.length} demo transactions</small>
+          <h3>{t("transactions.recentRecords")}</h3>
+          <small>{t("transactions.demoTransactions", { count: workspace.transactions.length })}</small>
         </header>
         <table className="data-table">
           <thead>
             <tr>
-              <th>Reference</th>
-              <th>Customer</th>
-              <th>Recorded by</th>
-              <th>Payment</th>
-              <th>Status</th>
-              <th>Amount</th>
-              <th>Date</th>
+              <th>{t("transactions.reference")}</th>
+              <th>{t("transactions.customer")}</th>
+              <th>{t("transactions.recordedBy")}</th>
+              <th>{t("transactions.payment")}</th>
+              <th>{t("transactions.status")}</th>
+              <th>{t("transactions.amount")}</th>
+              <th>{t("transactions.date")}</th>
             </tr>
           </thead>
           <tbody>
@@ -37,9 +38,11 @@ export default function TransactionsPage() {
                 <td>{transaction.reference}</td>
                 <td>{transaction.customerName}</td>
                 <td>{transaction.recordedBy}</td>
-                <td>{transaction.paymentMethod.replace("_", " ")}</td>
+                <td>{t(`paymentMethods.${transaction.paymentMethod}`)}</td>
                 <td>
-                  <span className={transaction.status === "queued" ? "badge warning" : "badge"}>{transaction.status}</span>
+                  <span className={transaction.status === "queued" ? "badge warning" : "badge"}>
+                    {t(`common.${transaction.status}`)}
+                  </span>
                 </td>
                 <td>{formatMoney(transaction.amount, workspace.masterAccount.currency)}</td>
                 <td>{formatDateTime(transaction.createdAt)}</td>
