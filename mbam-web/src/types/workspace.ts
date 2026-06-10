@@ -37,6 +37,8 @@ export interface CustomerProfile {
   contact?: string;
   businessId?: string;
   lastPurchaseAt?: string;
+  lastPaymentAt?: string;
+  paymentDate?: string;
   totalSpent: number;
   pendingBalance: number;
 }
