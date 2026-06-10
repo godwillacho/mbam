@@ -19,7 +19,7 @@ const en = {
     manageBusinesses: "Manage businesses",
     manageTeam: "Manage team",
     viewReports: "View reports",
-    openFullReport: "Open full report",
+    openFullReport: "Open full detail",
     period: {
       label: "Data period",
       day: "Day",
@@ -120,6 +120,11 @@ const en = {
       salesCount: "{{count}} sales",
     },
   },
+  metricDetails: {
+    eyebrow: "Dashboard detail",
+    description: "Full detail view for the selected dashboard field.",
+    fullPage: "Full page detail",
+  },
   pendingPayments: {
     eyebrow: "Pending payments",
     title: "Pending payment report",
@@ -167,7 +172,7 @@ const fr = {
     manageBusinesses: "Gérer les entreprises",
     manageTeam: "Gérer l’équipe",
     viewReports: "Voir les rapports",
-    openFullReport: "Ouvrir le rapport complet",
+    openFullReport: "Ouvrir le détail complet",
     period: {
       label: "Période des données",
       day: "Jour",
@@ -267,6 +272,11 @@ const fr = {
       noWorkers: "Aucun employé avec des ventes dans ce périmètre pour le moment.",
       salesCount: "{{count}} ventes",
     },
+  },
+  metricDetails: {
+    eyebrow: "Détail du tableau de bord",
+    description: "Vue détaillée complète pour le champ sélectionné du tableau de bord.",
+    fullPage: "Détail pleine page",
   },
   pendingPayments: {
     eyebrow: "Paiements en attente",
