@@ -1,0 +1,141 @@
+.itemized-toggle-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #FAF7F0;
+}
+
+.itemized-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.itemized-toggle input {
+  margin-top: 4px;
+}
+
+.itemized-toggle strong,
+.itemized-toggle small {
+  display: block;
+}
+
+.itemized-toggle small,
+.itemized-section small,
+.itemized-actions small {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.itemized-section {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.itemized-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.itemized-header strong,
+.itemized-header small {
+  display: block;
+}
+
+.itemized-header > span {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: var(--forest-soft);
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.itemized-table {
+  display: grid;
+  gap: 8px;
+}
+
+.itemized-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.6fr) minmax(70px, 0.55fr) minmax(110px, 0.8fr) minmax(120px, 0.8fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.itemized-row-head {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.itemized-row input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 11px;
+  font: inherit;
+}
+
+.itemized-row output {
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: #FAF7F0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.line-remove-btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 11px;
+  background: #FEE2E2;
+  color: var(--danger);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.line-remove-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.itemized-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+@media (max-width: 980px) {
+  .itemized-header,
+  .itemized-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .itemized-row,
+  .itemized-row-head {
+    grid-template-columns: 1fr;
+  }
+
+  .itemized-row-head {
+    display: none;
+  }
+}
