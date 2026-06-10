@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import LoginForm from "../../components/auth/LoginForm";
 import SignupForm from "../../components/auth/SignupForm";
 import SSOButtons from "../../components/auth/SSOButtons";
@@ -8,6 +9,7 @@ import type { AuthSession } from "../../types/auth";
 export type AuthMode = "login" | "signup";
 
 export default function AuthPage() {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<AuthMode>("login");
   const [session, setSession] = useState<AuthSession | null>(null);
 
@@ -16,12 +18,12 @@ export default function AuthPage() {
       <AuthLayout mode="login">
         <div className="verify-screen" role="status">
           <div className="verify-icon">✓</div>
-          <h2 className="verify-title">Signed in successfully</h2>
+          <h2 className="verify-title">{t("auth.signedInTitle")}</h2>
           <p className="verify-body">
-            Welcome, <strong>{session.user.fullName}</strong>. Your secure Mbam session is ready.
+            {t("auth.signedInBody", { name: session.user.fullName })}
           </p>
           <p className="verify-body" style={{ fontSize: "12px" }}>
-            The dashboard will connect here once the core workspace screens are added.
+            {t("auth.dashboardComing")}
           </p>
         </div>
       </AuthLayout>
@@ -33,7 +35,7 @@ export default function AuthPage() {
       <SSOButtons mode={mode} onSuccess={setSession} />
 
       <div className="divider">
-        <span>or continue with email</span>
+        <span>{t("auth.continueEmail")}</span>
       </div>
 
       {mode === "login" ? (
