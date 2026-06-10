@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import type { Business, BusinessUnit, TeamMember, TransactionRecord } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
+import "./MasterDashboard.css";
 
 type DashboardMetricId =
   | "todayRevenue"
@@ -39,6 +40,19 @@ interface RevenueDrillState {
 
 function getMemberRole(member: TeamMember) {
   return workspace.roles.find((role) => role.id === member.roleId);
+}
+
+function getInitialRevenueDrill(member: TeamMember): RevenueDrillState {
+  if (member.roleId === "role-cashier") {
+    return { level: "transactions", workerName: member.fullName };
+  }
+  if (member.scopeLevel === "unit") {
+    return { level: "workers", businessId: member.businessId, unitId: member.businessUnitId };
+  }
+  if (member.scopeLevel === "business") {
+    return { level: "branches", businessId: member.businessId };
+  }
+  return { level: "businesses" };
 }
 
 function getAccessibleUnits(member: TeamMember): BusinessUnit[] {
@@ -128,9 +142,9 @@ export default function MasterDashboard() {
   const { t } = useTranslation();
   const [selectedMemberId, setSelectedMemberId] = useState(workspace.teamMembers[0]?.id ?? "");
   const [selectedMetric, setSelectedMetric] = useState<DashboardMetricId>("todayRevenue");
-  const [revenueDrill, setRevenueDrill] = useState<RevenueDrillState>({ level: "businesses" });
 
   const selectedMember = workspace.teamMembers.find((member) => member.id === selectedMemberId) ?? workspace.teamMembers[0];
+  const [revenueDrill, setRevenueDrill] = useState<RevenueDrillState>(() => getInitialRevenueDrill(selectedMember));
   const role = selectedMember ? getMemberRole(selectedMember) : undefined;
 
   const scopedUnits = useMemo(() => selectedMember ? getAccessibleUnits(selectedMember) : [], [selectedMember]);
@@ -154,21 +168,7 @@ export default function MasterDashboard() {
     return product.businessId ? scopedBusinessIds.has(product.businessId) : false;
   });
 
-  const resetRevenueDrill = () => {
-    if (selectedMember.roleId === "role-cashier") {
-      setRevenueDrill({ level: "transactions", workerName: selectedMember.fullName });
-      return;
-    }
-    if (selectedMember.scopeLevel === "unit") {
-      setRevenueDrill({ level: "workers", unitId: selectedMember.businessUnitId });
-      return;
-    }
-    if (selectedMember.scopeLevel === "business") {
-      setRevenueDrill({ level: "branches", businessId: selectedMember.businessId });
-      return;
-    }
-    setRevenueDrill({ level: "businesses" });
-  };
+  const resetRevenueDrill = () => setRevenueDrill(getInitialRevenueDrill(selectedMember));
 
   const metrics: DashboardMetric[] = [
     {
@@ -241,19 +241,13 @@ export default function MasterDashboard() {
       onClick: () => setRevenueDrill({ level: "workers", businessId: unit.businessId, unitId: unit.id }),
     }));
 
-  const workerNames = Array.from(new Set(
-    scopedTransactions
-      .filter((transaction) => !revenueDrill.unitId || transaction.businessUnitId === revenueDrill.unitId)
-      .map((transaction) => transaction.recordedBy),
-  ));
+  const workerScopeTransactions = scopedTransactions.filter((transaction) => !revenueDrill.unitId || transaction.businessUnitId === revenueDrill.unitId);
+  const workerNames = Array.from(new Set(workerScopeTransactions.map((transaction) => transaction.recordedBy)));
 
   const workerChartItems: ChartItem[] = workerNames.map((workerName) => ({
     id: workerName,
     label: workerName,
-    value: getWorkerRevenue(
-      workerName,
-      scopedTransactions.filter((transaction) => !revenueDrill.unitId || transaction.businessUnitId === revenueDrill.unitId),
-    ),
+    value: getWorkerRevenue(workerName, workerScopeTransactions),
     meta: t("roleDashboard.labels.worker"),
     onClick: () => setRevenueDrill({
       level: "transactions",
@@ -265,6 +259,7 @@ export default function MasterDashboard() {
 
   const goBackRevenueLevel = () => {
     if (revenueDrill.level === "transactions") {
+      if (selectedMember.roleId === "role-cashier") return;
       setRevenueDrill({ level: "workers", businessId: revenueDrill.businessId, unitId: revenueDrill.unitId });
       return;
     }
@@ -297,7 +292,7 @@ export default function MasterDashboard() {
           ? "roleDashboard.drill.cashierList"
           : "roleDashboard.drill.transactionLevel";
 
-  const canGoBack = revenueDrill.level === "transactions"
+  const canGoBack = (revenueDrill.level === "transactions" && selectedMember.roleId !== "role-cashier")
     || (revenueDrill.level === "workers" && selectedMember.scopeLevel !== "unit")
     || (revenueDrill.level === "branches" && selectedMember.scopeLevel === "master");
 
@@ -323,9 +318,10 @@ export default function MasterDashboard() {
         <select
           value={selectedMemberId}
           onChange={(event) => {
+            const nextMember = workspace.teamMembers.find((member) => member.id === event.target.value) ?? selectedMember;
             setSelectedMemberId(event.target.value);
             setSelectedMetric("todayRevenue");
-            setRevenueDrill({ level: "businesses" });
+            setRevenueDrill(getInitialRevenueDrill(nextMember));
           }}
         >
           {workspace.teamMembers.map((member) => (
@@ -424,7 +420,7 @@ export default function MasterDashboard() {
                   <div>
                     <strong>{item.label}</strong>
                     <small>{t("roleDashboard.labels.salesCount", {
-                      count: scopedTransactions.filter((transaction) => transaction.recordedBy === item.label && (!revenueDrill.unitId || transaction.businessUnitId === revenueDrill.unitId)).length,
+                      count: workerScopeTransactions.filter((transaction) => transaction.recordedBy === item.label).length,
                     })}</small>
                   </div>
                   <span className="badge">{formatMoney(item.value, workspace.masterAccount.currency)}</span>
