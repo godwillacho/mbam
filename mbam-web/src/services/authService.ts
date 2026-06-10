@@ -5,11 +5,23 @@ import type {
   LoginPayload,
   SignupPayload,
 } from "../types/auth";
+import { isApiConfigured, postJson } from "./apiClient";
 
 const SESSION_KEY = "mbam_auth_session";
 const PENDING_SIGNUP_KEY = "mbam_pending_signup";
 const RESET_REQUEST_KEY = "mbam_password_reset_request";
 const ACTION_DELAY_MS = 450;
+
+interface BackendAuthResponse {
+  user: {
+    id: string;
+    full_name: string;
+    email: string;
+    email_verified: boolean;
+  };
+  access_token: string;
+  refresh_token: string;
+}
 
 const wait = () => new Promise((resolve) => window.setTimeout(resolve, ACTION_DELAY_MS));
 
@@ -18,12 +30,27 @@ function createToken(prefix: string): string {
   return `${prefix}_${randomValue}`;
 }
 
-function buildSession(user: AuthUser): AuthSession {
+function buildSession(user: AuthUser, accessToken = createToken("mbam_local_access"), refreshToken?: string): AuthSession {
   return {
     user,
-    accessToken: createToken("mbam_local_access"),
+    accessToken,
+    refreshToken,
     createdAt: new Date().toISOString(),
   };
+}
+
+function buildSessionFromBackend(response: BackendAuthResponse): AuthSession {
+  return buildSession(
+    {
+      id: response.user.id,
+      fullName: response.user.full_name,
+      email: response.user.email,
+      provider: "email",
+      verified: response.user.email_verified,
+    },
+    response.access_token,
+    response.refresh_token,
+  );
 }
 
 function saveSession(session: AuthSession): AuthSession {
@@ -44,6 +71,11 @@ export function getCurrentSession(): AuthSession | null {
 }
 
 export async function loginWithEmail(payload: LoginPayload): Promise<AuthSession> {
+  if (isApiConfigured()) {
+    const response = await postJson<BackendAuthResponse, LoginPayload>("/api/v1/auth/login", payload);
+    return saveSession(buildSessionFromBackend(response));
+  }
+
   await wait();
 
   const user: AuthUser = {
@@ -58,6 +90,12 @@ export async function loginWithEmail(payload: LoginPayload): Promise<AuthSession
 }
 
 export async function signupWithEmail(payload: SignupPayload): Promise<AuthUser> {
+  if (isApiConfigured()) {
+    const response = await postJson<BackendAuthResponse, SignupPayload>("/api/v1/auth/signup", payload);
+    const session = saveSession(buildSessionFromBackend(response));
+    return session.user;
+  }
+
   await wait();
 
   const user: AuthUser = {
