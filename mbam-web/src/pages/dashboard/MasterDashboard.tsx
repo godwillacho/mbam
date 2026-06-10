@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { formatMoney } from "../../utils/formatters";
 
 export default function MasterDashboard() {
+  const { t } = useTranslation();
   const totalRevenue = workspace.businessUnits.reduce((sum, unit) => sum + unit.todayRevenue, 0);
   const queuedTransactions = workspace.businessUnits.reduce((sum, unit) => sum + unit.queuedTransactions, 0);
   const activeTeam = workspace.teamMembers.filter((member) => member.status === "active").length;
@@ -11,41 +13,39 @@ export default function MasterDashboard() {
     <section className="page-grid">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Master dashboard</span>
-          <h2>Control every business from one place</h2>
-          <p>
-            This page gives the master account owner a central view of businesses, shops, staff access, transaction activity, and offline sync status.
-          </p>
+          <span className="eyebrow">{t("dashboard.eyebrow")}</span>
+          <h2>{t("dashboard.title")}</h2>
+          <p>{t("dashboard.description")}</p>
         </div>
-        <Link className="primary-btn" to="/transactions/new">Record transaction</Link>
+        <Link className="primary-btn" to="/transactions/new">{t("dashboard.recordTransaction")}</Link>
       </div>
 
       <div className="metrics-grid">
         <article className="metric-card">
-          <span>Today revenue</span>
+          <span>{t("dashboard.todayRevenue")}</span>
           <strong>{formatMoney(totalRevenue, workspace.masterAccount.currency)}</strong>
-          <small>Across all active units</small>
+          <small>{t("dashboard.acrossUnits")}</small>
         </article>
         <article className="metric-card">
-          <span>Businesses</span>
+          <span>{t("dashboard.businesses")}</span>
           <strong>{workspace.businesses.length}</strong>
-          <small>Under master account</small>
+          <small>{t("dashboard.underMaster")}</small>
         </article>
         <article className="metric-card">
-          <span>Business units</span>
+          <span>{t("dashboard.businessUnits")}</span>
           <strong>{workspace.businessUnits.length}</strong>
-          <small>Shops, desks, warehouses</small>
+          <small>{t("dashboard.unitsHint")}</small>
         </article>
         <article className="metric-card">
-          <span>Queued offline records</span>
+          <span>{t("dashboard.queuedOffline")}</span>
           <strong>{queuedTransactions}</strong>
-          <small>{activeTeam} active team members</small>
+          <small>{t("dashboard.activeTeam", { count: activeTeam })}</small>
         </article>
       </div>
 
       <div className="card-grid two">
         <article className="card">
-          <h3>Business performance</h3>
+          <h3>{t("dashboard.performance")}</h3>
           <div className="list-stack">
             {workspace.businesses.map((business) => {
               const units = workspace.businessUnits.filter((unit) => unit.businessId === business.id);
@@ -55,7 +55,7 @@ export default function MasterDashboard() {
                 <div className="list-item" key={business.id}>
                   <div>
                     <strong>{business.name}</strong>
-                    <small>{units.length} units · {business.type}</small>
+                    <small>{t("dashboard.unitsCount", { count: units.length })} · {business.type}</small>
                   </div>
                   <span className="badge">{formatMoney(revenue, business.currency)}</span>
                 </div>
@@ -65,7 +65,7 @@ export default function MasterDashboard() {
         </article>
 
         <article className="card">
-          <h3>Unit sync status</h3>
+          <h3>{t("dashboard.syncStatus")}</h3>
           <div className="list-stack">
             {workspace.businessUnits.map((unit) => (
               <div className="list-item" key={unit.id}>
@@ -74,7 +74,7 @@ export default function MasterDashboard() {
                   <small>{unit.location}</small>
                 </div>
                 <span className={unit.queuedTransactions > 0 ? "badge warning" : "badge"}>
-                  {unit.queuedTransactions > 0 ? `${unit.queuedTransactions} queued` : "Synced"}
+                  {unit.queuedTransactions > 0 ? t("dashboard.queuedCount", { count: unit.queuedTransactions }) : t("dashboard.synced")}
                 </span>
               </div>
             ))}
