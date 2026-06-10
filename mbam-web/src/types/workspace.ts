@@ -75,6 +75,23 @@ export interface TransactionRecord {
   recordedBy: string;
 }
 
+export interface PendingPaymentRecord {
+  id: string;
+  reference: string;
+  customerId: string;
+  businessId: string;
+  businessUnitId: string;
+  originalAmount: number;
+  amountPaid: number;
+  outstandingAmount: number;
+  paymentMethod: PaymentMethod;
+  createdAt: string;
+  lastPaymentAt?: string;
+  paymentDate?: string;
+  recordedBy: string;
+  note?: string;
+}
+
 export interface RoleSummary {
   id: string;
   name: string;
@@ -99,6 +116,7 @@ export interface WorkspaceData {
   customers: CustomerProfile[];
   products: ProductProfile[];
   transactions: TransactionRecord[];
+  pendingPayments: PendingPaymentRecord[];
   roles: RoleSummary[];
   teamMembers: TeamMember[];
 }
