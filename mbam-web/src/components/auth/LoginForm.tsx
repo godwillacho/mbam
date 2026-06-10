@@ -1,8 +1,11 @@
 import { useState } from "react";
+import { loginWithEmail, requestPasswordReset } from "../../services/authService";
+import type { AuthSession } from "../../types/auth";
 import { Eye, EyeOff } from "./icons";
 
 interface Props {
   onSwitch: () => void;
+  onSuccess: (session: AuthSession) => void;
 }
 
 interface FormState {
@@ -16,11 +19,12 @@ interface FormErrors {
   general?: string;
 }
 
-export default function LoginForm({ onSwitch }: Props) {
+export default function LoginForm({ onSwitch, onSuccess }: Props) {
   const [form, setForm] = useState<FormState>({ email: "", password: "" });
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
 
   const validate = (): boolean => {
@@ -37,21 +41,13 @@ export default function LoginForm({ onSwitch }: Props) {
     setLoading(true);
     setErrors({});
     try {
-      const res = await fetch("/api/v1/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email, password: form.password }),
+      const session = await loginWithEmail({
+        email: form.email,
+        password: form.password,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrors({ general: data.error || "Invalid email or password" });
-      } else {
-        // Store access token, redirect to dashboard
-        localStorage.setItem("mbam_user", JSON.stringify(data.user));
-        window.location.href = "/dashboard";
-      }
+      onSuccess(session);
     } catch {
-      setErrors({ general: "Connection error. Check your internet and try again." });
+      setErrors({ general: "We could not sign you in. Please try again." });
     } finally {
       setLoading(false);
     }
@@ -62,8 +58,17 @@ export default function LoginForm({ onSwitch }: Props) {
       setErrors({ email: "Enter your email address first" });
       return;
     }
-    // POST /api/v1/auth/forgot-password
-    setForgotSent(true);
+
+    setResetLoading(true);
+    setErrors({});
+    try {
+      await requestPasswordReset(form.email);
+      setForgotSent(true);
+    } catch {
+      setErrors({ general: "We could not create a reset request. Please try again." });
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
@@ -77,7 +82,7 @@ export default function LoginForm({ onSwitch }: Props) {
 
       {forgotSent && (
         <div className="alert alert-success" role="status">
-          Check your email — we sent a reset link.
+          Password reset request saved. We will send the email once backend delivery is connected.
         </div>
       )}
 
@@ -128,8 +133,8 @@ export default function LoginForm({ onSwitch }: Props) {
               {errors.password}
             </span>
           )}
-          <button type="button" className="forgot-link" onClick={handleForgot}>
-            Forgot password?
+          <button type="button" className="forgot-link" onClick={handleForgot} disabled={resetLoading}>
+            {resetLoading ? "Preparing reset…" : "Forgot password?"}
           </button>
         </div>
       </div>
