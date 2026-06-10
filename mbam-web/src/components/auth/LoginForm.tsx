@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { loginWithEmail, requestPasswordReset } from "../../services/authService";
 import type { AuthSession } from "../../types/auth";
 import { Eye, EyeOff } from "./icons";
@@ -20,6 +21,7 @@ interface FormErrors {
 }
 
 export default function LoginForm({ onSwitch, onSuccess }: Props) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<FormState>({ email: "", password: "" });
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPass, setShowPass] = useState(false);
@@ -29,8 +31,8 @@ export default function LoginForm({ onSwitch, onSuccess }: Props) {
 
   const validate = (): boolean => {
     const e: FormErrors = {};
-    if (!form.email.includes("@")) e.email = "Enter a valid email address";
-    if (form.password.length < 1) e.password = "Password is required";
+    if (!form.email.includes("@")) e.email = t("auth.validEmail");
+    if (form.password.length < 1) e.password = t("auth.passwordRequired");
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -47,7 +49,7 @@ export default function LoginForm({ onSwitch, onSuccess }: Props) {
       });
       onSuccess(session);
     } catch {
-      setErrors({ general: "We could not sign you in. Please try again." });
+      setErrors({ general: t("auth.signInError") });
     } finally {
       setLoading(false);
     }
@@ -55,7 +57,7 @@ export default function LoginForm({ onSwitch, onSuccess }: Props) {
 
   const handleForgot = async () => {
     if (!form.email.includes("@")) {
-      setErrors({ email: "Enter your email address first" });
+      setErrors({ email: t("auth.emailFirst") });
       return;
     }
 
@@ -65,7 +67,7 @@ export default function LoginForm({ onSwitch, onSuccess }: Props) {
       await requestPasswordReset(form.email);
       setForgotSent(true);
     } catch {
-      setErrors({ general: "We could not create a reset request. Please try again." });
+      setErrors({ general: t("auth.resetError") });
     } finally {
       setResetLoading(false);
     }
@@ -82,13 +84,13 @@ export default function LoginForm({ onSwitch, onSuccess }: Props) {
 
       {forgotSent && (
         <div className="alert alert-success" role="status">
-          Password reset request saved. We will send the email once backend delivery is connected.
+          {t("auth.resetSaved")}
         </div>
       )}
 
       <div className="field-group">
         <div className="field">
-          <label htmlFor="login-email">Email address</label>
+          <label htmlFor="login-email">{t("auth.email")}</label>
           <input
             id="login-email"
             type="email"
@@ -107,13 +109,13 @@ export default function LoginForm({ onSwitch, onSuccess }: Props) {
         </div>
 
         <div className="field">
-          <label htmlFor="login-password">Password</label>
+          <label htmlFor="login-password">{t("auth.password")}</label>
           <div className="password-wrap">
             <input
               id="login-password"
               type={showPass ? "text" : "password"}
               autoComplete="current-password"
-              placeholder="Your password"
+              placeholder={t("auth.passwordPlaceholder")}
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               className={errors.password ? "error" : ""}
@@ -123,7 +125,7 @@ export default function LoginForm({ onSwitch, onSuccess }: Props) {
               type="button"
               className="password-toggle"
               onClick={() => setShowPass((v) => !v)}
-              aria-label={showPass ? "Hide password" : "Show password"}
+              aria-label={showPass ? t("auth.hidePassword") : t("auth.showPassword")}
             >
               {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
@@ -134,20 +136,20 @@ export default function LoginForm({ onSwitch, onSuccess }: Props) {
             </span>
           )}
           <button type="button" className="forgot-link" onClick={handleForgot} disabled={resetLoading}>
-            {resetLoading ? "Preparing reset…" : "Forgot password?"}
+            {resetLoading ? t("auth.preparingReset") : t("auth.forgotPassword")}
           </button>
         </div>
       </div>
 
       <button type="submit" className="submit-btn" disabled={loading}>
         {loading && <span className="spinner" aria-hidden="true" />}
-        {loading ? "Signing in…" : "Sign in"}
+        {loading ? t("auth.signingIn") : t("auth.signIn")}
       </button>
 
       <div className="switch-mode">
-        Don't have an account?{" "}
+        {t("auth.noAccount")} {" "}
         <button type="button" onClick={onSwitch}>
-          Create one
+          {t("auth.createOne")}
         </button>
       </div>
     </form>
