@@ -70,7 +70,7 @@
   display: grid;
   grid-template-columns: minmax(160px, 1.6fr) minmax(70px, 0.55fr) minmax(110px, 0.8fr) minmax(120px, 0.8fr) auto;
   gap: 8px;
-  align-items: center;
+  align-items: start;
 }
 
 .itemized-row-head {
@@ -95,6 +95,72 @@
   background: #FAF7F0;
   color: var(--ink);
   font-size: 13px;
+  font-weight: 700;
+}
+
+.product-field {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+
+.product-suggestions {
+  position: absolute;
+  z-index: 9;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.product-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px;
+  background: #FAF7F0;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.product-suggestion:hover {
+  background: var(--forest-soft);
+}
+
+.product-suggestion strong,
+.product-suggestion small {
+  display: block;
+}
+
+.product-suggestion small,
+.learned-product-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.product-suggestion em {
+  color: var(--forest);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.learned-product-hint {
+  display: block;
+  color: var(--forest-mid);
   font-weight: 700;
 }
 
@@ -137,5 +203,10 @@
 
   .itemized-row-head {
     display: none;
+  }
+
+  .product-suggestion {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
