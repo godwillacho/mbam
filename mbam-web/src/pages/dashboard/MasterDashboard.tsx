@@ -70,7 +70,6 @@ export default function MasterDashboard() {
   const scopedUnits = useMemo(() => selectedMember ? getAccessibleUnits(selectedMember) : [], [selectedMember]);
   const scopedTransactions = useMemo(() => selectedMember ? getAccessibleTransactions(selectedMember) : [], [selectedMember]);
   const scopedBusinessIds = new Set(scopedUnits.map((unit) => unit.businessId));
-  const scopedBusinessUnitIds = new Set(scopedUnits.map((unit) => unit.id));
   const scopedRevenue = scopedTransactions.reduce((sum, transaction) => sum + transaction.amount, 0);
   const scopedQueued = scopedUnits.reduce((sum, unit) => sum + unit.queuedTransactions, 0);
   const scopedTeam = workspace.teamMembers.filter((member) => {
