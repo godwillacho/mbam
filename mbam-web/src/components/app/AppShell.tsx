@@ -1,17 +1,21 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
+import LanguageSwitcher from "./LanguageSwitcher";
 import "./AppShell.css";
 
 const navItems = [
-  { to: "/dashboard", label: "Master dashboard" },
-  { to: "/transactions/new", label: "Record transaction" },
-  { to: "/transactions", label: "Transactions" },
-  { to: "/businesses", label: "Businesses & shops" },
-  { to: "/team", label: "Team access" },
-  { to: "/reports", label: "Reports" },
+  { to: "/dashboard", labelKey: "app.nav.dashboard" },
+  { to: "/transactions/new", labelKey: "app.nav.recordTransaction" },
+  { to: "/transactions", labelKey: "app.nav.transactions" },
+  { to: "/businesses", labelKey: "app.nav.businesses" },
+  { to: "/team", labelKey: "app.nav.team" },
+  { to: "/reports", labelKey: "app.nav.reports" },
 ];
 
 export default function AppShell() {
+  const { t } = useTranslation();
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -30,27 +34,30 @@ export default function AppShell() {
               to={item.to}
               className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
             >
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
 
         <div className="sidebar-card">
-          <span>Current owner</span>
+          <span>{t("app.ownerLabel")}</span>
           <strong>{workspace.masterAccount.ownerName}</strong>
-          <small>Master account scope</small>
+          <small>{t("app.masterScope")}</small>
         </div>
       </aside>
 
       <main className="main-panel">
         <header className="topbar">
           <div>
-            <span className="eyebrow">Offline-first workspace</span>
+            <span className="eyebrow">{t("app.workspaceLabel")}</span>
             <h1>{workspace.masterAccount.name}</h1>
           </div>
-          <div className="sync-pill">
-            <span className="sync-dot" />
-            Ready to sync
+          <div className="topbar-actions">
+            <LanguageSwitcher />
+            <div className="sync-pill">
+              <span className="sync-dot" />
+              {t("app.readyToSync")}
+            </div>
           </div>
         </header>
 
