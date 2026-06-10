@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { workspace } from "../../data/mockWorkspace";
+import type { CustomerProfile } from "../../types/workspace";
+import { formatDateTime, formatMoney } from "../../utils/formatters";
 
 type PaymentStatus = "paid" | "pending";
 
@@ -7,8 +9,39 @@ export default function TransactionRecordPage() {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [totalAmount, setTotalAmount] = useState("");
   const [outstandingAmount, setOutstandingAmount] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerContact, setCustomerContact] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
 
   const isPendingPayment = paymentStatus === "pending";
+  const customerQuery = customerName.trim().toLowerCase();
+
+  const customerSuggestions = useMemo(() => {
+    if (customerQuery.length < 2 || selectedCustomer?.name.toLowerCase() === customerQuery) {
+      return [];
+    }
+
+    return workspace.customers
+      .filter((customer) =>
+        customer.name.toLowerCase().includes(customerQuery) ||
+        customer.contact?.toLowerCase().includes(customerQuery),
+      )
+      .slice(0, 4);
+  }, [customerQuery, selectedCustomer]);
+
+  const handleCustomerSelect = (customer: CustomerProfile) => {
+    setSelectedCustomer(customer);
+    setCustomerName(customer.name);
+    setCustomerContact(customer.contact ?? "");
+  };
+
+  const handleCustomerNameChange = (value: string) => {
+    setCustomerName(value);
+
+    if (selectedCustomer && selectedCustomer.name !== value) {
+      setSelectedCustomer(null);
+    }
+  };
 
   return (
     <section className="page-grid">
@@ -47,10 +80,65 @@ export default function TransactionRecordPage() {
             </select>
           </div>
 
-          <div className="form-field">
+          <div className="form-field customer-field">
             <label htmlFor="customer">Customer name</label>
-            <input id="customer" placeholder="Walk-in customer" />
+            <input
+              id="customer"
+              autoComplete="off"
+              placeholder="Search or enter new customer"
+              value={customerName}
+              onChange={(event) => handleCustomerNameChange(event.target.value)}
+            />
+
+            {customerSuggestions.length > 0 && (
+              <div className="customer-suggestions" role="listbox" aria-label="Customer suggestions">
+                {customerSuggestions.map((customer) => (
+                  <button
+                    key={customer.id}
+                    type="button"
+                    className="customer-suggestion"
+                    onClick={() => handleCustomerSelect(customer)}
+                  >
+                    <span>
+                      <strong>{customer.name}</strong>
+                      <small>{customer.contact ?? "No contact saved"}</small>
+                    </span>
+                    {customer.pendingBalance > 0 && (
+                      <em>{formatMoney(customer.pendingBalance, workspace.masterAccount.currency)} pending</em>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          <div className="form-field">
+            <label htmlFor="customer-contact">Customer contact</label>
+            <input
+              id="customer-contact"
+              type="tel"
+              placeholder="Phone number or WhatsApp"
+              value={customerContact}
+              onChange={(event) => setCustomerContact(event.target.value)}
+            />
+            <span className="form-hint">New customers will be saved from this name and contact when the sale is recorded.</span>
+          </div>
+
+          {selectedCustomer && (
+            <div className={selectedCustomer.pendingBalance > 0 ? "customer-alert warning" : "customer-alert"}>
+              <div>
+                <strong>{selectedCustomer.name}</strong>
+                <small>
+                  Last purchase {selectedCustomer.lastPurchaseAt ? formatDateTime(selectedCustomer.lastPurchaseAt) : "not recorded"} · Total spent {formatMoney(selectedCustomer.totalSpent, workspace.masterAccount.currency)}
+                </small>
+              </div>
+              {selectedCustomer.pendingBalance > 0 ? (
+                <span>{formatMoney(selectedCustomer.pendingBalance, workspace.masterAccount.currency)} pending</span>
+              ) : (
+                <span>No pending balance</span>
+              )}
+            </div>
+          )}
 
           <div className="form-field">
             <label htmlFor="payment">Payment method</label>
