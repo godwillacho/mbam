@@ -1,9 +1,12 @@
-use axum::{routing::post, Json, Router};
+use axum::{extract::State, routing::post, Json, Router};
 use serde_json::{json, Value};
 
 use crate::{error::ApiError, state::AppState};
 
-use super::dto::{LoginRequest, SignupRequest};
+use super::{
+    dto::{AuthResponse, LoginRequest, SignupRequest},
+    service,
+};
 
 /// Registers authentication routes under `/api/v1/auth`.
 pub fn router() -> Router<AppState> {
@@ -14,26 +17,22 @@ pub fn router() -> Router<AppState> {
         .route("/logout", post(logout))
 }
 
-/// Accepts signup requests.
-///
-/// The database implementation will create a user, business account, default
-/// master owner membership, and initial session in the next backend step.
-async fn signup(Json(_payload): Json<SignupRequest>) -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "message": "signup route ready",
-        "next": "connect auth service and repository"
-    })))
+/// Creates a user account and its first master-account workspace.
+async fn signup(
+    State(state): State<AppState>,
+    Json(payload): Json<SignupRequest>,
+) -> Result<Json<AuthResponse>, ApiError> {
+    let response = service::signup(&state.db, &state.config, payload).await?;
+    Ok(Json(response))
 }
 
-/// Accepts login requests.
-///
-/// The database implementation will verify the password, create a session, and
-/// return workspace context after auth is wired.
-async fn login(Json(_payload): Json<LoginRequest>) -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "message": "login route ready",
-        "next": "connect password verification and token generation"
-    })))
+/// Authenticates an existing user and returns access and refresh tokens.
+async fn login(
+    State(state): State<AppState>,
+    Json(payload): Json<LoginRequest>,
+) -> Result<Json<AuthResponse>, ApiError> {
+    let response = service::login(&state.db, &state.config, payload).await?;
+    Ok(Json(response))
 }
 
 /// Placeholder route for refresh token rotation.
