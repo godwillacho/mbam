@@ -31,6 +31,16 @@ export interface BusinessUnit {
   queuedTransactions: number;
 }
 
+export interface CustomerProfile {
+  id: string;
+  name: string;
+  contact?: string;
+  businessId?: string;
+  lastPurchaseAt?: string;
+  totalSpent: number;
+  pendingBalance: number;
+}
+
 export interface TransactionRecord {
   id: string;
   reference: string;
@@ -66,6 +76,7 @@ export interface WorkspaceData {
   masterAccount: MasterAccount;
   businesses: Business[];
   businessUnits: BusinessUnit[];
+  customers: CustomerProfile[];
   transactions: TransactionRecord[];
   roles: RoleSummary[];
   teamMembers: TeamMember[];
