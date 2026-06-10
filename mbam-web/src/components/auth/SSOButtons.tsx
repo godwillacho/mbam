@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { AuthMode } from "../../pages/auth/AuthPage";
 import { signInWithProvider } from "../../services/authService";
 import type { AuthProvider, AuthSession } from "../../types/auth";
@@ -7,8 +8,6 @@ interface Props {
   mode: AuthMode;
   onSuccess: (session: AuthSession) => void;
 }
-
-const verb = (mode: AuthMode) => (mode === "login" ? "Continue" : "Sign up");
 
 const PROVIDERS: Array<{
   id: AuthProvider;
@@ -51,6 +50,7 @@ const PROVIDERS: Array<{
 ];
 
 export default function SSOButtons({ mode, onSuccess }: Props) {
+  const { t } = useTranslation();
   const [activeProvider, setActiveProvider] = useState<AuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +62,7 @@ export default function SSOButtons({ mode, onSuccess }: Props) {
       const session = await signInWithProvider(provider);
       onSuccess(session);
     } catch {
-      setError("We could not complete social sign-in. Please try again.");
+      setError(t("auth.socialError"));
     } finally {
       setActiveProvider(null);
     }
@@ -89,7 +89,9 @@ export default function SSOButtons({ mode, onSuccess }: Props) {
           >
             <span className="sso-icon">{provider.icon}</span>
             <span className="sso-label">
-              {isLoading ? `Connecting ${provider.label}…` : `${verb(mode)} with ${provider.label}`}
+              {isLoading
+                ? t("auth.connectingProvider", { provider: provider.label })
+                : t(mode === "login" ? "auth.continueWith" : "auth.signupWith", { provider: provider.label })}
             </span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink-3)" }}>
               <path d="M9 18l6-6-6-6"/>
