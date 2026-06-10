@@ -1,175 +1,134 @@
-.drilldown-panel {
+.role-dashboard-page {
+  gap: 18px;
+}
+
+.clean-dashboard-heading {
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.clean-dashboard-heading > div:first-child {
+  min-width: 0;
+  max-width: 760px;
+}
+
+.clean-dashboard-heading p {
+  max-width: 720px;
+}
+
+.dashboard-heading-action {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.role-preview-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.role-preview-card h3 {
+  margin: 4px 0 6px;
+}
+
+.role-preview-card select {
+  min-width: 260px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.metric-button {
+  width: 100%;
+  border: 1px solid var(--border);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
+}
+
+.metric-button:hover,
+.metric-button.active {
+  border-color: var(--forest-mid);
+  transform: translateY(-1px);
+}
+
+.metric-button.active {
+  box-shadow: 0 10px 28px rgba(27, 67, 50, 0.12);
+}
+
+.clean-dashboard-grid {
+  align-items: start;
+}
+
+.dashboard-detail-card {
   display: grid;
   gap: 16px;
 }
 
-.period-toggle {
+.dashboard-detail-card header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: #FFFFFF;
+  gap: 18px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--border);
 }
 
-.period-toggle span {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
+.dashboard-detail-card header h3 {
+  margin-bottom: 4px;
 }
 
-.period-toggle div {
-  display: inline-flex;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 999px;
-  background: #FAF7F0;
+.quick-actions-card {
+  align-self: start;
 }
 
-.period-toggle button {
-  border: 0;
-  border-radius: 999px;
-  padding: 8px 12px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.period-toggle button.active {
-  background: var(--forest);
-  color: #FFFFFF;
-}
-
-.drill-breadcrumbs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: #FAF7F0;
-}
-
-.drill-breadcrumbs button:not(.secondary-btn) {
-  border: 0;
-  border-radius: 999px;
-  padding: 7px 10px;
-  background: var(--forest-soft);
-  color: var(--forest);
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.drill-breadcrumbs span {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.chart-card {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: #FFFFFF;
-}
-
-.chart-card h4 {
-  margin: 0;
-  font-size: 15px;
-}
-
-.mini-chart {
+.quick-action-list {
   display: grid;
   gap: 10px;
 }
 
-.chart-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) minmax(160px, 1.4fr) minmax(110px, auto);
+.quick-action-list a {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  border: 0;
-  border-radius: 12px;
-  padding: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
   background: #FAF7F0;
-  text-align: left;
-  color: var(--ink);
-}
-
-.chart-row.clickable {
-  cursor: pointer;
-}
-
-.chart-row.clickable:hover {
-  background: var(--forest-soft);
-}
-
-.chart-row:disabled {
-  opacity: 1;
-}
-
-.chart-label {
-  color: var(--ink);
-  font-size: 13px;
+  color: var(--forest);
   font-weight: 800;
+  text-decoration: none;
 }
 
-.chart-bar-track {
-  height: 12px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: #EFE8D9;
-}
-
-.chart-bar {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--forest-mid);
-}
-
-.chart-row strong {
-  font-size: 13px;
-  text-align: right;
-}
-
-.list-button {
-  width: 100%;
-  border: 0;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.list-button:hover {
+.quick-action-list a:hover {
   background: var(--forest-soft);
+}
+
+@media (max-width: 1020px) {
+  .clean-dashboard-heading,
+  .role-preview-card,
+  .dashboard-detail-card header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dashboard-heading-action {
+    justify-content: flex-start;
+  }
+
+  .role-preview-card select {
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 @media (max-width: 760px) {
-  .period-toggle {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .period-toggle div {
-    width: 100%;
-  }
-
-  .period-toggle button {
-    flex: 1;
-  }
-
-  .chart-row {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-row strong {
-    text-align: left;
+  .dashboard-detail-card header .badge {
+    width: fit-content;
   }
 }
