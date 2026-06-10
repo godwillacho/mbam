@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { workspace } from "../../data/mockWorkspace";
-import type { CustomerProfile } from "../../types/workspace";
+import type { CustomerProfile, ProductProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import "./TransactionRecordPage.css";
 
@@ -8,9 +8,11 @@ type PaymentStatus = "paid" | "pending";
 
 interface SaleLineItem {
   id: string;
+  productId?: string;
   itemName: string;
   quantity: string;
   fixedPrice: string;
+  priceSource?: "default" | "customer";
 }
 
 function createLineItem(): SaleLineItem {
@@ -25,6 +27,17 @@ function createLineItem(): SaleLineItem {
 function toNumber(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function resolveProductPrice(product: ProductProfile, customerId?: string) {
+  const customerPrice = customerId
+    ? product.customerPrices?.find((price) => price.customerId === customerId)
+    : undefined;
+
+  return {
+    price: customerPrice?.price ?? product.defaultPrice,
+    source: customerPrice ? "customer" as const : "default" as const,
+  };
 }
 
 export default function TransactionRecordPage() {
@@ -81,8 +94,42 @@ export default function TransactionRecordPage() {
 
   const updateLineItem = (id: string, field: keyof Omit<SaleLineItem, "id">, value: string) => {
     setLineItems((items) =>
-      items.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+      items.map((item) => (item.id === id ? { ...item, [field]: value, productId: field === "itemName" ? undefined : item.productId, priceSource: field === "itemName" ? undefined : item.priceSource } : item)),
     );
+  };
+
+  const selectProductForLineItem = (lineItemId: string, product: ProductProfile) => {
+    const resolvedPrice = resolveProductPrice(product, selectedCustomer?.id);
+
+    setLineItems((items) =>
+      items.map((item) =>
+        item.id === lineItemId
+          ? {
+              ...item,
+              productId: product.id,
+              itemName: product.name,
+              fixedPrice: String(resolvedPrice.price),
+              priceSource: resolvedPrice.source,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const productSuggestionsFor = (item: SaleLineItem) => {
+    const query = item.itemName.trim().toLowerCase();
+
+    if (query.length < 2 || item.productId) {
+      return [];
+    }
+
+    return workspace.products
+      .filter((product) =>
+        product.name.toLowerCase().includes(query) ||
+        product.sku?.toLowerCase().includes(query) ||
+        product.category.toLowerCase().includes(query),
+      )
+      .slice(0, 4);
   };
 
   const removeLineItem = (id: string) => {
@@ -239,7 +286,7 @@ export default function TransactionRecordPage() {
               <div className="itemized-header">
                 <div>
                   <strong>Transaction details</strong>
-                  <small>Enter each item, quantity, and fixed price. Amount is calculated automatically.</small>
+                  <small>Enter each item, quantity, and fixed price. Learned products can auto-fill customer-specific prices.</small>
                 </div>
                 <span>{formatMoney(itemizedTotal, workspace.masterAccount.currency)}</span>
               </div>
@@ -255,15 +302,50 @@ export default function TransactionRecordPage() {
 
                 {lineItems.map((item) => {
                   const amount = toNumber(item.quantity) * toNumber(item.fixedPrice);
+                  const productSuggestions = productSuggestionsFor(item);
 
                   return (
                     <div className="itemized-row" key={item.id}>
-                      <input
-                        aria-label="Item name"
-                        placeholder="e.g. Rice bag"
-                        value={item.itemName}
-                        onChange={(event) => updateLineItem(item.id, "itemName", event.target.value)}
-                      />
+                      <div className="product-field">
+                        <input
+                          aria-label="Item name"
+                          placeholder="e.g. Rice bag"
+                          value={item.itemName}
+                          onChange={(event) => updateLineItem(item.id, "itemName", event.target.value)}
+                        />
+
+                        {productSuggestions.length > 0 && (
+                          <div className="product-suggestions" role="listbox" aria-label="Product suggestions">
+                            {productSuggestions.map((product) => {
+                              const resolvedPrice = resolveProductPrice(product, selectedCustomer?.id);
+
+                              return (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  className="product-suggestion"
+                                  onClick={() => selectProductForLineItem(item.id, product)}
+                                >
+                                  <span>
+                                    <strong>{product.name}</strong>
+                                    <small>{product.category} · {product.sku ?? "No SKU"}</small>
+                                  </span>
+                                  <em>
+                                    {formatMoney(resolvedPrice.price, workspace.masterAccount.currency)}
+                                    {resolvedPrice.source === "customer" ? " customer price" : ""}
+                                  </em>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {item.productId && (
+                          <small className="learned-product-hint">
+                            Learned product selected{item.priceSource === "customer" ? " · customer-specific price applied" : " · default price applied"}
+                          </small>
+                        )}
+                      </div>
                       <input
                         aria-label="Quantity"
                         type="number"
