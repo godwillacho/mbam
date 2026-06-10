@@ -1,9 +1,31 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { workspace } from "../../data/mockWorkspace";
 import type { CustomerProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
+import "./TransactionRecordPage.css";
 
 type PaymentStatus = "paid" | "pending";
+
+interface SaleLineItem {
+  id: string;
+  itemName: string;
+  quantity: string;
+  fixedPrice: string;
+}
+
+function createLineItem(): SaleLineItem {
+  return {
+    id: window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+    itemName: "",
+    quantity: "1",
+    fixedPrice: "",
+  };
+}
+
+function toNumber(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 export default function TransactionRecordPage() {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
@@ -12,6 +34,8 @@ export default function TransactionRecordPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerContact, setCustomerContact] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
+  const [useItemizedDetails, setUseItemizedDetails] = useState(false);
+  const [lineItems, setLineItems] = useState<SaleLineItem[]>([createLineItem]);
 
   const isPendingPayment = paymentStatus === "pending";
   const customerQuery = customerName.trim().toLowerCase();
@@ -29,6 +53,18 @@ export default function TransactionRecordPage() {
       .slice(0, 4);
   }, [customerQuery, selectedCustomer]);
 
+  const itemizedTotal = useMemo(() => {
+    return lineItems.reduce((sum, item) => {
+      return sum + toNumber(item.quantity) * toNumber(item.fixedPrice);
+    }, 0);
+  }, [lineItems]);
+
+  useEffect(() => {
+    if (useItemizedDetails) {
+      setTotalAmount(itemizedTotal > 0 ? String(itemizedTotal) : "");
+    }
+  }, [itemizedTotal, useItemizedDetails]);
+
   const handleCustomerSelect = (customer: CustomerProfile) => {
     setSelectedCustomer(customer);
     setCustomerName(customer.name);
@@ -40,6 +76,24 @@ export default function TransactionRecordPage() {
 
     if (selectedCustomer && selectedCustomer.name !== value) {
       setSelectedCustomer(null);
+    }
+  };
+
+  const updateLineItem = (id: string, field: keyof Omit<SaleLineItem, "id">, value: string) => {
+    setLineItems((items) =>
+      items.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+    );
+  };
+
+  const removeLineItem = (id: string) => {
+    setLineItems((items) => (items.length === 1 ? items : items.filter((item) => item.id !== id)));
+  };
+
+  const handleItemizedToggle = (enabled: boolean) => {
+    setUseItemizedDetails(enabled);
+
+    if (!enabled) {
+      setTotalAmount("");
     }
   };
 
@@ -158,14 +212,96 @@ export default function TransactionRecordPage() {
               min="0"
               placeholder="0"
               value={totalAmount}
+              readOnly={useItemizedDetails}
               onChange={(event) => setTotalAmount(event.target.value)}
             />
+            {useItemizedDetails && (
+              <span className="form-hint">Auto-filled from itemized transaction details.</span>
+            )}
           </div>
 
-          <div className="form-field">
-            <label htmlFor="items">Number of items</label>
-            <input id="items" type="number" min="1" placeholder="1" />
+          <div className="form-field full itemized-toggle-card">
+            <label className="itemized-toggle">
+              <input
+                type="checkbox"
+                checked={useItemizedDetails}
+                onChange={(event) => handleItemizedToggle(event.target.checked)}
+              />
+              <span>
+                <strong>Add itemized transaction details</strong>
+                <small>Optional CSV-style section for multiple products with customer-specific prices.</small>
+              </span>
+            </label>
           </div>
+
+          {useItemizedDetails && (
+            <section className="form-field full itemized-section" aria-label="Itemized transaction details">
+              <div className="itemized-header">
+                <div>
+                  <strong>Transaction details</strong>
+                  <small>Enter each item, quantity, and fixed price. Amount is calculated automatically.</small>
+                </div>
+                <span>{formatMoney(itemizedTotal, workspace.masterAccount.currency)}</span>
+              </div>
+
+              <div className="itemized-table">
+                <div className="itemized-row itemized-row-head">
+                  <span>Item name</span>
+                  <span>Qty</span>
+                  <span>Fixed price</span>
+                  <span>Amount</span>
+                  <span aria-hidden="true" />
+                </div>
+
+                {lineItems.map((item) => {
+                  const amount = toNumber(item.quantity) * toNumber(item.fixedPrice);
+
+                  return (
+                    <div className="itemized-row" key={item.id}>
+                      <input
+                        aria-label="Item name"
+                        placeholder="e.g. Rice bag"
+                        value={item.itemName}
+                        onChange={(event) => updateLineItem(item.id, "itemName", event.target.value)}
+                      />
+                      <input
+                        aria-label="Quantity"
+                        type="number"
+                        min="0"
+                        placeholder="1"
+                        value={item.quantity}
+                        onChange={(event) => updateLineItem(item.id, "quantity", event.target.value)}
+                      />
+                      <input
+                        aria-label="Fixed price"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={item.fixedPrice}
+                        onChange={(event) => updateLineItem(item.id, "fixedPrice", event.target.value)}
+                      />
+                      <output>{formatMoney(amount, workspace.masterAccount.currency)}</output>
+                      <button
+                        type="button"
+                        className="line-remove-btn"
+                        disabled={lineItems.length === 1}
+                        onClick={() => removeLineItem(item.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="itemized-actions">
+                <button type="button" className="secondary-btn" onClick={() => setLineItems((items) => [...items, createLineItem()])}>
+                  Add item
+                </button>
+                <small>Total transfers automatically to the Total amount field.</small>
+              </div>
+            </section>
+          )}
 
           <fieldset className="form-field full payment-status-field">
             <legend>Payment status</legend>
