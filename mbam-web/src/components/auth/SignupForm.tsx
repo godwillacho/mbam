@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { resendVerification, signupWithEmail } from "../../services/authService";
 import { Eye, EyeOff, MailCheck } from "./icons";
 
 interface Props {
@@ -42,6 +43,7 @@ export default function SignupForm({ onSwitch }: Props) {
   const [loading, setLoading] = useState(false);
   const [screen, setScreen] = useState<Screen>("form");
   const [resent, setResent] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
 
   const strength = getStrength(form.password);
 
@@ -62,33 +64,31 @@ export default function SignupForm({ onSwitch }: Props) {
     setLoading(true);
     setErrors({});
     try {
-      const res = await fetch("/api/v1/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          full_name: form.fullName.trim(),
-          email: form.email.trim().toLowerCase(),
-          phone: form.phone.trim() || undefined,
-          password: form.password,
-        }),
+      await signupWithEmail({
+        fullName: form.fullName,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrors({ general: data.error || "Something went wrong. Please try again." });
-      } else {
-        setScreen("verify");
-      }
+      setScreen("verify");
     } catch {
-      setErrors({ general: "Connection error. Check your internet and try again." });
+      setErrors({ general: "We could not create your account. Please try again." });
     } finally {
       setLoading(false);
     }
   };
 
   const handleResend = async () => {
-    // POST /api/v1/auth/resend-verification
-    setResent(true);
-    setTimeout(() => setResent(false), 5000);
+    setResendLoading(true);
+    try {
+      await resendVerification(form.email);
+      setResent(true);
+      window.setTimeout(() => setResent(false), 5000);
+    } catch {
+      setErrors({ general: "We could not resend the verification request. Please try again." });
+    } finally {
+      setResendLoading(false);
+    }
   };
 
   if (screen === "verify") {
@@ -99,18 +99,18 @@ export default function SignupForm({ onSwitch }: Props) {
         </div>
         <h2 className="verify-title">Check your inbox</h2>
         <p className="verify-body">
-          We sent a verification link to <strong>{form.email}</strong>. Click it to activate your account.
+          We prepared a verification request for <strong>{form.email}</strong>. Email delivery will activate once the backend is connected.
         </p>
         <p className="verify-body" style={{ fontSize: "12px" }}>
-          The link expires in 24 hours. Check your spam folder if you don't see it.
+          Your account details are saved locally so this screen behaves like the final flow.
         </p>
         {resent && (
           <div className="alert alert-success" style={{ width: "100%" }} role="status">
-            Verification email resent.
+            Verification request refreshed.
           </div>
         )}
-        <button className="resend-btn" type="button" onClick={handleResend}>
-          Resend verification email
+        <button className="resend-btn" type="button" onClick={handleResend} disabled={resendLoading}>
+          {resendLoading ? "Refreshing request…" : "Resend verification email"}
         </button>
         <div className="switch-mode" style={{ marginTop: 8 }}>
           Already verified?{" "}
