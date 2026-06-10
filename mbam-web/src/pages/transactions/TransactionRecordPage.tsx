@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import type { CustomerProfile, ProductProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
@@ -41,6 +42,7 @@ function resolveProductPrice(product: ProductProfile, customerId?: string) {
 }
 
 export default function TransactionRecordPage() {
+  const { t } = useTranslation();
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [totalAmount, setTotalAmount] = useState("");
   const [outstandingAmount, setOutstandingAmount] = useState("");
@@ -67,9 +69,7 @@ export default function TransactionRecordPage() {
   }, [customerQuery, selectedCustomer]);
 
   const itemizedTotal = useMemo(() => {
-    return lineItems.reduce((sum, item) => {
-      return sum + toNumber(item.quantity) * toNumber(item.fixedPrice);
-    }, 0);
+    return lineItems.reduce((sum, item) => sum + toNumber(item.quantity) * toNumber(item.fixedPrice), 0);
   }, [lineItems]);
 
   useEffect(() => {
@@ -94,7 +94,16 @@ export default function TransactionRecordPage() {
 
   const updateLineItem = (id: string, field: keyof Omit<SaleLineItem, "id">, value: string) => {
     setLineItems((items) =>
-      items.map((item) => (item.id === id ? { ...item, [field]: value, productId: field === "itemName" ? undefined : item.productId, priceSource: field === "itemName" ? undefined : item.priceSource } : item)),
+      items.map((item) => (
+        item.id === id
+          ? {
+              ...item,
+              [field]: value,
+              productId: field === "itemName" ? undefined : item.productId,
+              priceSource: field === "itemName" ? undefined : item.priceSource,
+            }
+          : item
+      )),
     );
   };
 
@@ -148,23 +157,21 @@ export default function TransactionRecordPage() {
     <section className="page-grid">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Transaction record</span>
-          <h2>Record a new sale</h2>
-          <p>
-            This form represents the offline-first sales entry flow. Later it will write to IndexedDB first, then sync to the Rust API when internet access is available.
-          </p>
+          <span className="eyebrow">{t("transactionRecord.eyebrow")}</span>
+          <h2>{t("transactionRecord.title")}</h2>
+          <p>{t("transactionRecord.description")}</p>
         </div>
       </div>
 
       <form className="form-card">
         <header>
-          <h3>Sale details</h3>
-          <small>Choose the business, shop, customer, payment method, payment status, and total amount.</small>
+          <h3>{t("transactionRecord.detailsTitle")}</h3>
+          <small>{t("transactionRecord.detailsSubtitle")}</small>
         </header>
 
         <div className="form-grid">
           <div className="form-field">
-            <label htmlFor="business">Business</label>
+            <label htmlFor="business">{t("transactionRecord.business")}</label>
             <select id="business" defaultValue={workspace.businesses[0]?.id}>
               {workspace.businesses.map((business) => (
                 <option key={business.id} value={business.id}>{business.name}</option>
@@ -173,7 +180,7 @@ export default function TransactionRecordPage() {
           </div>
 
           <div className="form-field">
-            <label htmlFor="unit">Shop or unit</label>
+            <label htmlFor="unit">{t("transactionRecord.unit")}</label>
             <select id="unit" defaultValue={workspace.businessUnits[0]?.id}>
               {workspace.businessUnits.map((unit) => (
                 <option key={unit.id} value={unit.id}>{unit.name}</option>
@@ -182,17 +189,17 @@ export default function TransactionRecordPage() {
           </div>
 
           <div className="form-field customer-field">
-            <label htmlFor="customer">Customer name</label>
+            <label htmlFor="customer">{t("transactionRecord.customerName")}</label>
             <input
               id="customer"
               autoComplete="off"
-              placeholder="Search or enter new customer"
+              placeholder={t("transactionRecord.customerPlaceholder")}
               value={customerName}
               onChange={(event) => handleCustomerNameChange(event.target.value)}
             />
 
             {customerSuggestions.length > 0 && (
-              <div className="customer-suggestions" role="listbox" aria-label="Customer suggestions">
+              <div className="customer-suggestions" role="listbox" aria-label={t("transactionRecord.customerSuggestions")}>
                 {customerSuggestions.map((customer) => (
                   <button
                     key={customer.id}
@@ -202,10 +209,10 @@ export default function TransactionRecordPage() {
                   >
                     <span>
                       <strong>{customer.name}</strong>
-                      <small>{customer.contact ?? "No contact saved"}</small>
+                      <small>{customer.contact ?? t("transactionRecord.noContactSaved")}</small>
                     </span>
                     {customer.pendingBalance > 0 && (
-                      <em>{formatMoney(customer.pendingBalance, workspace.masterAccount.currency)} pending</em>
+                      <em>{formatMoney(customer.pendingBalance, workspace.masterAccount.currency)} {t("common.pending")}</em>
                     )}
                   </button>
                 ))}
@@ -214,15 +221,15 @@ export default function TransactionRecordPage() {
           </div>
 
           <div className="form-field">
-            <label htmlFor="customer-contact">Customer contact</label>
+            <label htmlFor="customer-contact">{t("transactionRecord.customerContact")}</label>
             <input
               id="customer-contact"
               type="tel"
-              placeholder="Phone number or WhatsApp"
+              placeholder={t("transactionRecord.customerContactPlaceholder")}
               value={customerContact}
               onChange={(event) => setCustomerContact(event.target.value)}
             />
-            <span className="form-hint">New customers will be saved from this name and contact when the sale is recorded.</span>
+            <span className="form-hint">{t("transactionRecord.newCustomerHint")}</span>
           </div>
 
           {selectedCustomer && (
@@ -230,29 +237,29 @@ export default function TransactionRecordPage() {
               <div>
                 <strong>{selectedCustomer.name}</strong>
                 <small>
-                  Last purchase {selectedCustomer.lastPurchaseAt ? formatDateTime(selectedCustomer.lastPurchaseAt) : "not recorded"} · Total spent {formatMoney(selectedCustomer.totalSpent, workspace.masterAccount.currency)}
+                  {t("transactionRecord.lastPurchase")} {selectedCustomer.lastPurchaseAt ? formatDateTime(selectedCustomer.lastPurchaseAt) : t("transactionRecord.notRecorded")} · {t("transactionRecord.totalSpent")} {formatMoney(selectedCustomer.totalSpent, workspace.masterAccount.currency)}
                 </small>
               </div>
               {selectedCustomer.pendingBalance > 0 ? (
-                <span>{formatMoney(selectedCustomer.pendingBalance, workspace.masterAccount.currency)} pending</span>
+                <span>{formatMoney(selectedCustomer.pendingBalance, workspace.masterAccount.currency)} {t("common.pending")}</span>
               ) : (
-                <span>No pending balance</span>
+                <span>{t("transactionRecord.noPendingBalance")}</span>
               )}
             </div>
           )}
 
           <div className="form-field">
-            <label htmlFor="payment">Payment method</label>
+            <label htmlFor="payment">{t("transactionRecord.paymentMethod")}</label>
             <select id="payment" defaultValue="cash">
-              <option value="cash">Cash</option>
-              <option value="mobile_money">Mobile money</option>
-              <option value="card">Card</option>
-              <option value="bank_transfer">Bank transfer</option>
+              <option value="cash">{t("paymentMethods.cash")}</option>
+              <option value="mobile_money">{t("paymentMethods.mobile_money")}</option>
+              <option value="card">{t("paymentMethods.card")}</option>
+              <option value="bank_transfer">{t("paymentMethods.bank_transfer")}</option>
             </select>
           </div>
 
           <div className="form-field">
-            <label htmlFor="amount">Total amount</label>
+            <label htmlFor="amount">{t("transactionRecord.totalAmount")}</label>
             <input
               id="amount"
               type="number"
@@ -263,7 +270,7 @@ export default function TransactionRecordPage() {
               onChange={(event) => setTotalAmount(event.target.value)}
             />
             {useItemizedDetails && (
-              <span className="form-hint">Auto-filled from itemized transaction details.</span>
+              <span className="form-hint">{t("transactionRecord.autoFilledTotal")}</span>
             )}
           </div>
 
@@ -275,28 +282,28 @@ export default function TransactionRecordPage() {
                 onChange={(event) => handleItemizedToggle(event.target.checked)}
               />
               <span>
-                <strong>Add itemized transaction details</strong>
-                <small>Optional CSV-style section for multiple products with customer-specific prices.</small>
+                <strong>{t("transactionRecord.itemizedToggleTitle")}</strong>
+                <small>{t("transactionRecord.itemizedToggleSubtitle")}</small>
               </span>
             </label>
           </div>
 
           {useItemizedDetails && (
-            <section className="form-field full itemized-section" aria-label="Itemized transaction details">
+            <section className="form-field full itemized-section" aria-label={t("transactionRecord.itemizedAria")}>
               <div className="itemized-header">
                 <div>
-                  <strong>Transaction details</strong>
-                  <small>Enter each item, quantity, and fixed price. Learned products can auto-fill customer-specific prices.</small>
+                  <strong>{t("transactionRecord.itemizedTitle")}</strong>
+                  <small>{t("transactionRecord.itemizedSubtitle")}</small>
                 </div>
                 <span>{formatMoney(itemizedTotal, workspace.masterAccount.currency)}</span>
               </div>
 
               <div className="itemized-table">
                 <div className="itemized-row itemized-row-head">
-                  <span>Item name</span>
-                  <span>Qty</span>
-                  <span>Fixed price</span>
-                  <span>Amount</span>
+                  <span>{t("transactionRecord.itemName")}</span>
+                  <span>{t("transactionRecord.quantity")}</span>
+                  <span>{t("transactionRecord.fixedPrice")}</span>
+                  <span>{t("transactionRecord.amount")}</span>
                   <span aria-hidden="true" />
                 </div>
 
@@ -308,14 +315,14 @@ export default function TransactionRecordPage() {
                     <div className="itemized-row" key={item.id}>
                       <div className="product-field">
                         <input
-                          aria-label="Item name"
-                          placeholder="e.g. Rice bag"
+                          aria-label={t("transactionRecord.itemName")}
+                          placeholder={t("transactionRecord.itemPlaceholder")}
                           value={item.itemName}
                           onChange={(event) => updateLineItem(item.id, "itemName", event.target.value)}
                         />
 
                         {productSuggestions.length > 0 && (
-                          <div className="product-suggestions" role="listbox" aria-label="Product suggestions">
+                          <div className="product-suggestions" role="listbox" aria-label={t("transactionRecord.productSuggestions")}>
                             {productSuggestions.map((product) => {
                               const resolvedPrice = resolveProductPrice(product, selectedCustomer?.id);
 
@@ -328,11 +335,11 @@ export default function TransactionRecordPage() {
                                 >
                                   <span>
                                     <strong>{product.name}</strong>
-                                    <small>{product.category} · {product.sku ?? "No SKU"}</small>
+                                    <small>{t(`categories.${product.category}`)} · {product.sku ?? t("common.noSku")}</small>
                                   </span>
                                   <em>
                                     {formatMoney(resolvedPrice.price, workspace.masterAccount.currency)}
-                                    {resolvedPrice.source === "customer" ? " customer price" : ""}
+                                    {resolvedPrice.source === "customer" ? ` ${t("transactionRecord.customerPrice")}` : ""}
                                   </em>
                                 </button>
                               );
@@ -342,12 +349,12 @@ export default function TransactionRecordPage() {
 
                         {item.productId && (
                           <small className="learned-product-hint">
-                            Learned product selected{item.priceSource === "customer" ? " · customer-specific price applied" : " · default price applied"}
+                            {t("transactionRecord.learnedProductSelected")} · {item.priceSource === "customer" ? t("transactionRecord.customerSpecificPriceApplied") : t("transactionRecord.defaultPriceApplied")}
                           </small>
                         )}
                       </div>
                       <input
-                        aria-label="Quantity"
+                        aria-label={t("transactionRecord.quantity")}
                         type="number"
                         min="0"
                         placeholder="1"
@@ -355,7 +362,7 @@ export default function TransactionRecordPage() {
                         onChange={(event) => updateLineItem(item.id, "quantity", event.target.value)}
                       />
                       <input
-                        aria-label="Fixed price"
+                        aria-label={t("transactionRecord.fixedPrice")}
                         type="number"
                         min="0"
                         placeholder="0"
@@ -369,7 +376,7 @@ export default function TransactionRecordPage() {
                         disabled={lineItems.length === 1}
                         onClick={() => removeLineItem(item.id)}
                       >
-                        Remove
+                        {t("common.remove")}
                       </button>
                     </div>
                   );
@@ -378,15 +385,15 @@ export default function TransactionRecordPage() {
 
               <div className="itemized-actions">
                 <button type="button" className="secondary-btn" onClick={() => setLineItems((items) => [...items, createLineItem()])}>
-                  Add item
+                  {t("transactionRecord.addItem")}
                 </button>
-                <small>Total transfers automatically to the Total amount field.</small>
+                <small>{t("transactionRecord.totalTransfers")}</small>
               </div>
             </section>
           )}
 
           <fieldset className="form-field full payment-status-field">
-            <legend>Payment status</legend>
+            <legend>{t("transactionRecord.paymentStatus")}</legend>
             <div className="payment-status-options">
               <label className={paymentStatus === "paid" ? "payment-option active" : "payment-option"}>
                 <input
@@ -400,8 +407,8 @@ export default function TransactionRecordPage() {
                   }}
                 />
                 <span>
-                  <strong>Paid</strong>
-                  <small>The customer has completed payment for this sale.</small>
+                  <strong>{t("transactionRecord.paid")}</strong>
+                  <small>{t("transactionRecord.paidHint")}</small>
                 </span>
               </label>
 
@@ -414,8 +421,8 @@ export default function TransactionRecordPage() {
                   onChange={() => setPaymentStatus("pending")}
                 />
                 <span>
-                  <strong>Pending payment</strong>
-                  <small>The sale is recorded, but the customer still owes money.</small>
+                  <strong>{t("transactionRecord.pendingPayment")}</strong>
+                  <small>{t("transactionRecord.pendingHint")}</small>
                 </span>
               </label>
             </div>
@@ -423,32 +430,30 @@ export default function TransactionRecordPage() {
 
           {isPendingPayment && (
             <div className="form-field full pending-payment-panel">
-              <label htmlFor="outstanding-amount">Outstanding amount</label>
+              <label htmlFor="outstanding-amount">{t("transactionRecord.outstandingAmount")}</label>
               <input
                 id="outstanding-amount"
                 type="number"
                 min="0"
                 max={totalAmount || undefined}
-                placeholder="Amount still owed"
+                placeholder={t("transactionRecord.outstandingPlaceholder")}
                 value={outstandingAmount}
                 onChange={(event) => setOutstandingAmount(event.target.value)}
               />
-              <span className="form-hint">
-                This amount will be saved with the transaction so the business can follow up on unpaid balances.
-              </span>
+              <span className="form-hint">{t("transactionRecord.outstandingHint")}</span>
             </div>
           )}
 
           <div className="form-field full">
-            <label htmlFor="note">Transaction note</label>
-            <textarea id="note" placeholder="Add optional note for this sale" />
-            <span className="form-hint">The first implementation will queue this locally before backend sync.</span>
+            <label htmlFor="note">{t("transactionRecord.note")}</label>
+            <textarea id="note" placeholder={t("transactionRecord.notePlaceholder")} />
+            <span className="form-hint">{t("transactionRecord.offlineHint")}</span>
           </div>
         </div>
 
         <div className="form-actions">
-          <button className="secondary-btn" type="button">Save draft</button>
-          <button className="primary-btn" type="button">Record sale</button>
+          <button className="secondary-btn" type="button">{t("transactionRecord.saveDraft")}</button>
+          <button className="primary-btn" type="button">{t("transactionRecord.recordSale")}</button>
         </div>
       </form>
     </section>
