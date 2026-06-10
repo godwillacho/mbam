@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { resendVerification, signupWithEmail } from "../../services/authService";
 import { Eye, EyeOff, MailCheck } from "./icons";
 
@@ -21,22 +22,24 @@ interface FormErrors {
 }
 
 type Screen = "form" | "verify";
+type StrengthLabel = "weak" | "fair" | "good" | "strong" | "";
 
-function getStrength(pw: string): { score: number; label: string; color: string } {
-  if (pw.length === 0) return { score: 0, label: "", color: "transparent" };
+function getStrength(pw: string): { score: number; labelKey: StrengthLabel; color: string } {
+  if (pw.length === 0) return { score: 0, labelKey: "", color: "transparent" };
   let score = 0;
   if (pw.length >= 8) score++;
   if (pw.length >= 12) score++;
   if (/[A-Z]/.test(pw)) score++;
   if (/[0-9]/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-  if (score <= 1) return { score: 20, label: "Weak", color: "#DC2626" };
-  if (score === 2) return { score: 40, label: "Fair", color: "#D97706" };
-  if (score === 3) return { score: 65, label: "Good", color: "#2D9D78" };
-  return { score: 100, label: "Strong", color: "#166534" };
+  if (score <= 1) return { score: 20, labelKey: "weak", color: "#DC2626" };
+  if (score === 2) return { score: 40, labelKey: "fair", color: "#D97706" };
+  if (score === 3) return { score: 65, labelKey: "good", color: "#2D9D78" };
+  return { score: 100, labelKey: "strong", color: "#166534" };
 }
 
 export default function SignupForm({ onSwitch }: Props) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<FormState>({ fullName: "", email: "", phone: "", password: "" });
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPass, setShowPass] = useState(false);
@@ -49,11 +52,11 @@ export default function SignupForm({ onSwitch }: Props) {
 
   const validate = (): boolean => {
     const e: FormErrors = {};
-    if (form.fullName.trim().length < 2) e.fullName = "Enter your full name";
-    if (!form.email.includes("@")) e.email = "Enter a valid email address";
-    if (form.password.length < 8) e.password = "Password must be at least 8 characters";
-    else if (!/[A-Z]/.test(form.password)) e.password = "Add at least one uppercase letter";
-    else if (!/[0-9]/.test(form.password)) e.password = "Add at least one number";
+    if (form.fullName.trim().length < 2) e.fullName = t("auth.enterFullName");
+    if (!form.email.includes("@")) e.email = t("auth.validEmail");
+    if (form.password.length < 8) e.password = t("auth.minPassword");
+    else if (!/[A-Z]/.test(form.password)) e.password = t("auth.uppercasePassword");
+    else if (!/[0-9]/.test(form.password)) e.password = t("auth.numberPassword");
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -72,7 +75,7 @@ export default function SignupForm({ onSwitch }: Props) {
       });
       setScreen("verify");
     } catch {
-      setErrors({ general: "We could not create your account. Please try again." });
+      setErrors({ general: t("auth.signupError") });
     } finally {
       setLoading(false);
     }
@@ -85,7 +88,7 @@ export default function SignupForm({ onSwitch }: Props) {
       setResent(true);
       window.setTimeout(() => setResent(false), 5000);
     } catch {
-      setErrors({ general: "We could not resend the verification request. Please try again." });
+      setErrors({ general: t("auth.resendError") });
     } finally {
       setResendLoading(false);
     }
@@ -97,25 +100,25 @@ export default function SignupForm({ onSwitch }: Props) {
         <div className="verify-icon">
           <MailCheck size={28} color="var(--forest)" />
         </div>
-        <h2 className="verify-title">Check your inbox</h2>
+        <h2 className="verify-title">{t("auth.checkInbox")}</h2>
         <p className="verify-body">
-          We prepared a verification request for <strong>{form.email}</strong>. Email delivery will activate once the backend is connected.
+          {t("auth.verifyBody", { email: form.email })}
         </p>
         <p className="verify-body" style={{ fontSize: "12px" }}>
-          Your account details are saved locally so this screen behaves like the final flow.
+          {t("auth.localSaved")}
         </p>
         {resent && (
           <div className="alert alert-success" style={{ width: "100%" }} role="status">
-            Verification request refreshed.
+            {t("auth.refreshed")}
           </div>
         )}
         <button className="resend-btn" type="button" onClick={handleResend} disabled={resendLoading}>
-          {resendLoading ? "Refreshing request…" : "Resend verification email"}
+          {resendLoading ? t("auth.refreshing") : t("auth.resend")}
         </button>
         <div className="switch-mode" style={{ marginTop: 8 }}>
-          Already verified?{" "}
+          {t("auth.alreadyVerified")} {" "}
           <button type="button" onClick={onSwitch}>
-            Sign in
+            {t("auth.signIn")}
           </button>
         </div>
       </div>
@@ -133,12 +136,12 @@ export default function SignupForm({ onSwitch }: Props) {
 
       <div className="field-group">
         <div className="field">
-          <label htmlFor="signup-name">Full name</label>
+          <label htmlFor="signup-name">{t("auth.fullName")}</label>
           <input
             id="signup-name"
             type="text"
             autoComplete="name"
-            placeholder="e.g. Marie Ngono"
+            placeholder={t("auth.fullNamePlaceholder")}
             value={form.fullName}
             onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
             className={errors.fullName ? "error" : ""}
@@ -147,7 +150,7 @@ export default function SignupForm({ onSwitch }: Props) {
         </div>
 
         <div className="field">
-          <label htmlFor="signup-email">Email address</label>
+          <label htmlFor="signup-email">{t("auth.email")}</label>
           <input
             id="signup-email"
             type="email"
@@ -162,8 +165,8 @@ export default function SignupForm({ onSwitch }: Props) {
 
         <div className="field">
           <label htmlFor="signup-phone">
-            Phone number{" "}
-            <span className="field-hint">(optional)</span>
+            {t("auth.phone")} {" "}
+            <span className="field-hint">({t("auth.optional")})</span>
           </label>
           <input
             id="signup-phone"
@@ -176,13 +179,13 @@ export default function SignupForm({ onSwitch }: Props) {
         </div>
 
         <div className="field">
-          <label htmlFor="signup-password">Password</label>
+          <label htmlFor="signup-password">{t("auth.password")}</label>
           <div className="password-wrap">
             <input
               id="signup-password"
               type={showPass ? "text" : "password"}
               autoComplete="new-password"
-              placeholder="Min. 8 characters"
+              placeholder={t("auth.passwordCreatePlaceholder")}
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               className={errors.password ? "error" : ""}
@@ -191,7 +194,7 @@ export default function SignupForm({ onSwitch }: Props) {
               type="button"
               className="password-toggle"
               onClick={() => setShowPass((v) => !v)}
-              aria-label={showPass ? "Hide password" : "Show password"}
+              aria-label={showPass ? t("auth.hidePassword") : t("auth.showPassword")}
             >
               {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
@@ -205,7 +208,7 @@ export default function SignupForm({ onSwitch }: Props) {
                 />
               </div>
               <span className="strength-label" style={{ color: strength.color }}>
-                {strength.label}
+                {strength.labelKey ? t(`auth.${strength.labelKey}`) : ""}
               </span>
             </>
           )}
@@ -215,20 +218,20 @@ export default function SignupForm({ onSwitch }: Props) {
 
       <button type="submit" className="submit-btn" disabled={loading}>
         {loading && <span className="spinner" aria-hidden="true" />}
-        {loading ? "Creating account…" : "Create account"}
+        {loading ? t("auth.creatingAccount") : t("auth.createAccount")}
       </button>
 
       <p className="terms">
-        By signing up you agree to our{" "}
-        <a href="/terms" target="_blank" rel="noreferrer">Terms of Service</a>{" "}
-        and{" "}
-        <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.
+        {t("auth.terms")} {" "}
+        <a href="/terms" target="_blank" rel="noreferrer">{t("auth.termsLink")}</a>{" "}
+        {t("auth.and")} {" "}
+        <a href="/privacy" target="_blank" rel="noreferrer">{t("auth.privacyLink")}</a>.
       </p>
 
       <div className="switch-mode">
-        Already have an account?{" "}
+        {t("auth.alreadyAccount")} {" "}
         <button type="button" onClick={onSwitch}>
-          Sign in
+          {t("auth.signIn")}
         </button>
       </div>
     </form>
