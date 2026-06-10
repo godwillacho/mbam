@@ -4,21 +4,8 @@ import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import type { Business, BusinessUnit, CustomerProfile, ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
+import { getDashboardMetricsForRole, saveDashboardMemberId, type DashboardMetricKey } from "./dashboardPermissions";
 import "./MasterDashboard.css";
-
-type DashboardMetricKey =
-  | "totalRevenue"
-  | "businesses"
-  | "units"
-  | "queued"
-  | "team"
-  | "pendingCustomers"
-  | "businessRevenue"
-  | "unitRevenue"
-  | "transactions"
-  | "ownSales"
-  | "ownTransactions"
-  | "products";
 
 interface DashboardMetric {
   key: DashboardMetricKey;
@@ -84,6 +71,7 @@ export default function MasterDashboard() {
 
   const selectedMember = workspace.teamMembers.find((member) => member.id === selectedMemberId) ?? workspace.teamMembers[0];
   const selectedRole = workspace.roles.find((role) => role.id === selectedMember.roleId);
+  const allowedMetricKeys = getDashboardMetricsForRole(selectedMember.roleId);
   const isCashier = selectedMember.roleId === "role-cashier";
   const isMasterOwner = selectedMember.scopeLevel === "master";
   const isBusinessAdmin = selectedMember.scopeLevel === "business";
@@ -108,36 +96,22 @@ export default function MasterDashboard() {
   const displayedRevenue = transactionRevenue > 0 ? transactionRevenue : unitRevenue;
   const queuedTransactions = scopedUnits.reduce((sum, unit) => sum + unit.queuedTransactions, 0);
 
-  const metrics = useMemo<DashboardMetric[]>(() => {
-    if (isCashier) {
-      return [
-        { key: "ownSales", value: formatMoney(displayedRevenue, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "ownActivity" },
-        { key: "ownTransactions", value: scopedTransactions.length, hintKey: "ownActivity" },
-        { key: "queued", value: queuedTransactions, hintKey: "offlineSync" },
-        { key: "unitRevenue", value: formatMoney(unitRevenue, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "assignedScope" },
-      ];
-    }
+  const allMetrics = useMemo<DashboardMetric[]>(() => [
+    { key: "totalRevenue", value: formatMoney(displayedRevenue, workspace.masterAccount.currency), hintKey: "allUnits" },
+    { key: "businesses", value: scopedBusinesses.length, hintKey: "masterBusinesses" },
+    { key: "units", value: scopedUnits.length, hintKey: "allUnits" },
+    { key: "queued", value: queuedTransactions, hintKey: "offlineSync" },
+    { key: "team", value: scopedTeam.length, hintKey: "activeTeam" },
+    { key: "pendingCustomers", value: formatMoney(sumPending(pendingCustomers), selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "pendingFollowUp" },
+    { key: "businessRevenue", value: formatMoney(displayedRevenue, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "assignedScope" },
+    { key: "unitRevenue", value: formatMoney(displayedRevenue, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "assignedScope" },
+    { key: "transactions", value: scopedTransactions.length, hintKey: "assignedScope" },
+    { key: "ownSales", value: formatMoney(displayedRevenue, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "ownActivity" },
+    { key: "ownTransactions", value: scopedTransactions.length, hintKey: "ownActivity" },
+    { key: "products", value: scopedProducts.length, hintKey: "assignedScope" },
+  ], [displayedRevenue, pendingCustomers, queuedTransactions, scopedBusinesses.length, scopedProducts.length, scopedTeam.length, scopedTransactions.length, scopedUnits.length, selectedBusiness]);
 
-    if (isMasterOwner) {
-      return [
-        { key: "totalRevenue", value: formatMoney(displayedRevenue, workspace.masterAccount.currency), hintKey: "allUnits" },
-        { key: "businesses", value: scopedBusinesses.length, hintKey: "masterBusinesses" },
-        { key: "units", value: scopedUnits.length, hintKey: "allUnits" },
-        { key: "queued", value: queuedTransactions, hintKey: "offlineSync" },
-        { key: "team", value: scopedTeam.length, hintKey: "activeTeam" },
-        { key: "pendingCustomers", value: formatMoney(sumPending(pendingCustomers), workspace.masterAccount.currency), hintKey: "pendingFollowUp" },
-      ];
-    }
-
-    return [
-      { key: isBusinessAdmin ? "businessRevenue" : "unitRevenue", value: formatMoney(displayedRevenue, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "assignedScope" },
-      { key: "transactions", value: scopedTransactions.length, hintKey: "assignedScope" },
-      { key: "queued", value: queuedTransactions, hintKey: "offlineSync" },
-      { key: "pendingCustomers", value: formatMoney(sumPending(pendingCustomers), selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "pendingFollowUp" },
-      { key: "products", value: scopedProducts.length, hintKey: "assignedScope" },
-    ];
-  }, [displayedRevenue, isBusinessAdmin, isCashier, isMasterOwner, pendingCustomers, queuedTransactions, scopedBusinesses.length, scopedProducts.length, scopedTeam.length, scopedTransactions.length, scopedUnits.length, selectedBusiness, unitRevenue]);
-
+  const metrics = allMetrics.filter((metric) => allowedMetricKeys.includes(metric.key));
   const activeMetric = metrics.find((metric) => metric.key === selectedMetric) ?? metrics[0];
   const activeMetricKey = activeMetric.key;
   const detailPath = activeMetricKey === "pendingCustomers"
@@ -337,6 +311,7 @@ export default function MasterDashboard() {
           value={selectedMemberId}
           onChange={(event) => {
             setSelectedMemberId(event.target.value);
+            saveDashboardMemberId(event.target.value);
             setSelectedMetric(null);
           }}
         >
@@ -382,9 +357,9 @@ export default function MasterDashboard() {
         <h3>{t("roleDashboard.quickActions")}</h3>
         <div className="quick-action-list">
           {isCashier && <Link to="/transactions/new">{t("roleDashboard.recordSale")}</Link>}
-          <Link to="/transactions">{t("roleDashboard.openTransactions")}</Link>
+          {!isCashier && <Link to="/transactions">{t("roleDashboard.openTransactions")}</Link>}
           {(isMasterOwner || isBusinessAdmin) && <Link to="/businesses">{t("roleDashboard.manageBusinesses")}</Link>}
-          {isMasterOwner && <Link to="/team">{t("roleDashboard.manageTeam")}</Link>}
+          {(isMasterOwner || isBusinessAdmin) && <Link to="/team">{t("roleDashboard.manageTeam")}</Link>}
           {!isCashier && <Link to="/reports">{t("roleDashboard.viewReports")}</Link>}
         </div>
       </article>
