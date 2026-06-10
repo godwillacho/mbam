@@ -243,6 +243,9 @@ export default function MasterDashboard() {
             <span className="badge warning">{formatMoney(customer.pendingBalance, selectedBusiness?.currency ?? workspace.masterAccount.currency)}</span>
           </div>
         ))}
+        <Link className="secondary-btn full-report-link" to="/dashboard/pending-payments">
+          {t("roleDashboard.openFullReport")}
+        </Link>
       </div>
     );
   };
@@ -346,44 +349,63 @@ export default function MasterDashboard() {
       </article>
 
       <div className="metrics-grid clean-metrics-grid">
-        {metrics.map((metric) => (
-          <button
-            key={metric.key}
-            type="button"
-            className={activeMetricKey === metric.key ? "metric-card metric-button active" : "metric-card metric-button"}
-            onClick={() => setSelectedMetric(metric.key)}
-          >
-            <span>{t(`roleDashboard.metrics.${metric.key}`)}</span>
-            <strong>{metric.value}</strong>
-            <small>{t(`roleDashboard.hints.${metric.hintKey}`)}</small>
-          </button>
-        ))}
+        {metrics.map((metric) => {
+          const card = (
+            <>
+              <span>{t(`roleDashboard.metrics.${metric.key}`)}</span>
+              <strong>{metric.value}</strong>
+              <small>{t(`roleDashboard.hints.${metric.hintKey}`)}</small>
+            </>
+          );
+
+          if (metric.key === "pendingCustomers") {
+            return (
+              <Link
+                key={metric.key}
+                to="/dashboard/pending-payments"
+                className={activeMetricKey === metric.key ? "metric-card metric-button metric-link active" : "metric-card metric-button metric-link"}
+                onClick={() => setSelectedMetric(metric.key)}
+              >
+                {card}
+              </Link>
+            );
+          }
+
+          return (
+            <button
+              key={metric.key}
+              type="button"
+              className={activeMetricKey === metric.key ? "metric-card metric-button active" : "metric-card metric-button"}
+              onClick={() => setSelectedMetric(metric.key)}
+            >
+              {card}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="card-grid two clean-dashboard-grid">
-        <article className="card dashboard-detail-card">
-          <header>
-            <div>
-              <span className="eyebrow">{t("roleDashboard.detailHeading")}</span>
-              <h3>{t(`roleDashboard.detail.${activeMetricKey}`)}</h3>
-              <p className="card-muted">{t("roleDashboard.clickHint")}</p>
-            </div>
-            <span className="badge">{t(`roleDashboard.metrics.${activeMetricKey}`)}: {activeMetric.value}</span>
-          </header>
-          {renderDetail()}
-        </article>
-
-        <article className="card quick-actions-card">
-          <h3>{t("roleDashboard.quickActions")}</h3>
-          <div className="quick-action-list">
-            {isCashier && <Link to="/transactions/new">{t("roleDashboard.recordSale")}</Link>}
-            <Link to="/transactions">{t("roleDashboard.openTransactions")}</Link>
-            {(isMasterOwner || isBusinessAdmin) && <Link to="/businesses">{t("roleDashboard.manageBusinesses")}</Link>}
-            {isMasterOwner && <Link to="/team">{t("roleDashboard.manageTeam")}</Link>}
-            {!isCashier && <Link to="/reports">{t("roleDashboard.viewReports")}</Link>}
+      <article className="card dashboard-detail-card full-width-detail-card">
+        <header>
+          <div>
+            <span className="eyebrow">{t("roleDashboard.detailHeading")}</span>
+            <h3>{t(`roleDashboard.detail.${activeMetricKey}`)}</h3>
+            <p className="card-muted">{t("roleDashboard.clickHint")}</p>
           </div>
-        </article>
-      </div>
+          <span className="badge">{t(`roleDashboard.metrics.${activeMetricKey}`)}: {activeMetric.value}</span>
+        </header>
+        {renderDetail()}
+      </article>
+
+      <article className="card quick-actions-card quick-actions-below">
+        <h3>{t("roleDashboard.quickActions")}</h3>
+        <div className="quick-action-list">
+          {isCashier && <Link to="/transactions/new">{t("roleDashboard.recordSale")}</Link>}
+          <Link to="/transactions">{t("roleDashboard.openTransactions")}</Link>
+          {(isMasterOwner || isBusinessAdmin) && <Link to="/businesses">{t("roleDashboard.manageBusinesses")}</Link>}
+          {isMasterOwner && <Link to="/team">{t("roleDashboard.manageTeam")}</Link>}
+          {!isCashier && <Link to="/reports">{t("roleDashboard.viewReports")}</Link>}
+        </div>
+      </article>
     </section>
   );
 }
