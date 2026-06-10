@@ -43,6 +43,14 @@
   font: inherit;
 }
 
+.dashboard-options-grid,
+.summary-two-column-list,
+.pending-payment-report {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .metric-button {
   width: 100%;
   border: 1px solid var(--border);
@@ -50,11 +58,6 @@
   text-align: left;
   cursor: pointer;
   transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
-}
-
-.metric-link {
-  display: block;
-  text-decoration: none;
 }
 
 .metric-button:hover,
@@ -89,16 +92,11 @@
   margin-bottom: 4px;
 }
 
-.pending-payment-report {
-  display: grid;
-  gap: 12px;
-}
-
 .pending-payment-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(260px, 1.3fr) auto;
-  align-items: center;
-  gap: 16px;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 12px;
   padding: 14px;
   border-radius: 16px;
   background: #FAF7F0;
@@ -180,11 +178,6 @@
     width: 100%;
   }
 
-  .pending-payment-row {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-
   .quick-action-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -195,6 +188,9 @@
     width: fit-content;
   }
 
+  .dashboard-options-grid,
+  .summary-two-column-list,
+  .pending-payment-report,
   .pending-payment-meta,
   .quick-action-list {
     grid-template-columns: 1fr;
