@@ -3,6 +3,46 @@
   gap: 16px;
 }
 
+.period-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #FFFFFF;
+}
+
+.period-toggle span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.period-toggle div {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #FAF7F0;
+}
+
+.period-toggle button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.period-toggle button.active {
+  background: var(--forest);
+  color: #FFFFFF;
+}
+
 .drill-breadcrumbs {
   display: flex;
   align-items: center;
@@ -112,6 +152,19 @@
 }
 
 @media (max-width: 760px) {
+  .period-toggle {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .period-toggle div {
+    width: 100%;
+  }
+
+  .period-toggle button {
+    flex: 1;
+  }
+
   .chart-row {
     grid-template-columns: 1fr;
   }
