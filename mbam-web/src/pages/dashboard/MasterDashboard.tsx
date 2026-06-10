@@ -140,6 +140,9 @@ export default function MasterDashboard() {
 
   const activeMetric = metrics.find((metric) => metric.key === selectedMetric) ?? metrics[0];
   const activeMetricKey = activeMetric.key;
+  const detailPath = activeMetricKey === "pendingCustomers"
+    ? "/dashboard/pending-payments"
+    : `/dashboard/detail/${activeMetricKey}`;
 
   const renderTransactions = (records: TransactionRecord[]) => {
     if (records.length === 0) {
@@ -147,8 +150,8 @@ export default function MasterDashboard() {
     }
 
     return (
-      <div className="list-stack">
-        {records.map((transaction) => (
+      <div className="list-stack summary-two-column-list">
+        {records.slice(0, 4).map((transaction) => (
           <div className="list-item" key={transaction.id}>
             <div>
               <strong>{transaction.reference} · {transaction.customerName}</strong>
@@ -164,8 +167,8 @@ export default function MasterDashboard() {
   };
 
   const renderUnits = () => (
-    <div className="list-stack">
-      {scopedUnits.map((unit) => (
+    <div className="list-stack summary-two-column-list">
+      {scopedUnits.slice(0, 4).map((unit) => (
         <div className="list-item" key={unit.id}>
           <div>
             <strong>{unit.name}</strong>
@@ -180,8 +183,8 @@ export default function MasterDashboard() {
   );
 
   const renderRevenue = () => (
-    <div className="list-stack">
-      {scopedUnits.map((unit) => {
+    <div className="list-stack summary-two-column-list">
+      {scopedUnits.slice(0, 4).map((unit) => {
         const unitTransactions = scopedTransactions.filter((transaction) => transaction.businessUnitId === unit.id);
         const revenue = sumTransactions(unitTransactions) || unit.todayRevenue;
 
@@ -199,8 +202,8 @@ export default function MasterDashboard() {
   );
 
   const renderBusinesses = () => (
-    <div className="list-stack">
-      {scopedBusinesses.map((business) => {
+    <div className="list-stack summary-two-column-list">
+      {scopedBusinesses.slice(0, 4).map((business) => {
         const units = scopedUnits.filter((unit) => unit.businessId === business.id);
         const revenue = units.reduce((sum, unit) => sum + unit.todayRevenue, 0);
 
@@ -223,8 +226,8 @@ export default function MasterDashboard() {
     }
 
     return (
-      <div className="pending-payment-report">
-        {pendingCustomers.map((customer) => (
+      <div className="pending-payment-report summary-two-column-list">
+        {pendingCustomers.slice(0, 4).map((customer) => (
           <div className="pending-payment-row" key={customer.id}>
             <div className="pending-payment-customer">
               <strong>{customer.name}</strong>
@@ -243,16 +246,13 @@ export default function MasterDashboard() {
             <span className="badge warning">{formatMoney(customer.pendingBalance, selectedBusiness?.currency ?? workspace.masterAccount.currency)}</span>
           </div>
         ))}
-        <Link className="secondary-btn full-report-link" to="/dashboard/pending-payments">
-          {t("roleDashboard.openFullReport")}
-        </Link>
       </div>
     );
   };
 
   const renderTeam = () => (
-    <div className="list-stack">
-      {scopedTeam.map((member) => (
+    <div className="list-stack summary-two-column-list">
+      {scopedTeam.slice(0, 4).map((member) => (
         <div className="list-item" key={member.id}>
           <div>
             <strong>{member.fullName}</strong>
@@ -270,8 +270,8 @@ export default function MasterDashboard() {
     }
 
     return (
-      <div className="list-stack">
-        {scopedProducts.map((product: ProductProfile) => (
+      <div className="list-stack summary-two-column-list">
+        {scopedProducts.slice(0, 4).map((product: ProductProfile) => (
           <div className="list-item" key={product.id}>
             <div>
               <strong>{product.name}</strong>
@@ -348,40 +348,19 @@ export default function MasterDashboard() {
         </select>
       </article>
 
-      <div className="metrics-grid clean-metrics-grid">
-        {metrics.map((metric) => {
-          const card = (
-            <>
-              <span>{t(`roleDashboard.metrics.${metric.key}`)}</span>
-              <strong>{metric.value}</strong>
-              <small>{t(`roleDashboard.hints.${metric.hintKey}`)}</small>
-            </>
-          );
-
-          if (metric.key === "pendingCustomers") {
-            return (
-              <Link
-                key={metric.key}
-                to="/dashboard/pending-payments"
-                className={activeMetricKey === metric.key ? "metric-card metric-button metric-link active" : "metric-card metric-button metric-link"}
-                onClick={() => setSelectedMetric(metric.key)}
-              >
-                {card}
-              </Link>
-            );
-          }
-
-          return (
-            <button
-              key={metric.key}
-              type="button"
-              className={activeMetricKey === metric.key ? "metric-card metric-button active" : "metric-card metric-button"}
-              onClick={() => setSelectedMetric(metric.key)}
-            >
-              {card}
-            </button>
-          );
-        })}
+      <div className="metrics-grid clean-metrics-grid dashboard-options-grid">
+        {metrics.map((metric) => (
+          <button
+            key={metric.key}
+            type="button"
+            className={activeMetricKey === metric.key ? "metric-card metric-button active" : "metric-card metric-button"}
+            onClick={() => setSelectedMetric(metric.key)}
+          >
+            <span>{t(`roleDashboard.metrics.${metric.key}`)}</span>
+            <strong>{metric.value}</strong>
+            <small>{t(`roleDashboard.hints.${metric.hintKey}`)}</small>
+          </button>
+        ))}
       </div>
 
       <article className="card dashboard-detail-card full-width-detail-card">
@@ -394,6 +373,9 @@ export default function MasterDashboard() {
           <span className="badge">{t(`roleDashboard.metrics.${activeMetricKey}`)}: {activeMetric.value}</span>
         </header>
         {renderDetail()}
+        <Link className="secondary-btn full-report-link" to={detailPath}>
+          {t("roleDashboard.openFullReport")}
+        </Link>
       </article>
 
       <article className="card quick-actions-card quick-actions-below">
