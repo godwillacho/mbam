@@ -18,6 +18,12 @@ export function getCurrentMember(): TeamMember {
   return workspace.teamMembers.find((member) => member.id === storedMemberId) ?? workspace.teamMembers[0];
 }
 
+export function setCurrentMemberId(memberId: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(DASHBOARD_MEMBER_STORAGE_KEY, memberId);
+  window.dispatchEvent(new Event(CURRENT_MEMBER_CHANGE_EVENT));
+}
+
 export function canAccessRoute(member: TeamMember, routeKey: AppRouteKey): boolean {
   return (routeAccessByRole[member.roleId] ?? []).includes(routeKey);
 }
