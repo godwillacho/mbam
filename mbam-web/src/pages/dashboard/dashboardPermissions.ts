@@ -40,12 +40,14 @@ const roleMetricAccess: Record<string, DashboardMetricKey[]> = {
   "role-shop-manager": [
     "unitRevenue",
     "queued",
+    "pendingCustomers",
     "transactions",
     "products",
   ],
   "role-cashier": [
     "ownSales",
     "ownTransactions",
+    "pendingCustomers",
   ],
 };
 
