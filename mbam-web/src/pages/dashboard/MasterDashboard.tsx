@@ -9,6 +9,8 @@ import { getProductDescriptor } from "../../utils/productDisplay";
 import { getDashboardMetricsForRole, type DashboardMetricKey } from "./dashboardPermissions";
 import "./MasterDashboard.css";
 
+const isDevEnvironment = import.meta.env.DEV;
+
 interface DashboardMetric {
   key: DashboardMetricKey;
   value: string | number;
@@ -358,7 +360,7 @@ export default function MasterDashboard() {
             {selectedRole ? t(`roleDashboard.roleNames.${selectedRole.id}`) : ""} · {t("roleDashboard.scope")}: {getMemberScopeLabel(selectedMember)}
           </p>
         </div>
-        <span className="badge">{t("app.devAccount")}</span>
+        {isDevEnvironment && <span className="badge">{t("app.devAccount")}</span>}
       </article>
 
       <div className="metrics-grid clean-metrics-grid dashboard-options-grid">
