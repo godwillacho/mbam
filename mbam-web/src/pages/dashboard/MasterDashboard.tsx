@@ -5,6 +5,7 @@ import { workspace } from "../../data/mockWorkspace";
 import { CURRENT_MEMBER_CHANGE_EVENT, getCurrentMember, getScopedPendingPayments } from "../../security/accessControl";
 import type { Business, BusinessUnit, ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
+import { getProductDescriptor } from "../../utils/productDisplay";
 import { getDashboardMetricsForRole, type DashboardMetricKey } from "./dashboardPermissions";
 import "./MasterDashboard.css";
 
@@ -289,15 +290,20 @@ export default function MasterDashboard() {
 
     return (
       <div className="list-stack summary-two-column-list">
-        {scopedProducts.slice(0, 4).map((product: ProductProfile) => (
-          <div className="list-item" key={product.id}>
-            <div>
-              <strong>{product.name}</strong>
-              <small>{t(`categories.${product.category}`)} · {product.sku ?? t("common.noSku")}</small>
+        {scopedProducts.slice(0, 4).map((product: ProductProfile) => {
+          const descriptor = getProductDescriptor(product);
+
+          return (
+            <div className="list-item" key={product.id}>
+              <div>
+                <strong>{product.name}</strong>
+                <small>{descriptor || t(`categories.${product.category}`)}</small>
+                <small>{product.sku ?? t("common.noSku")} · {t(`categories.${product.category}`)}</small>
+              </div>
+              <span className="badge">{product.timesSold}</span>
             </div>
-            <span className="badge">{product.timesSold}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
