@@ -3,70 +3,62 @@
 }
 
 .pending-full-report-card {
-  display: grid;
-  gap: 16px;
+  overflow-x: auto;
 }
 
 .pending-full-report-card header {
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.pending-full-report-card header h3 {
-  margin-bottom: 0;
+.pending-payments-table {
+  min-width: 1320px;
 }
 
-.pending-full-report {
-  display: grid;
-  gap: 14px;
+.pending-payments-table th,
+.pending-payments-table td {
+  vertical-align: top;
 }
 
-.pending-full-row {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 18px;
-  background: #FAF7F0;
+.pending-payments-table th:nth-child(1),
+.pending-payments-table td:nth-child(1) {
+  min-width: 140px;
 }
 
-.pending-full-main strong,
-.pending-full-main small {
-  display: block;
+.pending-payments-table th:nth-child(2),
+.pending-payments-table td:nth-child(2),
+.pending-payments-table th:nth-child(4),
+.pending-payments-table td:nth-child(4),
+.pending-payments-table th:nth-child(5),
+.pending-payments-table td:nth-child(5),
+.pending-payments-table th:nth-child(12),
+.pending-payments-table td:nth-child(12) {
+  min-width: 170px;
 }
 
-.pending-full-main small {
-  margin-top: 4px;
-  color: var(--muted);
+.pending-payments-table th:nth-child(3),
+.pending-payments-table td:nth-child(3) {
+  min-width: 150px;
 }
 
-.pending-full-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0;
+.pending-payments-table th:nth-child(6),
+.pending-payments-table td:nth-child(6),
+.pending-payments-table th:nth-child(7),
+.pending-payments-table td:nth-child(7),
+.pending-payments-table th:nth-child(8),
+.pending-payments-table td:nth-child(8) {
+  min-width: 135px;
 }
 
-.pending-full-grid div {
-  display: grid;
-  gap: 4px;
-  padding: 10px;
-  border-radius: 12px;
-  background: #fff;
-}
-
-.pending-full-grid dt {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.pending-full-grid dd {
-  margin: 0;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 800;
+.pending-payments-table th:nth-child(9),
+.pending-payments-table td:nth-child(9),
+.pending-payments-table th:nth-child(10),
+.pending-payments-table td:nth-child(10),
+.pending-payments-table th:nth-child(11),
+.pending-payments-table td:nth-child(11) {
+  min-width: 165px;
 }
 
 .pending-note {
@@ -78,14 +70,8 @@
   font-size: 13px;
 }
 
-@media (max-width: 1180px) {
-  .pending-full-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 760px) {
-  .pending-full-grid {
-    grid-template-columns: 1fr;
+  .pending-full-report-card header {
+    flex-direction: column;
   }
 }
