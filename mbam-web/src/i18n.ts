@@ -255,6 +255,10 @@ const resources = {
         role: "Role",
         scope: "Scope",
         status: "Status",
+        customPermissions: "Custom permissions",
+        resetDefaults: "Reset defaults",
+        permissionEnabled: "Enabled for this user",
+        permissionDisabled: "Disabled for this user",
       },
       reports: {
         eyebrow: "Reports",
@@ -389,6 +393,10 @@ const resources = {
         role: "Rôle",
         scope: "Périmètre",
         status: "Statut",
+        customPermissions: "Permissions personnalisées",
+        resetDefaults: "Réinitialiser par défaut",
+        permissionEnabled: "Activé pour cet utilisateur",
+        permissionDisabled: "Désactivé pour cet utilisateur",
       },
       reports: {
         eyebrow: "Rapports",
