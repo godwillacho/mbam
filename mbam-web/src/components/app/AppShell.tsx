@@ -1,20 +1,23 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
+import { canAccessRoute, getCurrentMember, type AppRouteKey } from "../../security/accessControl";
 import LanguageSwitcher from "./LanguageSwitcher";
 import "./AppShell.css";
 
-const navItems = [
+const navItems: Array<{ to: string; labelKey: string; routeKey?: AppRouteKey }> = [
   { to: "/dashboard", labelKey: "app.nav.dashboard" },
-  { to: "/transactions/new", labelKey: "app.nav.recordTransaction" },
-  { to: "/transactions", labelKey: "app.nav.transactions" },
-  { to: "/businesses", labelKey: "app.nav.businesses" },
-  { to: "/team", labelKey: "app.nav.team" },
-  { to: "/reports", labelKey: "app.nav.reports" },
+  { to: "/transactions/new", labelKey: "app.nav.recordTransaction", routeKey: "recordTransaction" },
+  { to: "/transactions", labelKey: "app.nav.transactions", routeKey: "transactions" },
+  { to: "/businesses", labelKey: "app.nav.businesses", routeKey: "businesses" },
+  { to: "/team", labelKey: "app.nav.team", routeKey: "team" },
+  { to: "/reports", labelKey: "app.nav.reports", routeKey: "reports" },
 ];
 
 export default function AppShell() {
   const { t } = useTranslation();
+  const currentMember = getCurrentMember();
+  const visibleNavItems = navItems.filter((item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey));
 
   return (
     <div className="app-shell">
@@ -28,7 +31,7 @@ export default function AppShell() {
         </div>
 
         <nav className="sidebar-nav" aria-label="Main navigation">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
