@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { formatMoney } from "../../utils/formatters";
@@ -7,13 +8,16 @@ export default function BusinessStructurePage() {
 
   return (
     <section className="page-grid">
-      <div className="page-heading">
+      <div className="page-heading clean-dashboard-heading">
         <div>
           <span className="eyebrow">{t("businesses.eyebrow")}</span>
           <h2>{t("businesses.title")}</h2>
           <p>{t("businesses.description")}</p>
         </div>
-        <button className="primary-btn" type="button">{t("businesses.createBusiness")}</button>
+        <div className="dashboard-heading-action">
+          <Link className="secondary-btn" to="/dashboard">{t("pendingPayments.backToDashboard")}</Link>
+          <button className="primary-btn" type="button">{t("businesses.createBusiness")}</button>
+        </div>
       </div>
 
       <div className="card-grid two">
