@@ -4,7 +4,6 @@ import type {
   StockMovement as IStockMovement,
   StockMovementReason,
   CreateProductPayload,
-  UpdateProductPayload,
 } from "../types";
 
 export class Product implements IProduct {
@@ -156,22 +155,5 @@ export class StockMovement implements IStockMovement {
 
   get displayDelta(): string {
     return this.delta > 0 ? `+${this.delta}` : `${this.delta}`;
-  }
-
-  toJSON(): IStockMovement {
-    return {
-      id:            this.id,
-      productId:     this.productId,
-      transactionId: this.transactionId,
-      delta:         this.delta,
-      reason:        this.reason,
-      note:          this.note,
-      createdAt:     this.createdAt,
-      createdBy:     this.createdBy,
-    };
-  }
-
-  static fromJSON(data: IStockMovement): StockMovement {
-    return new StockMovement(data);
   }
 }
