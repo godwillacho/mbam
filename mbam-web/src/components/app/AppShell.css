@@ -306,6 +306,26 @@ body {
   margin-top: 3px;
 }
 
+.nested-business-unit {
+  align-items: flex-start;
+}
+
+.nested-team-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.nested-team-list span {
+  color: var(--forest-mid);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -732,6 +752,7 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .list-item,
   .form-actions,
   .itemized-header,
   .itemized-actions {
