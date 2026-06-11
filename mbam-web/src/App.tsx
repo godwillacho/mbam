@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/app/AppShell";
+import ProtectedRoute from "./components/app/ProtectedRoute";
 import AuthPage from "./pages/auth/AuthPage";
 import BusinessStructurePage from "./pages/business/BusinessStructurePage";
 import DashboardMetricDetailPage from "./pages/dashboard/DashboardMetricDetailPage";
@@ -20,11 +21,11 @@ export default function App() {
           <Route path="/dashboard" element={<MasterDashboard />} />
           <Route path="/dashboard/detail/:metricKey" element={<DashboardMetricDetailPage />} />
           <Route path="/dashboard/pending-payments" element={<PendingPaymentsPage />} />
-          <Route path="/transactions/new" element={<TransactionRecordPage />} />
-          <Route path="/transactions" element={<TransactionsPage />} />
-          <Route path="/businesses" element={<BusinessStructurePage />} />
-          <Route path="/team" element={<TeamAccessPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/transactions/new" element={<ProtectedRoute routeKey="recordTransaction"><TransactionRecordPage /></ProtectedRoute>} />
+          <Route path="/transactions" element={<ProtectedRoute routeKey="transactions"><TransactionsPage /></ProtectedRoute>} />
+          <Route path="/businesses" element={<ProtectedRoute routeKey="businesses"><BusinessStructurePage /></ProtectedRoute>} />
+          <Route path="/team" element={<ProtectedRoute routeKey="team"><TeamAccessPage /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute routeKey="reports"><ReportsPage /></ProtectedRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
