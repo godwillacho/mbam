@@ -3,7 +3,8 @@ import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
-import { getProductRevenueReport, type ProductRevenuePricePoint, type ProductRevenueRow } from "../../services/productRevenueService";
+import { getProductRevenueReport, type ProductRevenueRow } from "../../services/productRevenueService";
+import type { ProductProfile } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
 import { getProductInventorySnapshot } from "../../utils/inventory";
 import { getProductSearchText } from "../../utils/productDisplay";
@@ -11,9 +12,19 @@ import { canViewDashboardMetric } from "../dashboard/dashboardPermissions";
 import "./ProductRevenuePage.css";
 
 const isDevEnvironment = import.meta.env.DEV;
+type SortMode = "alphabetical" | "reverse" | "brand" | "bestSelling";
 
-function searchTextForRow(row: ProductRevenueRow): string {
-  const product = workspace.products.find((item) => item.id === row.productId);
+interface ProductDraft {
+  name: string;
+  sku: string;
+  brand: string;
+  category: string;
+  availableQuantity: string;
+  expiryDate: string;
+  costPrice: string;
+}
+
+function searchTextForRow(row: ProductRevenueRow, product?: ProductProfile): string {
   return [
     row.productName,
     row.sku,
@@ -30,20 +41,32 @@ function searchTextForRow(row: ProductRevenueRow): string {
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
-function groupBy<T>(items: T[], getKey: (item: T) => string): Array<{ key: string; items: T[] }> {
-  return Array.from(items.reduce<Map<string, T[]>>((map, item) => {
-    const key = getKey(item);
-    map.set(key, [...(map.get(key) ?? []), item]);
-    return map;
-  }, new Map()).entries()).map(([key, groupedItems]) => ({ key, items: groupedItems }));
+function toDraft(product: ProductProfile | undefined, row: ProductRevenueRow): ProductDraft {
+  return {
+    name: product?.name ?? row.productName,
+    sku: product?.sku ?? row.sku,
+    brand: product?.brand ?? row.brand ?? "",
+    category: product?.category ?? row.category,
+    availableQuantity: typeof product?.availableQuantity === "number" ? String(product.availableQuantity) : "",
+    expiryDate: product?.expiryDate ?? "",
+    costPrice: typeof product?.costPrice === "number" ? String(product.costPrice) : "",
+  };
 }
 
-function sumRevenue(items: ProductRevenuePricePoint[]): number {
-  return items.reduce((sum, item) => sum + item.total, 0);
+function compareText(a: string | undefined, b: string | undefined) {
+  return (a ?? "").localeCompare(b ?? "", undefined, { sensitivity: "base" });
 }
 
-function sumQuantity(items: ProductRevenuePricePoint[]): number {
-  return items.reduce((sum, item) => sum + item.quantity, 0);
+function sortRows(rows: ProductRevenueRow[], drafts: Record<string, ProductDraft>, sortMode: SortMode): ProductRevenueRow[] {
+  return [...rows].sort((a, b) => {
+    const draftA = drafts[a.productId];
+    const draftB = drafts[b.productId];
+
+    if (sortMode === "bestSelling") return b.pricePoints.length - a.pricePoints.length || b.quantitySold - a.quantitySold;
+    if (sortMode === "brand") return compareText(draftA?.brand ?? a.brand, draftB?.brand ?? b.brand) || compareText(draftA?.name ?? a.productName, draftB?.name ?? b.productName);
+    if (sortMode === "reverse") return compareText(draftB?.name ?? b.productName, draftA?.name ?? a.productName);
+    return compareText(draftA?.name ?? a.productName, draftB?.name ?? b.productName);
+  });
 }
 
 export default function ProductRevenuePage() {
@@ -54,7 +77,9 @@ export default function ProductRevenuePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("alphabetical");
+  const [isEditingProducts, setIsEditingProducts] = useState(false);
+  const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
 
   useEffect(() => {
     let ignore = false;
@@ -66,7 +91,15 @@ export default function ProductRevenuePage() {
         if (ignore) return;
         setRows(report.rows);
         setSource(report.source);
-        setSelectedProductId((current) => current ?? report.rows[0]?.productId ?? null);
+        setProductDrafts((current) => {
+          const next = { ...current };
+          report.rows.forEach((row) => {
+            if (!next[row.productId]) {
+              next[row.productId] = toDraft(workspace.products.find((product) => product.id === row.productId), row);
+            }
+          });
+          return next;
+        });
       })
       .catch((reportError: unknown) => {
         if (ignore) return;
@@ -84,17 +117,25 @@ export default function ProductRevenuePage() {
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return rows;
-    return rows.filter((row) => searchTextForRow(row).includes(query));
-  }, [rows, searchQuery]);
+    const matchedRows = !query ? rows : rows.filter((row) => {
+      const product = workspace.products.find((item) => item.id === row.productId);
+      const draft = productDrafts[row.productId];
+      const draftText = draft ? Object.values(draft).join(" ").toLowerCase() : "";
+      return searchTextForRow(row, product).includes(query) || draftText.includes(query);
+    });
 
-  const topRows = filteredRows.slice(0, 4);
-  const selectedRow = filteredRows.find((row) => row.productId === selectedProductId) ?? filteredRows[0];
-  const selectedProduct = selectedRow ? workspace.products.find((item) => item.id === selectedRow.productId) : undefined;
-  const inventory = selectedProduct ? getProductInventorySnapshot(selectedProduct) : undefined;
-  const branchGroups = selectedRow ? groupBy(selectedRow.pricePoints, (point) => point.unitName) : [];
-  const employeeGroups = selectedRow ? groupBy(selectedRow.pricePoints, (point) => point.recordedBy) : [];
-  const customerGroups = selectedRow ? groupBy(selectedRow.pricePoints, (point) => point.customerName) : [];
+    return sortRows(matchedRows, productDrafts, sortMode);
+  }, [productDrafts, rows, searchQuery, sortMode]);
+
+  const updateDraft = (productId: string, field: keyof ProductDraft, value: string) => {
+    setProductDrafts((current) => ({
+      ...current,
+      [productId]: {
+        ...(current[productId] ?? toDraft(workspace.products.find((product) => product.id === productId), rows.find((row) => row.productId === productId) ?? filteredRows[0])),
+        [field]: value,
+      },
+    }));
+  };
 
   if (!canViewDashboardMetric(member, "products")) {
     return <Navigate to="/dashboard" replace />;
@@ -113,82 +154,84 @@ export default function ProductRevenuePage() {
       {isDevEnvironment && source === "mock" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.mockSourceNote")}</div>}
       {error && <div className="product-revenue-error">{error}</div>}
 
-      <div className="filter-bar card">
-        <label htmlFor="product-search">{t("productRevenue.searchLabel")}</label>
-        <input id="product-search" type="search" value={searchQuery} placeholder={t("productRevenue.searchPlaceholder")} onChange={(event) => setSearchQuery(event.target.value)} />
-        <small>{t("productRevenue.searchHint")}</small>
+      <div className="filter-bar card product-table-controls">
+        <div>
+          <label htmlFor="product-search">{t("productRevenue.searchLabel")}</label>
+          <input id="product-search" type="search" value={searchQuery} placeholder={t("productRevenue.searchPlaceholder")} onChange={(event) => setSearchQuery(event.target.value)} />
+          <small>{t("productRevenue.searchHint")}</small>
+        </div>
+        <div>
+          <label htmlFor="product-sort">{t("productRevenue.sortLabel")}</label>
+          <select id="product-sort" value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}>
+            <option value="alphabetical">{t("productRevenue.sortOptions.alphabetical")}</option>
+            <option value="reverse">{t("productRevenue.sortOptions.reverse")}</option>
+            <option value="brand">{t("productRevenue.sortOptions.brand")}</option>
+            <option value="bestSelling">{t("productRevenue.sortOptions.bestSelling")}</option>
+          </select>
+        </div>
       </div>
 
       {isLoading && <p className="card-muted">{t("productRevenue.loading")}</p>}
       {!isLoading && filteredRows.length === 0 && !error && <p className="card-muted">{t("productRevenue.noSearchResults")}</p>}
 
-      {!isLoading && topRows.length > 0 && (
-        <div className="metrics-grid clean-metrics-grid">
-          {topRows.map((row) => (
-            <button key={row.productId} className={selectedRow?.productId === row.productId ? "metric-card metric-button active" : "metric-card metric-button"} type="button" onClick={() => setSelectedProductId(row.productId)}>
-              <span>{row.productName}</span>
-              <strong>{formatMoney(row.totalRevenue, workspace.masterAccount.currency)}</strong>
-              <small>{row.descriptor || row.sku}</small>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {selectedRow && (
-        <article className="card product-revenue-card">
+      {!isLoading && filteredRows.length > 0 && (
+        <article className="table-card product-management-table-card">
           <header>
             <div>
-              <span className="eyebrow">{t("productRevenue.selectedProduct")}</span>
-              <h3>{selectedRow.productName}</h3>
-              <small>{selectedRow.descriptor || selectedRow.sku}</small>
+              <h3>{t("productRevenue.productTable")}</h3>
+              <small>{t("transactions.filteredRecords", { count: filteredRows.length })}</small>
             </div>
-            <span className="badge warning">{formatMoney(selectedRow.totalRevenue, workspace.masterAccount.currency)}</span>
+            <button className={isEditingProducts ? "primary-btn" : "secondary-btn"} type="button" onClick={() => setIsEditingProducts((current) => !current)}>
+              {isEditingProducts ? t("productRevenue.doneEditing") : t("productRevenue.editProducts")}
+            </button>
           </header>
 
-          <div className="metrics-grid clean-metrics-grid">
-            <article className="metric-card"><span>{t("productRevenue.quantitySold")}</span><strong>{selectedRow.quantitySold}</strong><small>{selectedRow.sku}</small></article>
-            <article className="metric-card"><span>{t("productRevenue.avgUnitPrice")}</span><strong>{formatMoney(selectedRow.averageUnitPrice, workspace.masterAccount.currency)}</strong><small>{t("productRevenue.unitPrice")}</small></article>
-            <article className="metric-card"><span>{t("productRevenue.availableQuantity")}</span><strong>{inventory?.availableQuantity ?? t("productRevenue.notTracked")}</strong><small>{inventory ? t(`productRevenue.stockStatus.${inventory.status}`) : t("productRevenue.notTracked")}</small></article>
-            <article className="metric-card"><span>{t("productRevenue.costPrice")}</span><strong>{selectedProduct?.costPrice ? formatMoney(selectedProduct.costPrice, workspace.masterAccount.currency) : "—"}</strong><small>{selectedProduct?.expiryDate ? `${t("productRevenue.expiryDate")}: ${selectedProduct.expiryDate}` : selectedRow.businessName}</small></article>
-          </div>
+          <table className="data-table product-management-table">
+            <thead>
+              <tr>
+                <th>{t("productRevenue.product")}</th>
+                <th>{t("productRevenue.sku")}</th>
+                <th>{t("productRevenue.brand")}</th>
+                <th>{t("productRevenue.category")}</th>
+                <th>{t("productRevenue.availableQuantity")}</th>
+                <th>{t("productRevenue.expiryDate")}</th>
+                <th>{t("productRevenue.costPrice")}</th>
+                <th>{t("roleDashboard.labels.revenue")}</th>
+                <th>
+                  <button className="table-sort-button" type="button" onClick={() => setSortMode("bestSelling")}>{t("productRevenue.bestSellingProducts")}</button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.map((row) => {
+                const product = workspace.products.find((item) => item.id === row.productId);
+                const draft = productDrafts[row.productId] ?? toDraft(product, row);
+                const inventory = product ? getProductInventorySnapshot(product) : undefined;
+                const transactionCount = row.pricePoints.length;
 
-          <div className="card-grid two" style={{ marginTop: 18 }}>
-            <article className="card">
-              <h3>{t("productRevenue.branchBreakdown")}</h3>
-              <div className="list-stack">
-                {branchGroups.map((group) => (
-                  <div className="list-item" key={group.key}>
-                    <div><strong>{group.key}</strong><small>{t("productRevenue.quantity")}: {sumQuantity(group.items)}</small></div>
-                    <span className="badge">{formatMoney(sumRevenue(group.items), workspace.masterAccount.currency)}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className="card">
-              <h3>{t("productRevenue.employeeBreakdown")}</h3>
-              <div className="list-stack">
-                {employeeGroups.map((group) => (
-                  <div className="list-item" key={group.key}>
-                    <div><strong>{group.key}</strong><small>{t("productRevenue.quantity")}: {sumQuantity(group.items)}</small></div>
-                    <span className="badge">{formatMoney(sumRevenue(group.items), workspace.masterAccount.currency)}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </div>
-
-          <article className="card" style={{ marginTop: 18 }}>
-            <h3>{t("productRevenue.customerBreakdown")}</h3>
-            <div className="list-stack">
-              {customerGroups.map((group) => (
-                <div className="list-item" key={group.key}>
-                  <div><strong>{group.key}</strong><small>{t("productRevenue.quantity")}: {sumQuantity(group.items)}</small></div>
-                  <span className="badge">{formatMoney(sumRevenue(group.items), workspace.masterAccount.currency)}</span>
-                </div>
-              ))}
-            </div>
-          </article>
+                return (
+                  <tr key={row.productId}>
+                    <td>
+                      {isEditingProducts ? <input value={draft.name} onChange={(event) => updateDraft(row.productId, "name", event.target.value)} /> : <strong>{draft.name}</strong>}
+                    </td>
+                    <td>{isEditingProducts ? <input value={draft.sku} onChange={(event) => updateDraft(row.productId, "sku", event.target.value)} /> : draft.sku}</td>
+                    <td>{isEditingProducts ? <input value={draft.brand} onChange={(event) => updateDraft(row.productId, "brand", event.target.value)} /> : draft.brand || "—"}</td>
+                    <td>{isEditingProducts ? <input value={draft.category} onChange={(event) => updateDraft(row.productId, "category", event.target.value)} /> : t(`categories.${draft.category}`)}</td>
+                    <td>{isEditingProducts ? <input type="number" min="0" value={draft.availableQuantity} onChange={(event) => updateDraft(row.productId, "availableQuantity", event.target.value)} /> : inventory?.availableQuantity ?? t("productRevenue.notTracked")}</td>
+                    <td>{isEditingProducts ? <input type="date" value={draft.expiryDate} onChange={(event) => updateDraft(row.productId, "expiryDate", event.target.value)} /> : draft.expiryDate || "—"}</td>
+                    <td>{isEditingProducts ? <input type="number" min="0" value={draft.costPrice} onChange={(event) => updateDraft(row.productId, "costPrice", event.target.value)} /> : draft.costPrice ? formatMoney(Number(draft.costPrice), workspace.masterAccount.currency) : "—"}</td>
+                    <td>{formatMoney(row.totalRevenue, workspace.masterAccount.currency)}</td>
+                    <td>
+                      <button className="best-selling-cell" type="button" onClick={() => setSortMode("bestSelling")}>
+                        <strong>{row.quantitySold}</strong>
+                        <small>{t("productRevenue.transactionCount", { count: transactionCount })}</small>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </article>
       )}
     </section>
