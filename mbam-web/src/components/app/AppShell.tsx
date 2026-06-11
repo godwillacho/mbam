@@ -1,7 +1,14 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
-import { canAccessRoute, getCurrentMember, type AppRouteKey } from "../../security/accessControl";
+import {
+  canAccessRoute,
+  CURRENT_MEMBER_CHANGE_EVENT,
+  getCurrentMember,
+  setCurrentMemberId,
+  type AppRouteKey,
+} from "../../security/accessControl";
 import LanguageSwitcher from "./LanguageSwitcher";
 import "./AppShell.css";
 
@@ -14,10 +21,22 @@ const navItems: Array<{ to: string; labelKey: string; routeKey?: AppRouteKey }> 
   { to: "/reports", labelKey: "app.nav.reports", routeKey: "reports" },
 ];
 
+const isDevEnvironment = import.meta.env.DEV;
+
 export default function AppShell() {
   const { t } = useTranslation();
-  const currentMember = getCurrentMember();
+  const [currentMember, setCurrentMember] = useState(() => getCurrentMember());
   const visibleNavItems = navItems.filter((item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey));
+
+  useEffect(() => {
+    const syncCurrentMember = () => setCurrentMember(getCurrentMember());
+    window.addEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
+    window.addEventListener("storage", syncCurrentMember);
+    return () => {
+      window.removeEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
+      window.removeEventListener("storage", syncCurrentMember);
+    };
+  }, []);
 
   return (
     <div className="app-shell">
@@ -44,8 +63,8 @@ export default function AppShell() {
 
         <div className="sidebar-card">
           <span>{t("app.ownerLabel")}</span>
-          <strong>{workspace.masterAccount.ownerName}</strong>
-          <small>{t("app.masterScope")}</small>
+          <strong>{currentMember.fullName}</strong>
+          <small>{t(`roles.${currentMember.roleId}`)}</small>
         </div>
       </aside>
 
@@ -56,6 +75,24 @@ export default function AppShell() {
             <h1>{workspace.masterAccount.name}</h1>
           </div>
           <div className="topbar-actions">
+            {isDevEnvironment && (
+              <label className="dev-account-switcher">
+                <span>{t("app.devAccount")}</span>
+                <select
+                  value={currentMember.id}
+                  onChange={(event) => {
+                    setCurrentMemberId(event.target.value);
+                    setCurrentMember(getCurrentMember());
+                  }}
+                >
+                  {workspace.teamMembers.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.fullName} — {t(`roles.${member.roleId}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <LanguageSwitcher />
             <div className="sync-pill">
               <span className="sync-dot" />
