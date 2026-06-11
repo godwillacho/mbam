@@ -8,13 +8,11 @@ import type {
   Transaction,
   TransactionSummary,
   TransactionFilters,
-  TransactionItem,
   TransactionDraft,
   TransactionDraftItem,
   Product,
   ProductSuggestion,
   CashierAccount,
-  DailySummary,
   User,
 } from "../types";
 
@@ -28,6 +26,7 @@ export function filterTransactions(
   filters: Partial<TransactionFilters>
 ): Transaction[] {
   return transactions.filter((tx) => {
+    if (filters.businessId && tx.businessId !== filters.businessId) return false;
     if (filters.cashierId && tx.cashierId !== filters.cashierId) return false;
     if (filters.status && tx.status !== filters.status) return false;
     if (filters.paymentMethod && tx.paymentMethod !== filters.paymentMethod) return false;
@@ -126,7 +125,7 @@ export function searchProducts(products: Product[], query: string): ProductSugge
   const q = query.toLowerCase().trim();
   return products
     .filter((p) => p.isActive && p.name.toLowerCase().includes(q))
-    .slice(0, 8) // cap autocomplete results
+    .slice(0, 8)
     .map((p) => ({
       id: p.id,
       name: p.name,
