@@ -69,6 +69,29 @@ function getScopedTransactions(member: TeamMember, units: BusinessUnit[]): Trans
   return transactions;
 }
 
+function getFullPagePath(metricKey: DashboardMetricKey): string {
+  switch (metricKey) {
+    case "businesses":
+    case "units":
+    case "team":
+      return "/businesses";
+    case "pendingCustomers":
+      return "/pending-payments";
+    case "transactions":
+    case "ownTransactions":
+    case "queued":
+      return "/transactions";
+    case "products":
+      return "/products";
+    case "totalRevenue":
+    case "businessRevenue":
+    case "unitRevenue":
+    case "ownSales":
+    default:
+      return "/reports";
+  }
+}
+
 export default function MasterDashboard() {
   const { t } = useTranslation();
   const [selectedMember, setSelectedMember] = useState(() => getCurrentMember());
@@ -131,11 +154,7 @@ export default function MasterDashboard() {
   const metrics = allMetrics.filter((metric) => allowedMetricKeys.includes(metric.key));
   const activeMetric = metrics.find((metric) => metric.key === selectedMetric) ?? metrics[0];
   const activeMetricKey = activeMetric.key;
-  const detailPath = activeMetricKey === "pendingCustomers"
-    ? "/dashboard/pending-payments"
-    : activeMetricKey === "products"
-      ? "/dashboard/products"
-      : `/dashboard/detail/${activeMetricKey}`;
+  const detailPath = getFullPagePath(activeMetricKey);
 
   const renderTransactions = (records: TransactionRecord[]) => {
     if (records.length === 0) {
@@ -371,7 +390,7 @@ export default function MasterDashboard() {
           {isCashier && <Link to="/transactions/new">{t("roleDashboard.recordSale")}</Link>}
           {!isCashier && <Link to="/transactions">{t("roleDashboard.openTransactions")}</Link>}
           {(isMasterOwner || isBusinessAdmin) && <Link to="/businesses">{t("roleDashboard.manageBusinesses")}</Link>}
-          {(isMasterOwner || isBusinessAdmin) && <Link to="/team">{t("roleDashboard.manageTeam")}</Link>}
+          {(isMasterOwner || isBusinessAdmin) && <Link to="/businesses">{t("roleDashboard.manageTeam")}</Link>}
           {!isCashier && <Link to="/reports">{t("roleDashboard.viewReports")}</Link>}
         </div>
       </article>
