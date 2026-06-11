@@ -250,6 +250,24 @@ body {
   padding: 20px;
 }
 
+.clickable-business-card {
+  cursor: pointer;
+  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
+}
+
+.clickable-business-card:hover,
+.clickable-business-card:focus-visible {
+  border-color: var(--forest-mid);
+  box-shadow: 0 14px 36px rgba(27, 67, 50, 0.16);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.clickable-business-card .text-button {
+  position: relative;
+  z-index: 1;
+}
+
 .role-preview-card,
 .dashboard-detail-card header {
   display: flex;
@@ -518,245 +536,4 @@ body {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 14px;
-}
-
-.itemized-toggle {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  cursor: pointer;
-}
-
-.itemized-toggle strong,
-.itemized-toggle small {
-  display: block;
-}
-
-.itemized-toggle small {
-  color: var(--muted);
-  margin-top: 3px;
-}
-
-.itemized-section {
-  display: grid;
-  gap: 14px;
-  background: #fff;
-}
-
-.itemized-header,
-.itemized-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.itemized-header strong,
-.itemized-header small {
-  display: block;
-}
-
-.itemized-header small,
-.itemized-actions small {
-  color: var(--muted);
-  margin-top: 3px;
-}
-
-.itemized-header > span {
-  color: var(--forest);
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.itemized-table {
-  display: grid;
-  gap: 8px;
-}
-
-.itemized-row {
-  display: grid;
-  grid-template-columns: minmax(180px, 1.5fr) 90px 120px 120px 88px;
-  gap: 8px;
-  align-items: start;
-}
-
-.itemized-row-head {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.product-field {
-  position: relative;
-  display: grid;
-  gap: 6px;
-}
-
-.product-suggestions {
-  position: absolute;
-  z-index: 10;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  display: grid;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: var(--shadow);
-}
-
-.learned-product-hint {
-  color: var(--forest-mid);
-  font-weight: 700;
-}
-
-.line-remove-btn {
-  border: 0;
-  background: #FEE2E2;
-  color: var(--danger);
-  border-radius: 10px;
-  padding: 10px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.line-remove-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.payment-status-field {
-  border: 0;
-  padding: 0;
-  margin: 0;
-}
-
-.payment-status-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.payment-option {
-  display: flex;
-  gap: 10px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 14px;
-  background: #fff;
-  cursor: pointer;
-}
-
-.payment-option.active {
-  border-color: var(--forest-mid);
-  background: var(--forest-soft);
-}
-
-.payment-option.warning.active {
-  border-color: #F4D79C;
-  background: #FFF7E6;
-}
-
-.payment-option strong,
-.payment-option small {
-  display: block;
-}
-
-.payment-option small {
-  color: var(--muted);
-  margin-top: 3px;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 0 20px;
-}
-
-.primary-btn,
-.secondary-btn {
-  border: 0;
-  border-radius: 12px;
-  padding: 12px 16px;
-  font-weight: 800;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.primary-btn {
-  background: var(--forest);
-  color: #fff;
-}
-
-.secondary-btn {
-  background: var(--forest-soft);
-  color: var(--forest);
-}
-
-@media (max-width: 1100px) {
-  .metrics-grid,
-  .card-grid.two {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 980px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    position: static;
-    height: auto;
-  }
-
-  .topbar,
-  .role-preview-card,
-  .dashboard-detail-card header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .topbar-actions {
-    justify-content: flex-start;
-  }
-
-  .role-preview-card select,
-  .dev-account-switcher,
-  .dev-account-switcher select {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .form-grid,
-  .payment-status-options {
-    grid-template-columns: 1fr;
-  }
-
-  .itemized-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .main-panel {
-    padding: 18px;
-  }
-
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .list-item,
-  .form-actions,
-  .itemized-header,
-  .itemized-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
 }
