@@ -6,6 +6,7 @@ import BusinessStructurePage from "./pages/business/BusinessStructurePage";
 import DashboardMetricDetailPage from "./pages/dashboard/DashboardMetricDetailPage";
 import MasterDashboard from "./pages/dashboard/MasterDashboard";
 import PendingPaymentsPage from "./pages/dashboard/PendingPaymentsPage";
+import ProductRevenuePage from "./pages/products/ProductRevenuePage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import TeamAccessPage from "./pages/team/TeamAccessPage";
 import TransactionRecordPage from "./pages/transactions/TransactionRecordPage";
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/dashboard" element={<MasterDashboard />} />
           <Route path="/dashboard/detail/:metricKey" element={<DashboardMetricDetailPage />} />
           <Route path="/dashboard/pending-payments" element={<PendingPaymentsPage />} />
+          <Route path="/dashboard/products" element={<ProductRevenuePage />} />
           <Route path="/transactions/new" element={<ProtectedRoute routeKey="recordTransaction"><TransactionRecordPage /></ProtectedRoute>} />
           <Route path="/transactions" element={<ProtectedRoute routeKey="transactions"><TransactionsPage /></ProtectedRoute>} />
           <Route path="/businesses" element={<ProtectedRoute routeKey="businesses"><BusinessStructurePage /></ProtectedRoute>} />
