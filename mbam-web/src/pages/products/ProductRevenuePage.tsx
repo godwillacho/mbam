@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
-import { getProductRevenueReport, type ProductRevenueRow } from "../../services/productRevenueService";
+import { getProductRevenueReport, type ProductRevenueReport, type ProductRevenueRow } from "../../services/productRevenueService";
 import type { ProductProfile } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
 import { getProductInventorySnapshot } from "../../utils/inventory";
@@ -183,7 +183,7 @@ export default function ProductRevenuePage() {
   const { t } = useTranslation();
   const member = getCurrentMember();
   const [rows, setRows] = useState<ProductRevenueRow[]>([]);
-  const [source, setSource] = useState<"api" | "mock">("mock");
+  const [source, setSource] = useState<ProductRevenueReport["source"]>("mock");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -311,6 +311,7 @@ export default function ProductRevenuePage() {
       </div>
 
       {isDevEnvironment && source === "mock" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.mockSourceNote")}</div>}
+      {isDevEnvironment && source === "cache" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.cacheSourceNote")}</div>}
       {error && <div className="product-revenue-error">{error}</div>}
 
       <div className="filter-bar card product-table-controls">
