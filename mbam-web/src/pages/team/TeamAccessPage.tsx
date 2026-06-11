@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import type { TeamMember } from "../../types/workspace";
+import "./TeamAccessPage.css";
 
 const configurablePermissions = [
   "Record sales",
