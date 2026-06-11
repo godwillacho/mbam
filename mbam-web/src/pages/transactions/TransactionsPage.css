@@ -1,0 +1,160 @@
+.transaction-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(320px, auto) minmax(360px, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.transaction-search-mode-toggle {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.active-toggle {
+  border-color: var(--forest-mid);
+  background: var(--forest-soft);
+  color: var(--forest);
+}
+
+.transaction-filter-bar input {
+  min-height: 46px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+
+.transaction-table-card {
+  overflow-x: auto;
+}
+
+.transaction-data-table {
+  min-width: 1080px;
+}
+
+.transaction-data-table th:nth-child(1),
+.transaction-data-table td:nth-child(1) {
+  min-width: 150px;
+}
+
+.transaction-data-table th:nth-child(2),
+.transaction-data-table td:nth-child(2),
+.transaction-data-table th:nth-child(3),
+.transaction-data-table td:nth-child(3),
+.transaction-data-table th:nth-child(4),
+.transaction-data-table td:nth-child(4) {
+  min-width: 210px;
+}
+
+.clickable-table-row {
+  cursor: pointer;
+}
+
+.clickable-table-row:hover,
+.clickable-table-row:focus-visible {
+  background: var(--forest-soft);
+  outline: none;
+}
+
+.invoice-card {
+  display: grid;
+  gap: 22px;
+}
+
+.invoice-header,
+.invoice-party-grid,
+.invoice-total-panel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.invoice-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+}
+
+.invoice-meta {
+  display: grid;
+  gap: 4px;
+  text-align: right;
+}
+
+.invoice-meta small,
+.invoice-table small {
+  display: block;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.invoice-party-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 16px;
+  border-radius: 18px;
+  background: #FAF7F0;
+}
+
+.invoice-party-grid strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.invoice-total-panel {
+  justify-content: flex-end;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+  font-size: 18px;
+}
+
+.invoice-total-panel strong {
+  font-size: 28px;
+}
+
+@media (max-width: 900px) {
+  .transaction-filter-bar,
+  .invoice-party-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .invoice-header,
+  .invoice-total-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .invoice-meta {
+    text-align: left;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .sidebar,
+  .topbar,
+  .no-print {
+    display: none !important;
+  }
+
+  .app-shell {
+    display: block;
+  }
+
+  .main-panel {
+    padding: 0;
+  }
+
+  .invoice-card {
+    border: 0;
+    box-shadow: none;
+  }
+}
