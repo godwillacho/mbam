@@ -1,5 +1,6 @@
 export interface ProductSaleLine {
   id: string;
+  transactionId?: string;
   productId: string;
   businessId: string;
   businessUnitId: string;
@@ -14,6 +15,7 @@ export interface ProductSaleLine {
 export const productSales: ProductSaleLine[] = [
   {
     id: "line-001",
+    transactionId: "txn-002",
     productId: "product-bluetooth-speaker",
     businessId: "business-electronics",
     businessUnitId: "unit-electronics-showroom",
@@ -26,6 +28,7 @@ export const productSales: ProductSaleLine[] = [
   },
   {
     id: "line-002",
+    transactionId: "txn-004",
     productId: "product-phone-charger",
     businessId: "business-electronics",
     businessUnitId: "unit-electronics-showroom",
@@ -38,6 +41,7 @@ export const productSales: ProductSaleLine[] = [
   },
   {
     id: "line-003",
+    transactionId: "txn-005",
     productId: "product-rice-bag-25kg",
     businessId: "business-grocery",
     businessUnitId: "unit-douala-shop",
@@ -50,6 +54,7 @@ export const productSales: ProductSaleLine[] = [
   },
   {
     id: "line-004",
+    transactionId: "txn-003",
     productId: "product-oil-bottle-5l",
     businessId: "business-grocery",
     businessUnitId: "unit-yaounde-shop",
@@ -62,6 +67,7 @@ export const productSales: ProductSaleLine[] = [
   },
   {
     id: "line-005",
+    transactionId: "txn-001",
     productId: "product-sugar-carton",
     businessId: "business-grocery",
     businessUnitId: "unit-douala-shop",
@@ -73,6 +79,7 @@ export const productSales: ProductSaleLine[] = [
   },
   {
     id: "line-006",
+    transactionId: "txn-001",
     productId: "product-oil-bottle-5l",
     businessId: "business-grocery",
     businessUnitId: "unit-douala-shop",
