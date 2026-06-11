@@ -33,6 +33,8 @@ const en = {
   },
   team: {
     permissionProfile: "Permission profile",
+    editEmployeeAccess: "Edit employee access",
+    hideEmployeeAccess: "Hide employee access",
     customizable: "Custom",
     customizableHint: "Open full permission options",
     roleRecommendations: {
@@ -84,6 +86,8 @@ const fr = {
   },
   team: {
     permissionProfile: "Profil de permissions",
+    editEmployeeAccess: "Modifier l’accès employé",
+    hideEmployeeAccess: "Masquer l’accès employé",
     customizable: "Personnalisé",
     customizableHint: "Ouvrir toutes les options de permission",
     roleRecommendations: {
