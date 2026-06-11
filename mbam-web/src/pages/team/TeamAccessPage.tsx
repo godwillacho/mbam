@@ -22,6 +22,9 @@ const configurablePermissions = [
   "All businesses",
 ];
 
+const recommendedRoleIds = ["role-cashier", "role-shop-manager", "role-business-admin"];
+type PermissionMode = "role-cashier" | "role-shop-manager" | "role-business-admin" | "custom";
+
 function resolveRole(roleId: string, t: (key: string) => string) {
   return workspace.roles.find((role) => role.id === roleId) ? t(`roles.${roleId}`) : t("common.unknownRole");
 }
@@ -32,8 +35,16 @@ function resolveScope(memberBusinessId: string | undefined, memberUnitId: string
   return t("common.entireMasterAccount");
 }
 
+function getRolePermissions(roleId: string): string[] {
+  return workspace.roles.find((role) => role.id === roleId)?.permissions ?? [];
+}
+
 function getDefaultPermissions(member: TeamMember): string[] {
-  return workspace.roles.find((role) => role.id === member.roleId)?.permissions ?? [];
+  return getRolePermissions(member.roleId);
+}
+
+function getDefaultPermissionMode(member: TeamMember): PermissionMode {
+  return recommendedRoleIds.includes(member.roleId) ? member.roleId as PermissionMode : "custom";
 }
 
 function belongsToBusiness(member: TeamMember, businessId: string): boolean {
@@ -53,6 +64,9 @@ export default function TeamAccessPage() {
   const [memberPermissions, setMemberPermissions] = useState<Record<string, string[]>>(() => {
     return Object.fromEntries(workspace.teamMembers.map((member) => [member.id, getDefaultPermissions(member)]));
   });
+  const [permissionModes, setPermissionModes] = useState<Record<string, PermissionMode>>(() => {
+    return Object.fromEntries(workspace.teamMembers.map((member) => [member.id, getDefaultPermissionMode(member)]));
+  });
 
   const visibleMembers = useMemo(() => {
     if (!businessFilter) return workspace.teamMembers;
@@ -61,14 +75,24 @@ export default function TeamAccessPage() {
 
   const selectedMember = workspace.teamMembers.find((member) => member.id === selectedMemberId) ?? visibleMembers[0] ?? workspace.teamMembers[0];
   const selectedPermissions = memberPermissions[selectedMember.id] ?? getDefaultPermissions(selectedMember);
+  const selectedMode = permissionModes[selectedMember.id] ?? getDefaultPermissionMode(selectedMember);
   const memberTransactions = workspace.transactions.filter((transaction) => transaction.recordedBy === selectedMember.fullName);
   const memberSales = productSales.filter((sale) => sale.recordedBy === selectedMember.fullName);
   const memberRevenue = memberTransactions.reduce((sum, transaction) => sum + transaction.amount, 0);
   const productQuantity = memberSales.reduce((sum, sale) => sum + sale.quantity, 0);
   const maxProductQuantity = Math.max(...memberSales.map((sale) => sale.quantity), 1);
 
+  const selectPermissionMode = (mode: PermissionMode) => {
+    setSaveMessage("");
+    setPermissionModes((current) => ({ ...current, [selectedMember.id]: mode }));
+    if (mode !== "custom") {
+      setMemberPermissions((current) => ({ ...current, [selectedMember.id]: getRolePermissions(mode) }));
+    }
+  };
+
   const togglePermission = (permission: string) => {
     setSaveMessage("");
+    setPermissionModes((current) => ({ ...current, [selectedMember.id]: "custom" }));
     setMemberPermissions((current) => {
       const permissions = current[selectedMember.id] ?? getDefaultPermissions(selectedMember);
       const nextPermissions = permissions.includes(permission)
@@ -81,6 +105,7 @@ export default function TeamAccessPage() {
 
   const resetPermissions = () => {
     setSaveMessage("");
+    setPermissionModes((current) => ({ ...current, [selectedMember.id]: getDefaultPermissionMode(selectedMember) }));
     setMemberPermissions((current) => ({ ...current, [selectedMember.id]: getDefaultPermissions(selectedMember) }));
   };
 
@@ -139,7 +164,7 @@ export default function TeamAccessPage() {
       <article className="card permission-editor-card">
         <header className="permission-editor-header">
           <div>
-            <span className="eyebrow">{t("team.customPermissions")}</span>
+            <span className="eyebrow">{t("team.permissionProfile")}</span>
             <h3>{selectedMember.fullName}</h3>
             <p className="card-muted">{resolveRole(selectedMember.roleId, t)} · {resolveScope(selectedMember.businessId, selectedMember.businessUnitId, t)}</p>
           </div>
@@ -149,20 +174,35 @@ export default function TeamAccessPage() {
           </div>
         </header>
 
-        <div className="permission-toggle-grid">
-          {configurablePermissions.map((permission) => {
-            const enabled = selectedPermissions.includes(permission);
-            return (
-              <label className={enabled ? "permission-toggle enabled" : "permission-toggle"} key={permission}>
-                <input type="checkbox" checked={enabled} onChange={() => togglePermission(permission)} />
-                <span>
-                  <strong>{t(`permissions.${permission}`)}</strong>
-                  <small>{enabled ? t("team.permissionEnabled") : t("team.permissionDisabled")}</small>
-                </span>
-              </label>
-            );
-          })}
+        <div className="permission-profile-grid">
+          {recommendedRoleIds.map((roleId) => (
+            <button key={roleId} className={selectedMode === roleId ? "permission-profile-card active" : "permission-profile-card"} type="button" onClick={() => selectPermissionMode(roleId as PermissionMode)}>
+              <strong>{t(`roles.${roleId}`)}</strong>
+              <small>{t(`team.roleRecommendations.${roleId}`)}</small>
+            </button>
+          ))}
+          <button className={selectedMode === "custom" ? "permission-profile-card active" : "permission-profile-card"} type="button" onClick={() => selectPermissionMode("custom")}>
+            <strong>{t("team.customizable")}</strong>
+            <small>{t("team.customizableHint")}</small>
+          </button>
         </div>
+
+        {selectedMode === "custom" && (
+          <div className="permission-toggle-grid">
+            {configurablePermissions.map((permission) => {
+              const enabled = selectedPermissions.includes(permission);
+              return (
+                <label className={enabled ? "permission-toggle enabled" : "permission-toggle"} key={permission}>
+                  <input type="checkbox" checked={enabled} onChange={() => togglePermission(permission)} />
+                  <span>
+                    <strong>{t(`permissions.${permission}`)}</strong>
+                    <small>{enabled ? t("team.permissionEnabled") : t("team.permissionDisabled")}</small>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </article>
 
       <article className="card permission-editor-card">
