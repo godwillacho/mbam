@@ -2,7 +2,7 @@ import { productSales, type ProductSaleLine } from "../data/mockProductSales";
 import { workspace } from "../data/mockWorkspace";
 import type { TeamMember } from "../types/workspace";
 import { getProductDescriptor } from "../utils/productDisplay";
-import { getJson, isApiConfigured } from "./apiClient";
+import { localSyncRead } from "./localSync/localSyncClient";
 
 export interface ProductRevenuePricePoint {
   id: string;
@@ -37,7 +37,7 @@ export interface ProductRevenueRow {
 
 export interface ProductRevenueReport {
   rows: ProductRevenueRow[];
-  source: "api" | "mock";
+  source: "api" | "mock" | "cache";
 }
 
 interface ProductRevenueApiResponse {
@@ -147,17 +147,15 @@ function getMockReport(member: TeamMember, noSkuLabel: string): ProductRevenueRe
 }
 
 export async function getProductRevenueReport(member: TeamMember, noSkuLabel: string): Promise<ProductRevenueReport> {
-  if (!isApiConfigured()) {
-    return getMockReport(member, noSkuLabel);
-  }
+  const path = buildProductRevenuePath(member);
+  const result = await localSyncRead<ProductRevenueApiResponse>({
+    module: "reports",
+    path,
+    fallback: () => ({ rows: getMockReport(member, noSkuLabel).rows }),
+  });
 
-  try {
-    const response = await getJson<ProductRevenueApiResponse>(buildProductRevenuePath(member));
-    return {
-      rows: response.rows.sort((a, b) => b.totalRevenue - a.totalRevenue),
-      source: "api",
-    };
-  } catch {
-    return getMockReport(member, noSkuLabel);
-  }
+  return {
+    rows: result.data.rows.sort((a, b) => b.totalRevenue - a.totalRevenue),
+    source: result.source === "api" ? "api" : result.source === "cache" ? "cache" : "mock",
+  };
 }
