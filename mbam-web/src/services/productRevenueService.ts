@@ -1,6 +1,7 @@
 import { productSales, type ProductSaleLine } from "../data/mockProductSales";
 import { workspace } from "../data/mockWorkspace";
 import type { TeamMember } from "../types/workspace";
+import { getProductDescriptor } from "../utils/productDisplay";
 import { getJson, isApiConfigured } from "./apiClient";
 
 export interface ProductRevenuePricePoint {
@@ -20,6 +21,13 @@ export interface ProductRevenueRow {
   sku: string;
   category: string;
   businessName: string;
+  descriptor?: string;
+  manufacturer?: string;
+  brand?: string;
+  variant?: string;
+  packageSize?: string;
+  unitOfMeasure?: string;
+  barcode?: string;
   quantitySold: number;
   totalRevenue: number;
   averageUnitPrice: number;
@@ -76,6 +84,13 @@ function buildMockRevenueRows(member: TeamMember, noSkuLabel: string): ProductRe
       sku: product.sku ?? noSkuLabel,
       category: product.category,
       businessName: businessName(sale.businessId),
+      descriptor: getProductDescriptor(product),
+      manufacturer: product.manufacturer,
+      brand: product.brand,
+      variant: product.variant,
+      packageSize: product.packageSize,
+      unitOfMeasure: product.unitOfMeasure,
+      barcode: product.barcode,
       quantitySold: 0,
       totalRevenue: 0,
       averageUnitPrice: 0,
