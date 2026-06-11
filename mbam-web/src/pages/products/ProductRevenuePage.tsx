@@ -10,6 +10,8 @@ import { getProductSearchText } from "../../utils/productDisplay";
 import { canViewDashboardMetric } from "../dashboard/dashboardPermissions";
 import "./ProductRevenuePage.css";
 
+const isDevEnvironment = import.meta.env.DEV;
+
 function searchTextForRow(row: ProductRevenueRow): string {
   const product = workspace.products.find((item) => item.id === row.productId);
   return [
@@ -108,7 +110,7 @@ export default function ProductRevenuePage() {
         </div>
       </div>
 
-      {source === "mock" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.mockSourceNote")}</div>}
+      {isDevEnvironment && source === "mock" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.mockSourceNote")}</div>}
       {error && <div className="product-revenue-error">{error}</div>}
 
       <div className="filter-bar card">
