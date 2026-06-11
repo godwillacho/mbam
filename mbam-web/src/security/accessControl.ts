@@ -1,5 +1,5 @@
 import { workspace } from "../data/mockWorkspace";
-import type { BusinessUnit, TeamMember, TransactionRecord } from "../types/workspace";
+import type { BusinessUnit, PendingPaymentRecord, TeamMember, TransactionRecord } from "../types/workspace";
 import { DASHBOARD_MEMBER_STORAGE_KEY } from "../pages/dashboard/dashboardPermissions";
 
 export type AppRouteKey = "recordTransaction" | "transactions" | "businesses" | "team" | "reports";
@@ -43,4 +43,16 @@ export function getScopedTransactions(member: TeamMember): TransactionRecord[] {
   }
 
   return transactions;
+}
+
+export function getScopedPendingPayments(member: TeamMember): PendingPaymentRecord[] {
+  const scopedUnits = getScopedUnits(member);
+  const scopedUnitIds = new Set(scopedUnits.map((unit) => unit.id));
+  const payments = workspace.pendingPayments.filter((payment) => scopedUnitIds.has(payment.businessUnitId));
+
+  if (member.roleId === "role-cashier") {
+    return payments.filter((payment) => payment.recordedBy === member.fullName);
+  }
+
+  return payments;
 }
