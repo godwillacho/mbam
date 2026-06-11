@@ -68,53 +68,58 @@ export default function PendingPaymentsPage() {
         </article>
       </div>
 
-      <article className="card pending-full-report-card">
+      <article className="table-card pending-full-report-card">
         <header>
           <div>
             <span className="eyebrow">{t("pendingPayments.fullReport")}</span>
             <h3>{t("pendingPayments.transactionDetails")}</h3>
           </div>
+          <small>{t("transactions.filteredRecords", { count: visiblePendingPayments.length })}</small>
         </header>
 
-        <div className="pending-full-report">
-          {visiblePendingPayments.map((payment) => {
-            const customer = findCustomer(payment.customerId);
-            const business = findBusiness(payment.businessId);
-            const unit = findUnit(payment.businessUnitId);
+        <table className="data-table pending-payments-table">
+          <thead>
+            <tr>
+              <th>{t("transactions.reference")}</th>
+              <th>{t("transactions.customer")}</th>
+              <th>{t("transactionRecord.customerContact")}</th>
+              <th>{t("transactionRecord.business")}</th>
+              <th>{t("transactionRecord.unit")}</th>
+              <th>{t("pendingPayments.originalAmount")}</th>
+              <th>{t("pendingPayments.amountPaid")}</th>
+              <th>{t("pendingPayments.outstandingAmount")}</th>
+              <th>{t("pendingPayments.saleDate")}</th>
+              <th>{t("pendingPayments.lastPayment")}</th>
+              <th>{t("pendingPayments.paymentDate")}</th>
+              <th>{t("pendingPayments.recordedBy")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visiblePendingPayments.map((payment) => {
+              const customer = findCustomer(payment.customerId);
+              const business = findBusiness(payment.businessId);
+              const unit = findUnit(payment.businessUnitId);
+              const currency = business?.currency ?? workspace.masterAccount.currency;
 
-            return (
-              <article className="pending-full-row" key={payment.id}>
-                <div className="pending-full-main">
-                  <strong>{payment.reference}</strong>
-                  <small>{customer?.name ?? t("pendingPayments.unknownCustomer")} · {customer?.contact ?? t("transactionRecord.noContactSaved")}</small>
-                  <small>{business?.name ?? t("pendingPayments.business")} · {unit?.name ?? t("pendingPayments.unit")}</small>
-                </div>
-                <div className="pending-full-meta">
-                  <span>
-                    <strong>{t("pendingPayments.outstandingAmount")}</strong>
-                    <small>{formatMoney(payment.outstandingAmount, business?.currency ?? workspace.masterAccount.currency)}</small>
-                  </span>
-                  <span>
-                    <strong>{t("pendingPayments.saleDate")}</strong>
-                    <small>{formatOptionalDate(payment.createdAt)}</small>
-                  </span>
-                  <span>
-                    <strong>{t("pendingPayments.lastPayment")}</strong>
-                    <small>{formatOptionalDate(payment.lastPaymentAt)}</small>
-                  </span>
-                  <span>
-                    <strong>{t("pendingPayments.paymentDate")}</strong>
-                    <small>{payment.paymentDate ? formatOptionalDate(payment.paymentDate) : t("pendingPayments.noPaymentDate")}</small>
-                  </span>
-                  <span>
-                    <strong>{t("pendingPayments.recordedBy")}</strong>
-                    <small>{payment.recordedBy}</small>
-                  </span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+              return (
+                <tr key={payment.id}>
+                  <td><strong>{payment.reference}</strong></td>
+                  <td>{customer?.name ?? t("pendingPayments.unknownCustomer")}</td>
+                  <td>{customer?.contact ?? t("transactionRecord.noContactSaved")}</td>
+                  <td>{business?.name ?? t("pendingPayments.business")}</td>
+                  <td>{unit?.name ?? t("pendingPayments.unit")}</td>
+                  <td>{formatMoney(payment.originalAmount, currency)}</td>
+                  <td>{formatMoney(payment.amountPaid, currency)}</td>
+                  <td><span className="badge warning">{formatMoney(payment.outstandingAmount, currency)}</span></td>
+                  <td>{formatOptionalDate(payment.createdAt)}</td>
+                  <td>{formatOptionalDate(payment.lastPaymentAt)}</td>
+                  <td>{payment.paymentDate ? formatOptionalDate(payment.paymentDate) : t("pendingPayments.noPaymentDate")}</td>
+                  <td>{payment.recordedBy}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </article>
     </section>
   );
