@@ -5,6 +5,7 @@ import type {
   LoginPayload,
   SignupPayload,
 } from "../types/auth";
+import { validateLoginInput, validateSignupInput } from "../utils/validation";
 import { isApiConfigured, postJson } from "./apiClient";
 
 const SESSION_KEY = "mbam_auth_session";
@@ -20,7 +21,14 @@ interface BackendAuthResponse {
     email_verified: boolean;
   };
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string;
+}
+
+interface BackendSignupPayload {
+  full_name: string;
+  email: string;
+  phone?: string;
+  password: string;
 }
 
 const wait = () => new Promise((resolve) => window.setTimeout(resolve, ACTION_DELAY_MS));
@@ -30,11 +38,10 @@ function createToken(prefix: string): string {
   return `${prefix}_${randomValue}`;
 }
 
-function buildSession(user: AuthUser, accessToken = createToken("mbam_local_access"), refreshToken?: string): AuthSession {
+function buildSession(user: AuthUser, accessToken = createToken("mbam_local_access")): AuthSession {
   return {
     user,
     accessToken,
-    refreshToken,
     createdAt: new Date().toISOString(),
   };
 }
@@ -49,7 +56,6 @@ function buildSessionFromBackend(response: BackendAuthResponse): AuthSession {
       verified: response.user.email_verified,
     },
     response.access_token,
-    response.refresh_token,
   );
 }
 
@@ -71,8 +77,13 @@ export function getCurrentSession(): AuthSession | null {
 }
 
 export async function loginWithEmail(payload: LoginPayload): Promise<AuthSession> {
+  const validated = validateLoginInput(payload);
+  if (!validated.ok || !validated.value) {
+    throw new Error("invalid_login_input");
+  }
+
   if (isApiConfigured()) {
-    const response = await postJson<BackendAuthResponse, LoginPayload>("/api/v1/auth/login", payload);
+    const response = await postJson<BackendAuthResponse, LoginPayload>("/api/v1/auth/login", validated.value);
     return saveSession(buildSessionFromBackend(response));
   }
 
@@ -80,8 +91,8 @@ export async function loginWithEmail(payload: LoginPayload): Promise<AuthSession
 
   const user: AuthUser = {
     id: createToken("user"),
-    fullName: payload.email.split("@")[0] || "Mbam User",
-    email: payload.email.trim().toLowerCase(),
+    fullName: validated.value.email.split("@")[0] || "Mbam User",
+    email: validated.value.email,
     provider: "email",
     verified: true,
   };
@@ -90,8 +101,18 @@ export async function loginWithEmail(payload: LoginPayload): Promise<AuthSession
 }
 
 export async function signupWithEmail(payload: SignupPayload): Promise<AuthUser> {
+  const validated = validateSignupInput(payload);
+  if (!validated.ok || !validated.value) {
+    throw new Error("invalid_signup_input");
+  }
+
   if (isApiConfigured()) {
-    const response = await postJson<BackendAuthResponse, SignupPayload>("/api/v1/auth/signup", payload);
+    const response = await postJson<BackendAuthResponse, BackendSignupPayload>("/api/v1/auth/signup", {
+      full_name: validated.value.fullName,
+      email: validated.value.email,
+      phone: validated.value.phone,
+      password: validated.value.password,
+    });
     const session = saveSession(buildSessionFromBackend(response));
     return session.user;
   }
@@ -100,9 +121,9 @@ export async function signupWithEmail(payload: SignupPayload): Promise<AuthUser>
 
   const user: AuthUser = {
     id: createToken("pending_user"),
-    fullName: payload.fullName.trim(),
-    email: payload.email.trim().toLowerCase(),
-    phone: payload.phone?.trim() || undefined,
+    fullName: validated.value.fullName,
+    email: validated.value.email,
+    phone: validated.value.phone,
     provider: "email",
     verified: false,
   };
@@ -112,15 +133,25 @@ export async function signupWithEmail(payload: SignupPayload): Promise<AuthUser>
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
+  const validated = validateLoginInput({ email, password: "temporary-password-1A" });
+  if (!validated.ok || !validated.value) {
+    throw new Error("invalid_email");
+  }
+
   await wait();
 
   localStorage.setItem(
     RESET_REQUEST_KEY,
-    JSON.stringify({ email: email.trim().toLowerCase(), requestedAt: new Date().toISOString() }),
+    JSON.stringify({ email: validated.value.email, requestedAt: new Date().toISOString() }),
   );
 }
 
 export async function resendVerification(email: string): Promise<void> {
+  const validated = validateLoginInput({ email, password: "temporary-password-1A" });
+  if (!validated.ok || !validated.value) {
+    throw new Error("invalid_email");
+  }
+
   await wait();
 
   const raw = localStorage.getItem(PENDING_SIGNUP_KEY);
@@ -129,7 +160,7 @@ export async function resendVerification(email: string): Promise<void> {
   localStorage.setItem(
     PENDING_SIGNUP_KEY,
     JSON.stringify({
-      ...(pendingUser ?? { email: email.trim().toLowerCase() }),
+      ...(pendingUser ?? { email: validated.value.email }),
       verificationResentAt: new Date().toISOString(),
     }),
   );
