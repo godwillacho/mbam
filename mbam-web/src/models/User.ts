@@ -1,4 +1,4 @@
-import type { User as IUser, UserRole, AuthProvider, Language, AuthSession } from "../types";
+import type { User as IUser, UserRole, Language, AuthSession } from "../types";
 import { deriveInitials } from "../lib/filters";
 
 export class User implements IUser {
