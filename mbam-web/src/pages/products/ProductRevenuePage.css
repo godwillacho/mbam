@@ -1,0 +1,85 @@
+.product-revenue-card {
+  display: grid;
+  gap: 18px;
+}
+
+.product-revenue-card header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+}
+
+.product-revenue-list {
+  display: grid;
+  gap: 16px;
+}
+
+.product-revenue-row {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px;
+  background: #fff;
+}
+
+.product-revenue-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.product-revenue-summary strong,
+.product-revenue-summary small,
+.product-price-row strong,
+.product-price-row small,
+.product-price-row span {
+  display: block;
+}
+
+.product-revenue-summary small,
+.product-price-row small {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.product-revenue-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.product-price-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.product-price-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(240px, 1fr);
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #FAF7F0;
+}
+
+.product-price-row > div:last-child {
+  display: grid;
+  gap: 3px;
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .product-revenue-summary,
+  .product-price-row {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .product-revenue-stats {
+    justify-content: flex-start;
+  }
+}
