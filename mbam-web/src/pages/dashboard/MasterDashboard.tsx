@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
-import { getScopedPendingPayments } from "../../security/accessControl";
+import { CURRENT_MEMBER_CHANGE_EVENT, getCurrentMember, getScopedPendingPayments } from "../../security/accessControl";
 import type { Business, BusinessUnit, ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
-import { getDashboardMetricsForRole, saveDashboardMemberId, type DashboardMetricKey } from "./dashboardPermissions";
+import { getDashboardMetricsForRole, type DashboardMetricKey } from "./dashboardPermissions";
 import "./MasterDashboard.css";
 
 interface DashboardMetric {
@@ -71,10 +71,22 @@ function getScopedTransactions(member: TeamMember, units: BusinessUnit[]): Trans
 
 export default function MasterDashboard() {
   const { t } = useTranslation();
-  const [selectedMemberId, setSelectedMemberId] = useState(workspace.teamMembers[0]?.id ?? "");
+  const [selectedMember, setSelectedMember] = useState(() => getCurrentMember());
   const [selectedMetric, setSelectedMetric] = useState<DashboardMetricKey | null>(null);
 
-  const selectedMember = workspace.teamMembers.find((member) => member.id === selectedMemberId) ?? workspace.teamMembers[0];
+  useEffect(() => {
+    const syncCurrentMember = () => {
+      setSelectedMember(getCurrentMember());
+      setSelectedMetric(null);
+    };
+    window.addEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
+    window.addEventListener("storage", syncCurrentMember);
+    return () => {
+      window.removeEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
+      window.removeEventListener("storage", syncCurrentMember);
+    };
+  }, []);
+
   const selectedRole = workspace.roles.find((role) => role.id === selectedMember.roleId);
   const allowedMetricKeys = getDashboardMetricsForRole(selectedMember.roleId);
   const isCashier = selectedMember.roleId === "role-cashier";
@@ -318,20 +330,7 @@ export default function MasterDashboard() {
             {selectedRole ? t(`roleDashboard.roleNames.${selectedRole.id}`) : ""} · {t("roleDashboard.scope")}: {getMemberScopeLabel(selectedMember)}
           </p>
         </div>
-        <select
-          value={selectedMemberId}
-          onChange={(event) => {
-            setSelectedMemberId(event.target.value);
-            saveDashboardMemberId(event.target.value);
-            setSelectedMetric(null);
-          }}
-        >
-          {workspace.teamMembers.map((member) => (
-            <option key={member.id} value={member.id}>
-              {member.fullName} — {t(`roles.${member.roleId}`)}
-            </option>
-          ))}
-        </select>
+        <span className="badge">{t("app.devAccount")}</span>
       </article>
 
       <div className="metrics-grid clean-metrics-grid dashboard-options-grid">
