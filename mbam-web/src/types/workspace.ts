@@ -61,6 +61,10 @@ export interface ProductProfile {
   packageSize?: string;
   unitOfMeasure?: string;
   barcode?: string;
+  availableQuantity?: number;
+  lowStockThreshold?: number;
+  expiryDate?: string;
+  costPrice?: number;
   defaultPrice: number;
   timesSold: number;
   lastSoldAt?: string;
