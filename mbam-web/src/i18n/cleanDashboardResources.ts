@@ -32,6 +32,14 @@ const en = {
     employeeCount: "{{count}} employees",
   },
   team: {
+    permissionProfile: "Permission profile",
+    customizable: "Custom",
+    customizableHint: "Open full permission options",
+    roleRecommendations: {
+      "role-cashier": "Recommended for sales entry and own transaction review.",
+      "role-shop-manager": "Recommended for shop-level operations and reports.",
+      "role-business-admin": "Recommended for business-level staff and reporting control.",
+    },
     savePermissions: "Save permissions",
     permissionsSaved: "Permissions saved for {{name}}.",
     performance: "Employee performance",
@@ -75,6 +83,14 @@ const fr = {
     employeeCount: "{{count}} employés",
   },
   team: {
+    permissionProfile: "Profil de permissions",
+    customizable: "Personnalisé",
+    customizableHint: "Ouvrir toutes les options de permission",
+    roleRecommendations: {
+      "role-cashier": "Recommandé pour la saisie des ventes et la consultation de ses transactions.",
+      "role-shop-manager": "Recommandé pour les opérations et rapports d’une boutique.",
+      "role-business-admin": "Recommandé pour la gestion du personnel et des rapports d’une activité.",
+    },
     savePermissions: "Enregistrer les permissions",
     permissionsSaved: "Permissions enregistrées pour {{name}}.",
     performance: "Performance de l’employé",
