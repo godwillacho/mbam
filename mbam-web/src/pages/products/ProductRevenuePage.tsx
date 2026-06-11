@@ -86,7 +86,7 @@ export default function ProductRevenuePage() {
         <article className="metric-card">
           <span>{t("productRevenue.topProduct")}</span>
           <strong>{isLoading ? "…" : rows[0]?.productName ?? "—"}</strong>
-          <small>{t("productRevenue.topProductHint")}</small>
+          <small>{rows[0]?.descriptor || t("productRevenue.topProductHint")}</small>
         </article>
       </div>
 
@@ -109,7 +109,9 @@ export default function ProductRevenuePage() {
                 <div className="product-revenue-summary">
                   <div>
                     <strong>{row.productName}</strong>
+                    <small>{row.descriptor || `${row.businessName} · ${t(`categories.${row.category}`)}`}</small>
                     <small>{row.businessName} · {t(`categories.${row.category}`)} · {row.sku}</small>
+                    {row.barcode && <small>{t("productRevenue.barcode")}: {row.barcode}</small>}
                   </div>
                   <div className="product-revenue-stats">
                     <span className="badge warning">{formatMoney(row.totalRevenue, workspace.masterAccount.currency)}</span>
