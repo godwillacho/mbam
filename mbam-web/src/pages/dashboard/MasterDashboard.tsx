@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
-import type { Business, BusinessUnit, CustomerProfile, ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
+import { getScopedPendingPayments } from "../../security/accessControl";
+import type { Business, BusinessUnit, ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import { getDashboardMetricsForRole, saveDashboardMemberId, type DashboardMetricKey } from "./dashboardPermissions";
 import "./MasterDashboard.css";
@@ -21,12 +22,16 @@ function findUnit(id?: string): BusinessUnit | undefined {
   return workspace.businessUnits.find((unit) => unit.id === id);
 }
 
+function findCustomer(customerId: string) {
+  return workspace.customers.find((customer) => customer.id === customerId);
+}
+
 function sumTransactions(records: TransactionRecord[]): number {
   return records.reduce((sum, record) => sum + record.amount, 0);
 }
 
-function sumPending(customers: CustomerProfile[]): number {
-  return customers.reduce((sum, customer) => sum + customer.pendingBalance, 0);
+function sumPendingPayments(records: ReturnType<typeof getScopedPendingPayments>): number {
+  return records.reduce((sum, payment) => sum + payment.outstandingAmount, 0);
 }
 
 function formatOptionalDate(value?: string): string {
@@ -80,10 +85,9 @@ export default function MasterDashboard() {
 
   const scopedUnits = useMemo(() => getScopedUnits(selectedMember), [selectedMember]);
   const scopedTransactions = useMemo(() => getScopedTransactions(selectedMember, scopedUnits), [selectedMember, scopedUnits]);
+  const scopedPendingPayments = useMemo(() => getScopedPendingPayments(selectedMember), [selectedMember]);
   const scopedBusinessIds = new Set(scopedUnits.map((unit) => unit.businessId));
   const scopedBusinesses = workspace.businesses.filter((business) => scopedBusinessIds.has(business.id));
-  const scopedCustomers = workspace.customers.filter((customer) => !customer.businessId || scopedBusinessIds.has(customer.businessId));
-  const pendingCustomers = scopedCustomers.filter((customer) => customer.pendingBalance > 0);
   const scopedProducts = workspace.products.filter((product) => !product.businessId || scopedBusinessIds.has(product.businessId));
   const scopedTeam = workspace.teamMembers.filter((member) => {
     if (selectedMember.scopeLevel === "master") return true;
@@ -95,6 +99,7 @@ export default function MasterDashboard() {
   const unitRevenue = scopedUnits.reduce((sum, unit) => sum + unit.todayRevenue, 0);
   const displayedRevenue = transactionRevenue > 0 ? transactionRevenue : unitRevenue;
   const queuedTransactions = scopedUnits.reduce((sum, unit) => sum + unit.queuedTransactions, 0);
+  const pendingOutstanding = sumPendingPayments(scopedPendingPayments);
 
   const allMetrics = useMemo<DashboardMetric[]>(() => [
     { key: "totalRevenue", value: formatMoney(displayedRevenue, workspace.masterAccount.currency), hintKey: "allUnits" },
@@ -102,14 +107,14 @@ export default function MasterDashboard() {
     { key: "units", value: scopedUnits.length, hintKey: "allUnits" },
     { key: "queued", value: queuedTransactions, hintKey: "offlineSync" },
     { key: "team", value: scopedTeam.length, hintKey: "activeTeam" },
-    { key: "pendingCustomers", value: formatMoney(sumPending(pendingCustomers), selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "pendingFollowUp" },
+    { key: "pendingCustomers", value: formatMoney(pendingOutstanding, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "pendingFollowUp" },
     { key: "businessRevenue", value: formatMoney(displayedRevenue, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "assignedScope" },
     { key: "unitRevenue", value: formatMoney(displayedRevenue, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "assignedScope" },
     { key: "transactions", value: scopedTransactions.length, hintKey: "assignedScope" },
     { key: "ownSales", value: formatMoney(displayedRevenue, selectedBusiness?.currency ?? workspace.masterAccount.currency), hintKey: "ownActivity" },
     { key: "ownTransactions", value: scopedTransactions.length, hintKey: "ownActivity" },
     { key: "products", value: scopedProducts.length, hintKey: "assignedScope" },
-  ], [displayedRevenue, pendingCustomers, queuedTransactions, scopedBusinesses.length, scopedProducts.length, scopedTeam.length, scopedTransactions.length, scopedUnits.length, selectedBusiness]);
+  ], [displayedRevenue, pendingOutstanding, queuedTransactions, scopedBusinesses.length, scopedProducts.length, scopedTeam.length, scopedTransactions.length, scopedUnits.length, selectedBusiness]);
 
   const metrics = allMetrics.filter((metric) => allowedMetricKeys.includes(metric.key));
   const activeMetric = metrics.find((metric) => metric.key === selectedMetric) ?? metrics[0];
@@ -195,31 +200,37 @@ export default function MasterDashboard() {
   );
 
   const renderPendingCustomers = () => {
-    if (pendingCustomers.length === 0) {
+    if (scopedPendingPayments.length === 0) {
       return <p className="card-muted">{t("roleDashboard.labels.noPending")}</p>;
     }
 
     return (
       <div className="pending-payment-report summary-two-column-list">
-        {pendingCustomers.slice(0, 4).map((customer) => (
-          <div className="pending-payment-row" key={customer.id}>
-            <div className="pending-payment-customer">
-              <strong>{customer.name}</strong>
-              <small>{customer.contact ?? t("transactionRecord.noContactSaved")}</small>
+        {scopedPendingPayments.slice(0, 4).map((payment) => {
+          const customer = findCustomer(payment.customerId);
+          const business = findBusiness(payment.businessId);
+          const unit = findUnit(payment.businessUnitId);
+
+          return (
+            <div className="pending-payment-row" key={payment.id}>
+              <div className="pending-payment-customer">
+                <strong>{customer?.name ?? payment.reference}</strong>
+                <small>{unit?.name ?? business?.name ?? t("common.unknownUnit")}</small>
+              </div>
+              <div className="pending-payment-meta">
+                <span>
+                  <strong>{t("roleDashboard.labels.lastPayment")}</strong>
+                  <small>{formatOptionalDate(payment.lastPaymentAt)}</small>
+                </span>
+                <span>
+                  <strong>{t("roleDashboard.labels.paymentDate")}</strong>
+                  <small>{payment.paymentDate ? formatOptionalDate(payment.paymentDate) : t("roleDashboard.labels.noPaymentDate")}</small>
+                </span>
+              </div>
+              <span className="badge warning">{formatMoney(payment.outstandingAmount, business?.currency ?? workspace.masterAccount.currency)}</span>
             </div>
-            <div className="pending-payment-meta">
-              <span>
-                <strong>{t("roleDashboard.labels.lastPayment")}</strong>
-                <small>{formatOptionalDate(customer.lastPaymentAt)}</small>
-              </span>
-              <span>
-                <strong>{t("roleDashboard.labels.paymentDate")}</strong>
-                <small>{customer.paymentDate ? formatOptionalDate(customer.paymentDate) : t("roleDashboard.labels.noPaymentDate")}</small>
-              </span>
-            </div>
-            <span className="badge warning">{formatMoney(customer.pendingBalance, selectedBusiness?.currency ?? workspace.masterAccount.currency)}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
