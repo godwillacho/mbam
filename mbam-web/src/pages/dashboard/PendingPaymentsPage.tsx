@@ -1,4 +1,4 @@
-import { Link, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { getScopedPendingPayments } from "../../security/accessControl";
@@ -43,7 +43,6 @@ export default function PendingPaymentsPage() {
           <h2>{t("pendingPayments.title")}</h2>
           <p>{t("pendingPayments.description")}</p>
         </div>
-        <Link className="secondary-btn" to="/dashboard">{t("pendingPayments.backToDashboard")}</Link>
       </div>
 
       <div className="metrics-grid clean-metrics-grid">
@@ -88,52 +87,30 @@ export default function PendingPaymentsPage() {
                 <div className="pending-full-main">
                   <strong>{payment.reference}</strong>
                   <small>{customer?.name ?? t("pendingPayments.unknownCustomer")} · {customer?.contact ?? t("transactionRecord.noContactSaved")}</small>
+                  <small>{business?.name ?? t("pendingPayments.business")} · {unit?.name ?? t("pendingPayments.unit")}</small>
                 </div>
-
-                <dl className="pending-full-grid">
-                  <div>
-                    <dt>{t("pendingPayments.business")}</dt>
-                    <dd>{business?.name ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("pendingPayments.unit")}</dt>
-                    <dd>{unit?.name ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("pendingPayments.originalAmount")}</dt>
-                    <dd>{formatMoney(payment.originalAmount, business?.currency ?? workspace.masterAccount.currency)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("pendingPayments.amountPaid")}</dt>
-                    <dd>{formatMoney(payment.amountPaid, business?.currency ?? workspace.masterAccount.currency)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("pendingPayments.outstandingAmount")}</dt>
-                    <dd>{formatMoney(payment.outstandingAmount, business?.currency ?? workspace.masterAccount.currency)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("pendingPayments.paymentMethod")}</dt>
-                    <dd>{t(`paymentMethods.${payment.paymentMethod}`)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("pendingPayments.saleDate")}</dt>
-                    <dd>{formatDateTime(payment.createdAt)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("pendingPayments.lastPayment")}</dt>
-                    <dd>{formatOptionalDate(payment.lastPaymentAt)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("pendingPayments.paymentDate")}</dt>
-                    <dd>{payment.paymentDate ? formatOptionalDate(payment.paymentDate) : t("pendingPayments.noPaymentDate")}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("pendingPayments.recordedBy")}</dt>
-                    <dd>{payment.recordedBy}</dd>
-                  </div>
-                </dl>
-
-                {payment.note && <p className="pending-note">{payment.note}</p>}
+                <div className="pending-full-meta">
+                  <span>
+                    <strong>{t("pendingPayments.outstandingAmount")}</strong>
+                    <small>{formatMoney(payment.outstandingAmount, business?.currency ?? workspace.masterAccount.currency)}</small>
+                  </span>
+                  <span>
+                    <strong>{t("pendingPayments.saleDate")}</strong>
+                    <small>{formatOptionalDate(payment.createdAt)}</small>
+                  </span>
+                  <span>
+                    <strong>{t("pendingPayments.lastPayment")}</strong>
+                    <small>{formatOptionalDate(payment.lastPaymentAt)}</small>
+                  </span>
+                  <span>
+                    <strong>{t("pendingPayments.paymentDate")}</strong>
+                    <small>{payment.paymentDate ? formatOptionalDate(payment.paymentDate) : t("pendingPayments.noPaymentDate")}</small>
+                  </span>
+                  <span>
+                    <strong>{t("pendingPayments.recordedBy")}</strong>
+                    <small>{payment.recordedBy}</small>
+                  </span>
+                </div>
               </article>
             );
           })}
