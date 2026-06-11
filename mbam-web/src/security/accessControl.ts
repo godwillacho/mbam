@@ -2,15 +2,15 @@ import { workspace } from "../data/mockWorkspace";
 import type { BusinessUnit, PendingPaymentRecord, TeamMember, TransactionRecord } from "../types/workspace";
 import { DASHBOARD_MEMBER_STORAGE_KEY } from "../pages/dashboard/dashboardPermissions";
 
-export type AppRouteKey = "recordTransaction" | "transactions" | "businesses" | "team" | "reports";
+export type AppRouteKey = "recordTransaction" | "transactions" | "businesses" | "team" | "reports" | "products";
 
 export const CURRENT_MEMBER_CHANGE_EVENT = "mbam-current-member-change";
 
 const routeAccessByRole: Record<string, AppRouteKey[]> = {
-  "role-master-owner": ["transactions", "businesses", "team", "reports"],
-  "role-business-admin": ["transactions", "businesses", "team", "reports"],
-  "role-shop-manager": ["transactions", "reports"],
-  "role-cashier": ["recordTransaction", "transactions"],
+  "role-master-owner": ["transactions", "businesses", "team", "reports", "products"],
+  "role-business-admin": ["transactions", "businesses", "team", "reports", "products"],
+  "role-shop-manager": ["transactions", "reports", "products"],
+  "role-cashier": ["recordTransaction", "transactions", "products"],
 };
 
 export function getCurrentMember(): TeamMember {
