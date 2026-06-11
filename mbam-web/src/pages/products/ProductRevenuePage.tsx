@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
@@ -57,7 +57,6 @@ export default function ProductRevenuePage() {
           <h2>{t("productRevenue.title")}</h2>
           <p>{t("productRevenue.description")}</p>
         </div>
-        <Link className="secondary-btn" to="/dashboard">{t("pendingPayments.backToDashboard")}</Link>
       </div>
 
       {source === "mock" && !isLoading && !error && (
