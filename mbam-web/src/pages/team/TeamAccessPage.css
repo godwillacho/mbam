@@ -9,6 +9,10 @@
   cursor: pointer;
 }
 
+.selected-row {
+  background: var(--forest-soft);
+}
+
 .permission-editor-card {
   display: grid;
   gap: 18px;
@@ -56,6 +60,22 @@
   color: var(--muted);
   font-size: 12px;
   margin-top: 4px;
+}
+
+.performance-bar {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--forest-soft);
+  margin-top: 8px;
+}
+
+.performance-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--forest-mid);
 }
 
 .dashboard-heading-action {
