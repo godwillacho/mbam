@@ -55,6 +55,12 @@ export interface ProductProfile {
   sku?: string;
   category: string;
   businessId?: string;
+  manufacturer?: string;
+  brand?: string;
+  variant?: string;
+  packageSize?: string;
+  unitOfMeasure?: string;
+  barcode?: string;
   defaultPrice: number;
   timesSold: number;
   lastSoldAt?: string;
