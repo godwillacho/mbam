@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import type { CustomerProfile, PaymentMethod, ProductProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
+import { getProductDescriptor, getProductSearchText } from "../../utils/productDisplay";
 import { parsePositiveMoney, sanitizeText, validatePhone, validateSafeText, validateSaleLineInput } from "../../utils/validation";
 import "./TransactionRecordPage.css";
 
@@ -200,12 +201,8 @@ export default function TransactionRecordPage() {
     }
 
     return workspace.products
-      .filter((product) =>
-        product.name.toLowerCase().includes(query) ||
-        product.sku?.toLowerCase().includes(query) ||
-        product.category.toLowerCase().includes(query),
-      )
-      .slice(0, 4);
+      .filter((product) => getProductSearchText(product).includes(query))
+      .slice(0, 6);
   };
 
   const removeLineItem = (id: string) => {
@@ -274,14 +271,7 @@ export default function TransactionRecordPage() {
 
           <div className="form-field customer-field">
             <label htmlFor="customer">{t("transactionRecord.customerName")}</label>
-            <input
-              id="customer"
-              autoComplete="off"
-              maxLength={80}
-              placeholder={t("transactionRecord.customerPlaceholder")}
-              value={customerName}
-              onChange={(event) => handleCustomerNameChange(event.target.value)}
-            />
+            <input id="customer" autoComplete="off" maxLength={80} placeholder={t("transactionRecord.customerPlaceholder")} value={customerName} onChange={(event) => handleCustomerNameChange(event.target.value)} />
             {errors.customerName && <span className="field-error">{errors.customerName}</span>}
 
             {customerSuggestions.length > 0 && (
@@ -374,11 +364,13 @@ export default function TransactionRecordPage() {
                           <div className="product-suggestions" role="listbox" aria-label={t("transactionRecord.productSuggestions")}>
                             {productSuggestions.map((product) => {
                               const resolvedPrice = resolveProductPrice(product, selectedCustomer?.id);
+                              const descriptor = getProductDescriptor(product);
                               return (
                                 <button key={product.id} type="button" className="product-suggestion" onClick={() => selectProductForLineItem(item.id, product)}>
                                   <span>
                                     <strong>{product.name}</strong>
-                                    <small>{t(`categories.${product.category}`)} · {product.sku ?? t("common.noSku")}</small>
+                                    <small>{descriptor || t(`categories.${product.category}`)}</small>
+                                    <small>{product.sku ?? t("common.noSku")} · {t(`categories.${product.category}`)}</small>
                                   </span>
                                   <em>{formatMoney(resolvedPrice.price, workspace.masterAccount.currency)}{resolvedPrice.source === "customer" ? ` ${t("transactionRecord.customerPrice")}` : ""}</em>
                                 </button>
