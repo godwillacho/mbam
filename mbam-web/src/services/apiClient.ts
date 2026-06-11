@@ -10,6 +10,15 @@ export class ApiClientError extends Error {
   }
 }
 
+function isErrorResponse(value: unknown): value is { error: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "error" in value &&
+    typeof (value as { error?: unknown }).error === "string"
+  );
+}
+
 export function isApiConfigured(): boolean {
   return API_BASE_URL.length > 0;
 }
@@ -27,10 +36,10 @@ export async function postJson<TResponse, TPayload>(path: string, payload: TPayl
     body: JSON.stringify(payload),
   });
 
-  const body = await response.json().catch(() => null) as { error?: string } | TResponse | null;
+  const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const message = body && "error" in body && body.error ? body.error : "Request failed";
+    const message = isErrorResponse(body) ? body.error : "Request failed";
     throw new ApiClientError(message, response.status);
   }
 
