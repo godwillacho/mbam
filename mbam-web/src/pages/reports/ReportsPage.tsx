@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { formatMoney } from "../../utils/formatters";
@@ -17,7 +16,6 @@ export default function ReportsPage() {
           <h2>{t("reports.title")}</h2>
           <p>{t("reports.description")}</p>
         </div>
-        <Link className="secondary-btn" to="/dashboard">{t("pendingPayments.backToDashboard")}</Link>
       </div>
 
       <div className="metrics-grid">
