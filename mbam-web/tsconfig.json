@@ -11,6 +11,8 @@
     "jsx":              "react-jsx",
 
     "strict":           true,
+    "skipLibCheck":     true,
+    "types":            ["vite/client"],
     "noUnusedLocals":   true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
