@@ -21,8 +21,10 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<MasterDashboard />} />
           <Route path="/dashboard/detail/:metricKey" element={<DashboardMetricDetailPage />} />
-          <Route path="/dashboard/pending-payments" element={<PendingPaymentsPage />} />
-          <Route path="/dashboard/products" element={<ProductRevenuePage />} />
+          <Route path="/dashboard/pending-payments" element={<Navigate to="/pending-payments" replace />} />
+          <Route path="/dashboard/products" element={<Navigate to="/products" replace />} />
+          <Route path="/pending-payments" element={<PendingPaymentsPage />} />
+          <Route path="/products" element={<ProtectedRoute routeKey="products"><ProductRevenuePage /></ProtectedRoute>} />
           <Route path="/transactions/new" element={<ProtectedRoute routeKey="recordTransaction"><TransactionRecordPage /></ProtectedRoute>} />
           <Route path="/transactions" element={<ProtectedRoute routeKey="transactions"><TransactionsPage /></ProtectedRoute>} />
           <Route path="/businesses" element={<ProtectedRoute routeKey="businesses"><BusinessStructurePage /></ProtectedRoute>} />
