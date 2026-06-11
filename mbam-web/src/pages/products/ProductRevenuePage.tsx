@@ -3,8 +3,8 @@ import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
-import { getProductRevenueReport, type ProductRevenueRow } from "../../services/productRevenueService";
-import { formatDateTime, formatMoney } from "../../utils/formatters";
+import { getProductRevenueReport, type ProductRevenuePricePoint, type ProductRevenueRow } from "../../services/productRevenueService";
+import { formatMoney } from "../../utils/formatters";
 import { getProductInventorySnapshot } from "../../utils/inventory";
 import { getProductSearchText } from "../../utils/productDisplay";
 import { canViewDashboardMetric } from "../dashboard/dashboardPermissions";
@@ -12,7 +12,6 @@ import "./ProductRevenuePage.css";
 
 function searchTextForRow(row: ProductRevenueRow): string {
   const product = workspace.products.find((item) => item.id === row.productId);
-
   return [
     row.productName,
     row.sku,
@@ -29,6 +28,22 @@ function searchTextForRow(row: ProductRevenueRow): string {
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
+function groupBy<T>(items: T[], getKey: (item: T) => string): Array<{ key: string; items: T[] }> {
+  return Array.from(items.reduce<Map<string, T[]>>((map, item) => {
+    const key = getKey(item);
+    map.set(key, [...(map.get(key) ?? []), item]);
+    return map;
+  }, new Map()).entries()).map(([key, groupedItems]) => ({ key, items: groupedItems }));
+}
+
+function sumRevenue(items: ProductRevenuePricePoint[]): number {
+  return items.reduce((sum, item) => sum + item.total, 0);
+}
+
+function sumQuantity(items: ProductRevenuePricePoint[]): number {
+  return items.reduce((sum, item) => sum + item.quantity, 0);
+}
+
 export default function ProductRevenuePage() {
   const { t } = useTranslation();
   const member = getCurrentMember();
@@ -37,10 +52,10 @@ export default function ProductRevenuePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
-
     setIsLoading(true);
     setError(null);
 
@@ -49,6 +64,7 @@ export default function ProductRevenuePage() {
         if (ignore) return;
         setRows(report.rows);
         setSource(report.source);
+        setSelectedProductId((current) => current ?? report.rows[0]?.productId ?? null);
       })
       .catch((reportError: unknown) => {
         if (ignore) return;
@@ -70,12 +86,17 @@ export default function ProductRevenuePage() {
     return rows.filter((row) => searchTextForRow(row).includes(query));
   }, [rows, searchQuery]);
 
+  const topRows = filteredRows.slice(0, 4);
+  const selectedRow = filteredRows.find((row) => row.productId === selectedProductId) ?? filteredRows[0];
+  const selectedProduct = selectedRow ? workspace.products.find((item) => item.id === selectedRow.productId) : undefined;
+  const inventory = selectedProduct ? getProductInventorySnapshot(selectedProduct) : undefined;
+  const branchGroups = selectedRow ? groupBy(selectedRow.pricePoints, (point) => point.unitName) : [];
+  const employeeGroups = selectedRow ? groupBy(selectedRow.pricePoints, (point) => point.recordedBy) : [];
+  const customerGroups = selectedRow ? groupBy(selectedRow.pricePoints, (point) => point.customerName) : [];
+
   if (!canViewDashboardMetric(member, "products")) {
     return <Navigate to="/dashboard" replace />;
   }
-
-  const totalRevenue = filteredRows.reduce((sum, row) => sum + row.totalRevenue, 0);
-  const totalQuantity = filteredRows.reduce((sum, row) => sum + row.quantitySold, 0);
 
   return (
     <section className="page-grid product-revenue-page">
@@ -87,110 +108,87 @@ export default function ProductRevenuePage() {
         </div>
       </div>
 
-      {source === "mock" && !isLoading && !error && (
-        <div className="product-revenue-source-note">
-          {t("productRevenue.mockSourceNote")}
-        </div>
-      )}
-
+      {source === "mock" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.mockSourceNote")}</div>}
       {error && <div className="product-revenue-error">{error}</div>}
 
       <div className="filter-bar card">
         <label htmlFor="product-search">{t("productRevenue.searchLabel")}</label>
-        <input
-          id="product-search"
-          type="search"
-          value={searchQuery}
-          placeholder={t("productRevenue.searchPlaceholder")}
-          onChange={(event) => setSearchQuery(event.target.value)}
-        />
+        <input id="product-search" type="search" value={searchQuery} placeholder={t("productRevenue.searchPlaceholder")} onChange={(event) => setSearchQuery(event.target.value)} />
         <small>{t("productRevenue.searchHint")}</small>
       </div>
 
-      <div className="metrics-grid clean-metrics-grid">
-        <article className="metric-card">
-          <span>{t("productRevenue.totalRevenue")}</span>
-          <strong>{isLoading ? "…" : formatMoney(totalRevenue, workspace.masterAccount.currency)}</strong>
-          <small>{t("productRevenue.totalRevenueHint")}</small>
-        </article>
-        <article className="metric-card">
-          <span>{t("productRevenue.productsSold")}</span>
-          <strong>{isLoading ? "…" : filteredRows.length}</strong>
-          <small>{t("productRevenue.productsSoldHint")}</small>
-        </article>
-        <article className="metric-card">
-          <span>{t("productRevenue.quantitySold")}</span>
-          <strong>{isLoading ? "…" : totalQuantity}</strong>
-          <small>{t("productRevenue.quantitySoldHint")}</small>
-        </article>
-        <article className="metric-card">
-          <span>{t("productRevenue.topProduct")}</span>
-          <strong>{isLoading ? "…" : filteredRows[0]?.productName ?? "—"}</strong>
-          <small>{filteredRows[0]?.descriptor || t("productRevenue.topProductHint")}</small>
-        </article>
-      </div>
+      {isLoading && <p className="card-muted">{t("productRevenue.loading")}</p>}
+      {!isLoading && filteredRows.length === 0 && !error && <p className="card-muted">{t("productRevenue.noSearchResults")}</p>}
 
-      <article className="card product-revenue-card">
-        <header>
-          <span className="eyebrow">{t("productRevenue.fullReport")}</span>
-          <h3>{t("productRevenue.trendingProducts")}</h3>
-          <small>{t("transactions.filteredRecords", { count: filteredRows.length })}</small>
-        </header>
+      {!isLoading && topRows.length > 0 && (
+        <div className="metrics-grid clean-metrics-grid">
+          {topRows.map((row) => (
+            <button key={row.productId} className={selectedRow?.productId === row.productId ? "metric-card metric-button active" : "metric-card metric-button"} type="button" onClick={() => setSelectedProductId(row.productId)}>
+              <span>{row.productName}</span>
+              <strong>{formatMoney(row.totalRevenue, workspace.masterAccount.currency)}</strong>
+              <small>{row.descriptor || row.sku}</small>
+            </button>
+          ))}
+        </div>
+      )}
 
-        {isLoading && <p className="card-muted">{t("productRevenue.loading")}</p>}
+      {selectedRow && (
+        <article className="card product-revenue-card">
+          <header>
+            <div>
+              <span className="eyebrow">{t("productRevenue.selectedProduct")}</span>
+              <h3>{selectedRow.productName}</h3>
+              <small>{selectedRow.descriptor || selectedRow.sku}</small>
+            </div>
+            <span className="badge warning">{formatMoney(selectedRow.totalRevenue, workspace.masterAccount.currency)}</span>
+          </header>
 
-        {!isLoading && filteredRows.length === 0 && !error && (
-          <p className="card-muted">{t("productRevenue.noSearchResults")}</p>
-        )}
-
-        {!isLoading && filteredRows.length > 0 && (
-          <div className="product-revenue-list">
-            {filteredRows.map((row) => {
-              const product = workspace.products.find((item) => item.id === row.productId);
-              const inventory = product ? getProductInventorySnapshot(product) : undefined;
-
-              return (
-                <article className="product-revenue-row" key={row.productId}>
-                  <div className="product-revenue-summary">
-                    <div>
-                      <strong>{row.productName}</strong>
-                      <small>{row.descriptor || `${row.businessName} · ${t(`categories.${row.category}`)}`}</small>
-                      <small>{row.businessName} · {t(`categories.${row.category}`)} · {row.sku}</small>
-                      {row.barcode && <small>{t("productRevenue.barcode")}: {row.barcode}</small>}
-                      {product?.expiryDate && <small>{t("productRevenue.expiryDate")}: {formatDateTime(product.expiryDate)}</small>}
-                    </div>
-                    <div className="product-revenue-stats">
-                      <span className="badge warning">{formatMoney(row.totalRevenue, workspace.masterAccount.currency)}</span>
-                      <span className="badge">{t("productRevenue.quantity")}: {row.quantitySold}</span>
-                      <span className="badge">{t("productRevenue.avgUnitPrice")}: {formatMoney(row.averageUnitPrice, workspace.masterAccount.currency)}</span>
-                      {typeof product?.costPrice === "number" && <span className="badge">{t("productRevenue.costPrice")}: {formatMoney(product.costPrice, workspace.masterAccount.currency)}</span>}
-                      {inventory && <span className={inventory.status === "low" || inventory.status === "out" || inventory.status === "expired" ? "badge warning" : "badge"}>{t("productRevenue.availableQuantity")}: {inventory.availableQuantity ?? t("productRevenue.notTracked")}</span>}
-                      {inventory && <span className={inventory.status === "available" ? "badge" : "badge warning"}>{t(`productRevenue.stockStatus.${inventory.status}`)}</span>}
-                    </div>
-                  </div>
-
-                  <div className="product-price-grid">
-                    {row.pricePoints.map((price) => (
-                      <div className="product-price-row" key={price.id}>
-                        <div>
-                          <strong>{price.customerName}</strong>
-                          <small>{price.unitName} · {t("roleDashboard.labels.recordedBy")}: {price.recordedBy}</small>
-                        </div>
-                        <div>
-                          <span>{t("productRevenue.unitPrice")}: {formatMoney(price.unitPrice, workspace.masterAccount.currency)}</span>
-                          <span>{t("productRevenue.quantity")}: {price.quantity}</span>
-                          <span>{t("roleDashboard.labels.revenue")}: {formatMoney(price.total, workspace.masterAccount.currency)}</span>
-                          <small>{formatDateTime(price.soldAt)}</small>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              );
-            })}
+          <div className="metrics-grid clean-metrics-grid">
+            <article className="metric-card"><span>{t("productRevenue.quantitySold")}</span><strong>{selectedRow.quantitySold}</strong><small>{selectedRow.sku}</small></article>
+            <article className="metric-card"><span>{t("productRevenue.avgUnitPrice")}</span><strong>{formatMoney(selectedRow.averageUnitPrice, workspace.masterAccount.currency)}</strong><small>{t("productRevenue.unitPrice")}</small></article>
+            <article className="metric-card"><span>{t("productRevenue.availableQuantity")}</span><strong>{inventory?.availableQuantity ?? t("productRevenue.notTracked")}</strong><small>{inventory ? t(`productRevenue.stockStatus.${inventory.status}`) : t("productRevenue.notTracked")}</small></article>
+            <article className="metric-card"><span>{t("productRevenue.costPrice")}</span><strong>{selectedProduct?.costPrice ? formatMoney(selectedProduct.costPrice, workspace.masterAccount.currency) : "—"}</strong><small>{selectedProduct?.expiryDate ? `${t("productRevenue.expiryDate")}: ${selectedProduct.expiryDate}` : selectedRow.businessName}</small></article>
           </div>
-        )}
-      </article>
+
+          <div className="card-grid two" style={{ marginTop: 18 }}>
+            <article className="card">
+              <h3>{t("productRevenue.branchBreakdown")}</h3>
+              <div className="list-stack">
+                {branchGroups.map((group) => (
+                  <div className="list-item" key={group.key}>
+                    <div><strong>{group.key}</strong><small>{t("productRevenue.quantity")}: {sumQuantity(group.items)}</small></div>
+                    <span className="badge">{formatMoney(sumRevenue(group.items), workspace.masterAccount.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="card">
+              <h3>{t("productRevenue.employeeBreakdown")}</h3>
+              <div className="list-stack">
+                {employeeGroups.map((group) => (
+                  <div className="list-item" key={group.key}>
+                    <div><strong>{group.key}</strong><small>{t("productRevenue.quantity")}: {sumQuantity(group.items)}</small></div>
+                    <span className="badge">{formatMoney(sumRevenue(group.items), workspace.masterAccount.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+
+          <article className="card" style={{ marginTop: 18 }}>
+            <h3>{t("productRevenue.customerBreakdown")}</h3>
+            <div className="list-stack">
+              {customerGroups.map((group) => (
+                <div className="list-item" key={group.key}>
+                  <div><strong>{group.key}</strong><small>{t("productRevenue.quantity")}: {sumQuantity(group.items)}</small></div>
+                  <span className="badge">{formatMoney(sumRevenue(group.items), workspace.masterAccount.currency)}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+        </article>
+      )}
     </section>
   );
 }
