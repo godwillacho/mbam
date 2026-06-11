@@ -114,6 +114,37 @@ body {
   margin-bottom: 24px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.dev-account-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--forest-mid);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dev-account-switcher select {
+  max-width: 260px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--forest-soft);
+  color: var(--forest);
+  font: inherit;
+}
+
 .eyebrow {
   color: var(--forest-mid);
   font-size: 12px;
@@ -671,7 +702,13 @@ body {
     align-items: stretch;
   }
 
-  .role-preview-card select {
+  .topbar-actions {
+    justify-content: flex-start;
+  }
+
+  .role-preview-card select,
+  .dev-account-switcher,
+  .dev-account-switcher select {
     min-width: 0;
     width: 100%;
   }
