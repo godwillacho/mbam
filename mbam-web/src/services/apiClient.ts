@@ -19,8 +19,34 @@ function isErrorResponse(value: unknown): value is { error: string } {
   );
 }
 
+async function parseJsonResponse<TResponse>(response: Response): Promise<TResponse> {
+  const body: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = isErrorResponse(body) ? body.error : "Request failed";
+    throw new ApiClientError(message, response.status);
+  }
+
+  return body as TResponse;
+}
+
 export function isApiConfigured(): boolean {
   return API_BASE_URL.length > 0;
+}
+
+export async function getJson<TResponse>(path: string): Promise<TResponse> {
+  if (!isApiConfigured()) {
+    throw new ApiClientError("API base URL is not configured", 0);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  return parseJsonResponse<TResponse>(response);
 }
 
 export async function postJson<TResponse, TPayload>(path: string, payload: TPayload): Promise<TResponse> {
@@ -36,12 +62,5 @@ export async function postJson<TResponse, TPayload>(path: string, payload: TPayl
     body: JSON.stringify(payload),
   });
 
-  const body: unknown = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const message = isErrorResponse(body) ? body.error : "Request failed";
-    throw new ApiClientError(message, response.status);
-  }
-
-  return body as TResponse;
+  return parseJsonResponse<TResponse>(response);
 }
