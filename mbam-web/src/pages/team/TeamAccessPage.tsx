@@ -60,6 +60,7 @@ export default function TeamAccessPage() {
   const requestedMemberId = searchParams.get("member") ?? "";
   const initialMemberId = requestedMemberId || workspace.teamMembers.find((member) => businessFilter && belongsToBusiness(member, businessFilter))?.id || workspace.teamMembers[0]?.id || "";
   const [selectedMemberId, setSelectedMemberId] = useState(initialMemberId);
+  const [isEditingAccess, setIsEditingAccess] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [memberPermissions, setMemberPermissions] = useState<Record<string, string[]>>(() => {
     return Object.fromEntries(workspace.teamMembers.map((member) => [member.id, getDefaultPermissions(member)]));
@@ -81,6 +82,12 @@ export default function TeamAccessPage() {
   const memberRevenue = memberTransactions.reduce((sum, transaction) => sum + transaction.amount, 0);
   const productQuantity = memberSales.reduce((sum, sale) => sum + sale.quantity, 0);
   const maxProductQuantity = Math.max(...memberSales.map((sale) => sale.quantity), 1);
+
+  const selectEmployee = (memberId: string) => {
+    setSelectedMemberId(memberId);
+    setSaveMessage("");
+    setIsEditingAccess(false);
+  };
 
   const selectPermissionMode = (mode: PermissionMode) => {
     setSaveMessage("");
@@ -111,6 +118,7 @@ export default function TeamAccessPage() {
 
   const savePermissions = () => {
     setSaveMessage(t("team.permissionsSaved", { name: selectedMember.fullName }));
+    setIsEditingAccess(false);
   };
 
   return (
@@ -147,7 +155,7 @@ export default function TeamAccessPage() {
             {visibleMembers.map((member) => (
               <tr key={member.id} className={member.id === selectedMember.id ? "selected-row" : undefined}>
                 <td>
-                  <button className="text-button" type="button" onClick={() => { setSelectedMemberId(member.id); setSaveMessage(""); }}>
+                  <button className="text-button" type="button" onClick={() => selectEmployee(member.id)}>
                     {member.fullName}
                   </button>
                 </td>
@@ -164,54 +172,13 @@ export default function TeamAccessPage() {
       <article className="card permission-editor-card">
         <header className="permission-editor-header">
           <div>
-            <span className="eyebrow">{t("team.permissionProfile")}</span>
-            <h3>{selectedMember.fullName}</h3>
-            <p className="card-muted">{resolveRole(selectedMember.roleId, t)} · {resolveScope(selectedMember.businessId, selectedMember.businessUnitId, t)}</p>
-          </div>
-          <div className="dashboard-heading-action">
-            <button className="secondary-btn" type="button" onClick={resetPermissions}>{t("team.resetDefaults")}</button>
-            <button className="primary-btn" type="button" onClick={savePermissions}>{t("team.savePermissions")}</button>
-          </div>
-        </header>
-
-        <div className="permission-profile-grid">
-          {recommendedRoleIds.map((roleId) => (
-            <button key={roleId} className={selectedMode === roleId ? "permission-profile-card active" : "permission-profile-card"} type="button" onClick={() => selectPermissionMode(roleId as PermissionMode)}>
-              <strong>{t(`roles.${roleId}`)}</strong>
-              <small>{t(`team.roleRecommendations.${roleId}`)}</small>
-            </button>
-          ))}
-          <button className={selectedMode === "custom" ? "permission-profile-card active" : "permission-profile-card"} type="button" onClick={() => selectPermissionMode("custom")}>
-            <strong>{t("team.customizable")}</strong>
-            <small>{t("team.customizableHint")}</small>
-          </button>
-        </div>
-
-        {selectedMode === "custom" && (
-          <div className="permission-toggle-grid">
-            {configurablePermissions.map((permission) => {
-              const enabled = selectedPermissions.includes(permission);
-              return (
-                <label className={enabled ? "permission-toggle enabled" : "permission-toggle"} key={permission}>
-                  <input type="checkbox" checked={enabled} onChange={() => togglePermission(permission)} />
-                  <span>
-                    <strong>{t(`permissions.${permission}`)}</strong>
-                    <small>{enabled ? t("team.permissionEnabled") : t("team.permissionDisabled")}</small>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        )}
-      </article>
-
-      <article className="card permission-editor-card">
-        <header>
-          <div>
             <span className="eyebrow">{t("team.performance")}</span>
             <h3>{selectedMember.fullName}</h3>
             <p className="card-muted">{t("team.performanceHint")}</p>
           </div>
+          <button className="secondary-btn" type="button" onClick={() => setIsEditingAccess((current) => !current)}>
+            {isEditingAccess ? t("team.hideEmployeeAccess") : t("team.editEmployeeAccess")}
+          </button>
         </header>
 
         <div className="metrics-grid clean-metrics-grid">
@@ -239,6 +206,52 @@ export default function TeamAccessPage() {
           </div>
         )}
       </article>
+
+      {isEditingAccess && (
+        <article className="card permission-editor-card">
+          <header className="permission-editor-header">
+            <div>
+              <span className="eyebrow">{t("team.permissionProfile")}</span>
+              <h3>{selectedMember.fullName}</h3>
+              <p className="card-muted">{resolveRole(selectedMember.roleId, t)} · {resolveScope(selectedMember.businessId, selectedMember.businessUnitId, t)}</p>
+            </div>
+            <div className="dashboard-heading-action">
+              <button className="secondary-btn" type="button" onClick={resetPermissions}>{t("team.resetDefaults")}</button>
+              <button className="primary-btn" type="button" onClick={savePermissions}>{t("team.savePermissions")}</button>
+            </div>
+          </header>
+
+          <div className="permission-profile-grid">
+            {recommendedRoleIds.map((roleId) => (
+              <button key={roleId} className={selectedMode === roleId ? "permission-profile-card active" : "permission-profile-card"} type="button" onClick={() => selectPermissionMode(roleId as PermissionMode)}>
+                <strong>{t(`roles.${roleId}`)}</strong>
+                <small>{t(`team.roleRecommendations.${roleId}`)}</small>
+              </button>
+            ))}
+            <button className={selectedMode === "custom" ? "permission-profile-card active" : "permission-profile-card"} type="button" onClick={() => selectPermissionMode("custom")}>
+              <strong>{t("team.customizable")}</strong>
+              <small>{t("team.customizableHint")}</small>
+            </button>
+          </div>
+
+          {selectedMode === "custom" && (
+            <div className="permission-toggle-grid">
+              {configurablePermissions.map((permission) => {
+                const enabled = selectedPermissions.includes(permission);
+                return (
+                  <label className={enabled ? "permission-toggle enabled" : "permission-toggle"} key={permission}>
+                    <input type="checkbox" checked={enabled} onChange={() => togglePermission(permission)} />
+                    <span>
+                      <strong>{t(`permissions.${permission}`)}</strong>
+                      <small>{enabled ? t("team.permissionEnabled") : t("team.permissionDisabled")}</small>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </article>
+      )}
     </section>
   );
 }
