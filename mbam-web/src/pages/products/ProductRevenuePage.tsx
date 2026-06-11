@@ -128,10 +128,13 @@ export default function ProductRevenuePage() {
   }, [productDrafts, rows, searchQuery, sortMode]);
 
   const updateDraft = (productId: string, field: keyof ProductDraft, value: string) => {
+    const row = rows.find((item) => item.productId === productId);
+    if (!row) return;
+
     setProductDrafts((current) => ({
       ...current,
       [productId]: {
-        ...(current[productId] ?? toDraft(workspace.products.find((product) => product.id === productId), rows.find((row) => row.productId === productId) ?? filteredRows[0])),
+        ...(current[productId] ?? toDraft(workspace.products.find((product) => product.id === productId), row)),
         [field]: value,
       },
     }));
@@ -197,9 +200,7 @@ export default function ProductRevenuePage() {
                 <th>{t("productRevenue.expiryDate")}</th>
                 <th>{t("productRevenue.costPrice")}</th>
                 <th>{t("roleDashboard.labels.revenue")}</th>
-                <th>
-                  <button className="table-sort-button" type="button" onClick={() => setSortMode("bestSelling")}>{t("productRevenue.bestSellingProducts")}</button>
-                </th>
+                <th><button className="table-sort-button" type="button" onClick={() => setSortMode("bestSelling")}>{t("productRevenue.bestSellingProducts")}</button></th>
               </tr>
             </thead>
             <tbody>
@@ -211,9 +212,7 @@ export default function ProductRevenuePage() {
 
                 return (
                   <tr key={row.productId}>
-                    <td>
-                      {isEditingProducts ? <input value={draft.name} onChange={(event) => updateDraft(row.productId, "name", event.target.value)} /> : <strong>{draft.name}</strong>}
-                    </td>
+                    <td>{isEditingProducts ? <input value={draft.name} onChange={(event) => updateDraft(row.productId, "name", event.target.value)} /> : <strong>{draft.name}</strong>}</td>
                     <td>{isEditingProducts ? <input value={draft.sku} onChange={(event) => updateDraft(row.productId, "sku", event.target.value)} /> : draft.sku}</td>
                     <td>{isEditingProducts ? <input value={draft.brand} onChange={(event) => updateDraft(row.productId, "brand", event.target.value)} /> : draft.brand || "—"}</td>
                     <td>{isEditingProducts ? <input value={draft.category} onChange={(event) => updateDraft(row.productId, "category", event.target.value)} /> : t(`categories.${draft.category}`)}</td>
