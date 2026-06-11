@@ -133,7 +133,9 @@ export default function MasterDashboard() {
   const activeMetricKey = activeMetric.key;
   const detailPath = activeMetricKey === "pendingCustomers"
     ? "/dashboard/pending-payments"
-    : `/dashboard/detail/${activeMetricKey}`;
+    : activeMetricKey === "products"
+      ? "/dashboard/products"
+      : `/dashboard/detail/${activeMetricKey}`;
 
   const renderTransactions = (records: TransactionRecord[]) => {
     if (records.length === 0) {
