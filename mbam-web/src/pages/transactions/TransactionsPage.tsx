@@ -1,9 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
+import { getCurrentMember, getScopedTransactions } from "../../security/accessControl";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 
 export default function TransactionsPage() {
   const { t } = useTranslation();
+  const currentMember = getCurrentMember();
+  const visibleTransactions = getScopedTransactions(currentMember);
 
   return (
     <section className="page-grid">
@@ -18,7 +21,7 @@ export default function TransactionsPage() {
       <article className="table-card">
         <header>
           <h3>{t("transactions.recentRecords")}</h3>
-          <small>{t("transactions.demoTransactions", { count: workspace.transactions.length })}</small>
+          <small>{t("transactions.demoTransactions", { count: visibleTransactions.length })}</small>
         </header>
         <table className="data-table">
           <thead>
@@ -33,7 +36,7 @@ export default function TransactionsPage() {
             </tr>
           </thead>
           <tbody>
-            {workspace.transactions.map((transaction) => (
+            {visibleTransactions.map((transaction) => (
               <tr key={transaction.id}>
                 <td>{transaction.reference}</td>
                 <td>{transaction.customerName}</td>
