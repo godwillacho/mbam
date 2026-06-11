@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
+import { canViewDashboardMetric, getStoredDashboardMember } from "./dashboardPermissions";
 import "./PendingPaymentsPage.css";
 
 function formatOptionalDate(value?: string): string {
@@ -20,11 +21,34 @@ function findUnit(unitId: string) {
   return workspace.businessUnits.find((unit) => unit.id === unitId);
 }
 
+function getScopedBusinessIds() {
+  const member = getStoredDashboardMember();
+
+  if (member.scopeLevel === "master") {
+    return new Set(workspace.businesses.map((business) => business.id));
+  }
+
+  if (member.businessId) {
+    return new Set([member.businessId]);
+  }
+
+  const unit = findUnit(member.businessUnitId ?? "");
+  return unit ? new Set([unit.businessId]) : new Set<string>();
+}
+
 export default function PendingPaymentsPage() {
   const { t } = useTranslation();
-  const totalOutstanding = workspace.pendingPayments.reduce((sum, payment) => sum + payment.outstandingAmount, 0);
-  const totalOriginal = workspace.pendingPayments.reduce((sum, payment) => sum + payment.originalAmount, 0);
-  const totalPaid = workspace.pendingPayments.reduce((sum, payment) => sum + payment.amountPaid, 0);
+  const member = getStoredDashboardMember();
+
+  if (!canViewDashboardMetric(member, "pendingCustomers")) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  const scopedBusinessIds = getScopedBusinessIds();
+  const visiblePendingPayments = workspace.pendingPayments.filter((payment) => scopedBusinessIds.has(payment.businessId));
+  const totalOutstanding = visiblePendingPayments.reduce((sum, payment) => sum + payment.outstandingAmount, 0);
+  const totalOriginal = visiblePendingPayments.reduce((sum, payment) => sum + payment.originalAmount, 0);
+  const totalPaid = visiblePendingPayments.reduce((sum, payment) => sum + payment.amountPaid, 0);
 
   return (
     <section className="page-grid pending-payments-page">
@@ -55,7 +79,7 @@ export default function PendingPaymentsPage() {
         </article>
         <article className="metric-card">
           <span>{t("pendingPayments.records")}</span>
-          <strong>{workspace.pendingPayments.length}</strong>
+          <strong>{visiblePendingPayments.length}</strong>
           <small>{t("pendingPayments.recordsHint")}</small>
         </article>
       </div>
@@ -69,7 +93,7 @@ export default function PendingPaymentsPage() {
         </header>
 
         <div className="pending-full-report">
-          {workspace.pendingPayments.map((payment) => {
+          {visiblePendingPayments.map((payment) => {
             const customer = findCustomer(payment.customerId);
             const business = findBusiness(payment.businessId);
             const unit = findUnit(payment.businessUnitId);
