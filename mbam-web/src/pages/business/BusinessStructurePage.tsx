@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { formatMoney } from "../../utils/formatters";
@@ -22,13 +23,20 @@ export default function BusinessStructurePage() {
         {workspace.businesses.map((business) => {
           const units = workspace.businessUnits.filter((unit) => unit.businessId === business.id);
           const revenue = units.reduce((sum, unit) => sum + unit.todayRevenue, 0);
+          const businessTeam = workspace.teamMembers.filter((member) => member.businessId === business.id || units.some((unit) => unit.id === member.businessUnitId));
 
           return (
             <article className="card" key={business.id}>
-              <h3>{business.name}</h3>
-              <p className="card-muted">{business.type} · {business.country} · {business.currency}</p>
+              <header>
+                <div>
+                  <h3>{business.name}</h3>
+                  <p className="card-muted">{business.type} · {business.country} · {business.currency}</p>
+                </div>
+                <Link className="secondary-btn" to={`/team?business=${business.id}`}>{t("businesses.openEmployees")}</Link>
+              </header>
+
               <p className="card-muted" style={{ marginTop: 8 }}>
-                {t("businesses.totalToday")}: {formatMoney(revenue, business.currency)}
+                {t("businesses.totalToday")}: {formatMoney(revenue, business.currency)} · {t("businesses.employeeCount", { count: businessTeam.length })}
               </p>
 
               <div className="list-stack" style={{ marginTop: 16 }}>
@@ -43,7 +51,7 @@ export default function BusinessStructurePage() {
                         <div className="nested-team-list">
                           <span>{t("businesses.teamMembers")}</span>
                           {unitTeam.length > 0 ? unitTeam.map((member) => (
-                            <small key={member.id}>{member.fullName} · {t(`roles.${member.roleId}`)}</small>
+                            <Link key={member.id} className="text-button" to={`/team?member=${member.id}`}>{member.fullName} · {t(`roles.${member.roleId}`)}</Link>
                           )) : <small>{t("businesses.noTeamMembers")}</small>}
                         </div>
                       </div>
