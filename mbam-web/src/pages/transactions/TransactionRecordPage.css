@@ -1,3 +1,41 @@
+.validation-summary,
+.validation-success {
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+
+.validation-summary {
+  border: 1px solid #FCA5A5;
+  background: #FEF2F2;
+  color: var(--danger);
+}
+
+.validation-summary strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.validation-summary ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.validation-success {
+  border: 1px solid var(--forest-mid);
+  background: var(--forest-soft);
+  color: var(--forest);
+  font-weight: 800;
+}
+
+.field-error {
+  display: block;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 4px;
+}
+
 .itemized-toggle-card {
   padding: 14px;
   border: 1px solid var(--border);
