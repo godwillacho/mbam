@@ -27,20 +27,31 @@ export default function BusinessStructurePage() {
             <article className="card" key={business.id}>
               <h3>{business.name}</h3>
               <p className="card-muted">{business.type} · {business.country} · {business.currency}</p>
-              <div className="list-stack">
-                {units.map((unit) => (
-                  <div className="list-item" key={unit.id}>
-                    <div>
-                      <strong>{unit.name}</strong>
-                      <small>{t(`unitTypes.${unit.type}`)} · {unit.location}</small>
-                    </div>
-                    <span className="badge">{formatMoney(unit.todayRevenue, business.currency)}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="card-muted" style={{ marginTop: 14 }}>
+              <p className="card-muted" style={{ marginTop: 8 }}>
                 {t("businesses.totalToday")}: {formatMoney(revenue, business.currency)}
               </p>
+
+              <div className="list-stack" style={{ marginTop: 16 }}>
+                {units.map((unit) => {
+                  const unitTeam = workspace.teamMembers.filter((member) => member.businessUnitId === unit.id);
+
+                  return (
+                    <div className="list-item nested-business-unit" key={unit.id}>
+                      <div>
+                        <strong>{unit.name}</strong>
+                        <small>{t(`unitTypes.${unit.type}`)} · {unit.location}</small>
+                        <div className="nested-team-list">
+                          <span>{t("businesses.teamMembers")}</span>
+                          {unitTeam.length > 0 ? unitTeam.map((member) => (
+                            <small key={member.id}>{member.fullName} · {t(`roles.${member.roleId}`)}</small>
+                          )) : <small>{t("businesses.noTeamMembers")}</small>}
+                        </div>
+                      </div>
+                      <span className="badge">{formatMoney(unit.todayRevenue, business.currency)}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </article>
           );
         })}
