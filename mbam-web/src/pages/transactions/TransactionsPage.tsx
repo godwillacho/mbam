@@ -25,17 +25,24 @@ function getProductsForTransaction(transactionId: string) {
     .filter(Boolean);
 }
 
+function getRecorderRoleId(transaction: TransactionRecord): string {
+  return workspace.teamMembers.find((member) => member.fullName === transaction.recordedBy)?.roleId ?? "unknown";
+}
+
 function getTransactionSearchText(transaction: TransactionRecord): string {
   const products = getProductsForTransaction(transaction.id);
   const unit = workspace.businessUnits.find((item) => item.id === transaction.businessUnitId);
   const business = workspace.businesses.find((item) => item.id === transaction.businessId);
   const customer = workspace.customers.find((item) => item.name.toLowerCase() === transaction.customerName.toLowerCase());
+  const recorder = workspace.teamMembers.find((member) => member.fullName === transaction.recordedBy);
 
   return [
     transaction.reference,
     transaction.customerName,
     customer?.contact,
     transaction.recordedBy,
+    recorder?.roleId,
+    recorder ? workspace.roles.find((role) => role.id === recorder.roleId)?.name : undefined,
     transaction.paymentMethod,
     transaction.status,
     transaction.createdAt,
@@ -51,12 +58,14 @@ export default function TransactionsPage() {
   const initialDateFilter = searchParams.get("date") === "today" ? "today" : "all";
   const [statusFilter, setStatusFilter] = useState<TransactionFilter>("all");
   const [dateFilter, setDateFilter] = useState<DateFilter>(initialDateFilter);
+  const [roleFilter, setRoleFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const currentMember = getCurrentMember();
   const visibleTransactions = getScopedTransactions(currentMember);
   const todayTransactions = visibleTransactions.filter((transaction) => isSameUtcDay(transaction.createdAt));
   const queuedCount = visibleTransactions.filter((transaction) => transaction.status === "queued").length;
   const completedCount = visibleTransactions.filter((transaction) => transaction.status === "completed").length;
+  const visibleRoleIds = Array.from(new Set(visibleTransactions.map(getRecorderRoleId).filter((roleId) => roleId !== "unknown")));
 
   const updateDateFilter = (nextFilter: DateFilter) => {
     setDateFilter(nextFilter);
@@ -69,10 +78,11 @@ export default function TransactionsPage() {
     return visibleTransactions.filter((transaction) => {
       const statusMatches = statusFilter === "all" || transaction.status === statusFilter;
       const dateMatches = dateFilter === "all" || isSameUtcDay(transaction.createdAt);
+      const roleMatches = roleFilter === "all" || getRecorderRoleId(transaction) === roleFilter;
       const searchMatches = !query || getTransactionSearchText(transaction).includes(query);
-      return statusMatches && dateMatches && searchMatches;
+      return statusMatches && dateMatches && roleMatches && searchMatches;
     });
-  }, [dateFilter, searchQuery, statusFilter, visibleTransactions]);
+  }, [dateFilter, roleFilter, searchQuery, statusFilter, visibleTransactions]);
 
   return (
     <section className="page-grid">
@@ -109,13 +119,12 @@ export default function TransactionsPage() {
 
       <div className="filter-bar card">
         <label htmlFor="transaction-search">{t("transactions.searchLabel")}</label>
-        <input
-          id="transaction-search"
-          type="search"
-          value={searchQuery}
-          placeholder={t("transactions.searchPlaceholder")}
-          onChange={(event) => setSearchQuery(event.target.value)}
-        />
+        <input id="transaction-search" type="search" value={searchQuery} placeholder={t("transactions.searchPlaceholder")} onChange={(event) => setSearchQuery(event.target.value)} />
+        <label htmlFor="transaction-role-filter">{t("transactions.roleFilter")}</label>
+        <select id="transaction-role-filter" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+          <option value="all">{t("transactions.allRoles")}</option>
+          {visibleRoleIds.map((roleId) => <option key={roleId} value={roleId}>{t(`roles.${roleId}`)}</option>)}
+        </select>
         <small>{t("transactions.searchHint")}</small>
       </div>
 
@@ -131,6 +140,7 @@ export default function TransactionsPage() {
               <th>{t("transactions.customer")}</th>
               <th>{t("transactions.products")}</th>
               <th>{t("transactions.recordedBy")}</th>
+              <th>{t("team.role")}</th>
               <th>{t("transactions.payment")}</th>
               <th>{t("transactions.status")}</th>
               <th>{t("transactions.amount")}</th>
@@ -140,6 +150,7 @@ export default function TransactionsPage() {
           <tbody>
             {filteredTransactions.map((transaction) => {
               const products = getProductsForTransaction(transaction.id);
+              const roleId = getRecorderRoleId(transaction);
 
               return (
                 <tr key={transaction.id}>
@@ -147,10 +158,9 @@ export default function TransactionsPage() {
                   <td>{transaction.customerName}</td>
                   <td>{products.length > 0 ? products.map((product) => product?.name).join(", ") : "—"}</td>
                   <td>{transaction.recordedBy}</td>
+                  <td>{roleId === "unknown" ? "—" : t(`roles.${roleId}`)}</td>
                   <td>{t(`paymentMethods.${transaction.paymentMethod}`)}</td>
-                  <td>
-                    <span className={transaction.status === "queued" ? "badge warning" : "badge"}>{t(`common.${transaction.status}`)}</span>
-                  </td>
+                  <td><span className={transaction.status === "queued" ? "badge warning" : "badge"}>{t(`common.${transaction.status}`)}</span></td>
                   <td>{formatMoney(transaction.amount, workspace.masterAccount.currency)}</td>
                   <td>{formatDateTime(transaction.createdAt)}</td>
                 </tr>
