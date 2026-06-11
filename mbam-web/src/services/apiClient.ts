@@ -50,13 +50,22 @@ export async function getJson<TResponse>(path: string): Promise<TResponse> {
 }
 
 export async function postJson<TResponse, TPayload>(path: string, payload: TPayload): Promise<TResponse> {
+  return sendJson<TResponse, TPayload>("POST", path, payload);
+}
+
+export async function patchJson<TResponse, TPayload>(path: string, payload: TPayload): Promise<TResponse> {
+  return sendJson<TResponse, TPayload>("PATCH", path, payload);
+}
+
+async function sendJson<TResponse, TPayload>(method: "POST" | "PATCH", path: string, payload: TPayload): Promise<TResponse> {
   if (!isApiConfigured()) {
     throw new ApiClientError("API base URL is not configured", 0);
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
+    method,
     headers: {
+      Accept: "application/json",
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
