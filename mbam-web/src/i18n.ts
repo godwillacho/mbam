@@ -59,6 +59,20 @@ const transactionRecordEn = {
   offlineHint: "The first implementation will queue this locally before backend sync.",
   saveDraft: "Save draft",
   recordSale: "Record sale",
+  validation: {
+    summaryTitle: "Please fix these fields before continuing.",
+    validated: "Inputs passed validation and are ready for the offline queue.",
+    businessRequired: "Choose a valid business.",
+    unitRequired: "Choose a valid unit under the selected business.",
+    customerNameRequired: "Enter a valid customer name.",
+    customerContactInvalid: "Enter a valid phone or WhatsApp contact.",
+    paymentMethodInvalid: "Choose a valid payment method.",
+    totalAmountInvalid: "Enter a valid total amount greater than zero.",
+    outstandingAmountInvalid: "Enter a valid outstanding amount greater than zero.",
+    outstandingAmountTooHigh: "Outstanding amount cannot be greater than the total amount.",
+    noteTooLong: "The note is too long.",
+    lineItemInvalid: "Line item {{index}} needs a valid name, quantity, and price.",
+  },
 };
 
 const transactionRecordFr = {
@@ -113,6 +127,20 @@ const transactionRecordFr = {
   offlineHint: "La première implémentation mettra cette transaction en file d’attente localement avant la synchronisation backend.",
   saveDraft: "Enregistrer le brouillon",
   recordSale: "Enregistrer la vente",
+  validation: {
+    summaryTitle: "Corrigez ces champs avant de continuer.",
+    validated: "Les entrées sont validées et prêtes pour la file hors ligne.",
+    businessRequired: "Choisissez une entreprise valide.",
+    unitRequired: "Choisissez une unité valide sous l’entreprise sélectionnée.",
+    customerNameRequired: "Saisissez un nom de client valide.",
+    customerContactInvalid: "Saisissez un numéro de téléphone ou WhatsApp valide.",
+    paymentMethodInvalid: "Choisissez un mode de paiement valide.",
+    totalAmountInvalid: "Saisissez un montant total valide supérieur à zéro.",
+    outstandingAmountInvalid: "Saisissez un montant restant valide supérieur à zéro.",
+    outstandingAmountTooHigh: "Le montant restant ne peut pas dépasser le montant total.",
+    noteTooLong: "La note est trop longue.",
+    lineItemInvalid: "L’article {{index}} nécessite un nom, une quantité et un prix valides.",
+  },
 };
 
 const resources = {
@@ -196,7 +224,7 @@ const resources = {
       transactions: {
         eyebrow: "Transactions",
         title: "Sales history and sync queue",
-        description: "This page shows completed and queued transactions across the master account. Filters will later use the business, unit, date range, and worker scope from the backend.",
+        description: "This page shows completed and queued transactions across the permitted account scope. Backend filters must enforce the same business, unit, date range, and worker scope.",
         recentRecords: "Recent records",
         demoTransactions: "{{count}} demo transactions",
         reference: "Reference",
@@ -329,7 +357,7 @@ const resources = {
       transactions: {
         eyebrow: "Transactions",
         title: "Historique des ventes et file de synchronisation",
-        description: "Cette page affiche les transactions terminées et en attente sur le compte principal. Les filtres utiliseront plus tard l’entreprise, l’unité, la période et le périmètre de l’employé depuis le backend.",
+        description: "Cette page affiche les transactions terminées et en attente dans le périmètre autorisé. Le backend devra appliquer les mêmes filtres d’entreprise, d’unité, de période et d’employé.",
         recentRecords: "Enregistrements récents",
         demoTransactions: "{{count}} transactions de démonstration",
         reference: "Référence",
