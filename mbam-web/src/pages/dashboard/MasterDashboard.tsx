@@ -80,6 +80,7 @@ function getFullPagePath(metricKey: DashboardMetricKey): string {
       return "/pending-payments";
     case "transactions":
     case "ownTransactions":
+      return "/transactions?date=today";
     case "queued":
       return "/transactions";
     case "products":
@@ -362,12 +363,7 @@ export default function MasterDashboard() {
 
       <div className="metrics-grid clean-metrics-grid dashboard-options-grid">
         {metrics.map((metric) => (
-          <button
-            key={metric.key}
-            type="button"
-            className={activeMetricKey === metric.key ? "metric-card metric-button active" : "metric-card metric-button"}
-            onClick={() => setSelectedMetric(metric.key)}
-          >
+          <button key={metric.key} type="button" className={activeMetricKey === metric.key ? "metric-card metric-button active" : "metric-card metric-button"} onClick={() => setSelectedMetric(metric.key)}>
             <span>{t(`roleDashboard.metrics.${metric.key}`)}</span>
             <strong>{metric.value}</strong>
             <small>{t(`roleDashboard.hints.${metric.hintKey}`)}</small>
@@ -385,9 +381,7 @@ export default function MasterDashboard() {
           <span className="badge">{t(`roleDashboard.metrics.${activeMetricKey}`)}: {activeMetric.value}</span>
         </header>
         {renderDetail()}
-        <Link className="secondary-btn full-report-link" to={detailPath}>
-          {t("roleDashboard.openFullReport")}
-        </Link>
+        <Link className="secondary-btn full-report-link" to={detailPath}>{t("roleDashboard.openFullReport")}</Link>
       </article>
 
       <article className="card quick-actions-card quick-actions-below">
