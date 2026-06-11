@@ -8,6 +8,26 @@
   padding-bottom: 14px;
 }
 
+.product-revenue-source-note,
+.product-revenue-error {
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.product-revenue-source-note {
+  border: 1px solid #F4D79C;
+  background: #FFF7E6;
+  color: var(--warning);
+}
+
+.product-revenue-error {
+  border: 1px solid #FCA5A5;
+  background: #FEE2E2;
+  color: var(--danger);
+}
+
 .product-revenue-list {
   display: grid;
   gap: 16px;
