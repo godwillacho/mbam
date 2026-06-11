@@ -8,6 +8,10 @@ const en = {
   },
   transactions: {
     filteredRecords: "{{count}} records shown",
+    products: "Products",
+    searchLabel: "Search transactions",
+    searchPlaceholder: "Search by customer, phone, product, reference, worker, date, or payment method",
+    searchHint: "Use this for dispute checks, customer history, product lookup, and future printable reports.",
     filters: {
       all: "All transactions",
       allHint: "Completed and queued",
@@ -15,6 +19,8 @@ const en = {
       completedHint: "Already synced or settled",
       queued: "Queued offline",
       queuedHint: "Waiting for sync",
+      today: "Today",
+      todayHint: "Transactions recorded today",
     },
   },
   businesses: {
@@ -31,6 +37,10 @@ const fr = {
   },
   transactions: {
     filteredRecords: "{{count}} enregistrements affichés",
+    products: "Produits",
+    searchLabel: "Rechercher des transactions",
+    searchPlaceholder: "Rechercher par client, téléphone, produit, référence, employé, date ou mode de paiement",
+    searchHint: "Utilisez cette recherche pour les litiges, l’historique client, la recherche produit et les futurs rapports imprimables.",
     filters: {
       all: "Toutes les transactions",
       allHint: "Terminées et en attente",
@@ -38,6 +48,8 @@ const fr = {
       completedHint: "Déjà synchronisées ou réglées",
       queued: "En attente hors ligne",
       queuedHint: "En attente de synchronisation",
+      today: "Aujourd’hui",
+      todayHint: "Transactions enregistrées aujourd’hui",
     },
   },
   businesses: {
