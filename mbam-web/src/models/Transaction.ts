@@ -7,9 +7,10 @@ import type {
   TransactionSummary,
   PaymentMethod,
   TransactionStatus,
-  Currency,
 } from "../types";
-import { draftItemSubtotal, draftTotal, isDraftValid, formatCurrency, formatTime, formatRelativeDate } from "../lib/filters";
+import { draftTotal, isDraftValid, formatCurrency, formatTime, formatRelativeDate } from "../lib/filters";
+
+type TransactionCurrency = ITransaction["currency"];
 
 export class TransactionItem implements ITransactionItem {
   id: string;
@@ -66,7 +67,7 @@ export class Transaction implements ITransaction {
   items: TransactionItem[];
   subtotal: number;
   total: number;
-  currency: Currency;
+  currency: TransactionCurrency;
   paymentMethod: PaymentMethod;
   status: TransactionStatus;
   createdAt: string;
