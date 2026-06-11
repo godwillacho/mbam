@@ -124,17 +124,25 @@ function buildProductRevenuePath(member: TeamMember): string {
   return query ? `/api/v1/reports/product-revenue?${query}` : "/api/v1/reports/product-revenue";
 }
 
+function getMockReport(member: TeamMember, noSkuLabel: string): ProductRevenueReport {
+  return {
+    rows: buildMockRevenueRows(member, noSkuLabel),
+    source: "mock",
+  };
+}
+
 export async function getProductRevenueReport(member: TeamMember, noSkuLabel: string): Promise<ProductRevenueReport> {
-  if (isApiConfigured()) {
+  if (!isApiConfigured()) {
+    return getMockReport(member, noSkuLabel);
+  }
+
+  try {
     const response = await getJson<ProductRevenueApiResponse>(buildProductRevenuePath(member));
     return {
       rows: response.rows.sort((a, b) => b.totalRevenue - a.totalRevenue),
       source: "api",
     };
+  } catch {
+    return getMockReport(member, noSkuLabel);
   }
-
-  return {
-    rows: buildMockRevenueRows(member, noSkuLabel),
-    source: "mock",
-  };
 }
