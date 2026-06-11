@@ -2,22 +2,10 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
+import { canViewDashboardMetric, getStoredDashboardMember, type DashboardMetricKey } from "./dashboardPermissions";
 import "./DashboardMetricDetailPage.css";
 
-type MetricKey =
-  | "totalRevenue"
-  | "businesses"
-  | "units"
-  | "queued"
-  | "team"
-  | "businessRevenue"
-  | "unitRevenue"
-  | "transactions"
-  | "ownSales"
-  | "ownTransactions"
-  | "products";
-
-const metricKeys: MetricKey[] = [
+const metricKeys: DashboardMetricKey[] = [
   "totalRevenue",
   "businesses",
   "units",
@@ -31,8 +19,8 @@ const metricKeys: MetricKey[] = [
   "products",
 ];
 
-function isMetricKey(value: string | undefined): value is MetricKey {
-  return !!value && metricKeys.includes(value as MetricKey);
+function isMetricKey(value: string | undefined): value is DashboardMetricKey {
+  return !!value && metricKeys.includes(value as DashboardMetricKey);
 }
 
 function businessName(id: string) {
@@ -43,18 +31,38 @@ function unitName(id: string) {
   return workspace.businessUnits.find((unit) => unit.id === id)?.name ?? "—";
 }
 
+function getScopedUnits(member = getStoredDashboardMember()) {
+  if (member.scopeLevel === "master") return workspace.businessUnits;
+  if (member.scopeLevel === "business" && member.businessId) {
+    return workspace.businessUnits.filter((unit) => unit.businessId === member.businessId);
+  }
+  if (member.scopeLevel === "unit" && member.businessUnitId) {
+    return workspace.businessUnits.filter((unit) => unit.id === member.businessUnitId);
+  }
+  return [];
+}
+
 export default function DashboardMetricDetailPage() {
   const { metricKey } = useParams();
   const { t } = useTranslation();
+  const member = getStoredDashboardMember();
 
-  if (!isMetricKey(metricKey)) {
+  if (!isMetricKey(metricKey) || !canViewDashboardMetric(member, metricKey)) {
     return <Navigate to="/dashboard" replace />;
   }
 
+  const scopedUnits = getScopedUnits(member);
+  const scopedUnitIds = new Set(scopedUnits.map((unit) => unit.id));
+  const scopedBusinessIds = new Set(scopedUnits.map((unit) => unit.businessId));
+  const scopedTransactions = workspace.transactions.filter((transaction) => scopedUnitIds.has(transaction.businessUnitId));
+  const visibleTransactions = member.roleId === "role-cashier"
+    ? scopedTransactions.filter((transaction) => transaction.recordedBy === member.fullName)
+    : scopedTransactions;
+
   const renderMetricRows = () => {
     if (["totalRevenue", "businessRevenue", "unitRevenue", "ownSales"].includes(metricKey)) {
-      return workspace.businessUnits.map((unit) => {
-        const transactions = workspace.transactions.filter((transaction) => transaction.businessUnitId === unit.id);
+      return scopedUnits.map((unit) => {
+        const transactions = visibleTransactions.filter((transaction) => transaction.businessUnitId === unit.id);
         const amount = transactions.reduce((sum, transaction) => sum + transaction.amount, 0) || unit.todayRevenue;
 
         return (
@@ -70,8 +78,8 @@ export default function DashboardMetricDetailPage() {
     }
 
     if (metricKey === "businesses") {
-      return workspace.businesses.map((business) => {
-        const units = workspace.businessUnits.filter((unit) => unit.businessId === business.id);
+      return workspace.businesses.filter((business) => scopedBusinessIds.has(business.id)).map((business) => {
+        const units = scopedUnits.filter((unit) => unit.businessId === business.id);
         const revenue = units.reduce((sum, unit) => sum + unit.todayRevenue, 0);
 
         return (
@@ -87,7 +95,7 @@ export default function DashboardMetricDetailPage() {
     }
 
     if (["units", "queued"].includes(metricKey)) {
-      return workspace.businessUnits.map((unit) => (
+      return scopedUnits.map((unit) => (
         <article className="metric-detail-row" key={unit.id}>
           <div>
             <strong>{unit.name}</strong>
@@ -101,19 +109,23 @@ export default function DashboardMetricDetailPage() {
     }
 
     if (metricKey === "team") {
-      return workspace.teamMembers.map((member) => (
-        <article className="metric-detail-row" key={member.id}>
+      return workspace.teamMembers.filter((teamMember) => {
+        if (member.scopeLevel === "master") return true;
+        if (member.scopeLevel === "business") return teamMember.businessId === member.businessId;
+        return teamMember.businessUnitId === member.businessUnitId || teamMember.id === member.id;
+      }).map((teamMember) => (
+        <article className="metric-detail-row" key={teamMember.id}>
           <div>
-            <strong>{member.fullName}</strong>
-            <small>{member.email} · {t(`roleDashboard.roleNames.${member.roleId}`)}</small>
+            <strong>{teamMember.fullName}</strong>
+            <small>{teamMember.email} · {t(`roleDashboard.roleNames.${teamMember.roleId}`)}</small>
           </div>
-          <span className={member.status === "invited" ? "badge warning" : "badge"}>{t(`common.${member.status}`)}</span>
+          <span className={teamMember.status === "invited" ? "badge warning" : "badge"}>{t(`common.${teamMember.status}`)}</span>
         </article>
       ));
     }
 
     if (["transactions", "ownTransactions"].includes(metricKey)) {
-      return workspace.transactions.map((transaction) => (
+      return visibleTransactions.map((transaction) => (
         <article className="metric-detail-row" key={transaction.id}>
           <div>
             <strong>{transaction.reference} · {transaction.customerName}</strong>
@@ -124,7 +136,7 @@ export default function DashboardMetricDetailPage() {
       ));
     }
 
-    return workspace.products.map((product) => (
+    return workspace.products.filter((product) => !product.businessId || scopedBusinessIds.has(product.businessId)).map((product) => (
       <article className="metric-detail-row" key={product.id}>
         <div>
           <strong>{product.name}</strong>
