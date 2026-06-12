@@ -48,19 +48,62 @@ shouldRefreshLocalDataForRoleChange()
 markRolePolicyRefreshComplete()
 ```
 
-## Current first module
+## Transaction local CRUD
 
-The first module routed through local sync is:
+Transactions now have dedicated IndexedDB stores:
+
+```text
+transactions
+transactionLines
+```
+
+Available CRUD functions:
+
+```ts
+createLocalTransaction(input)
+listLocalTransactions(filters)
+getLocalTransaction(localId)
+getLocalTransactionLines(localId)
+getLocalTransactionWithLines(localId)
+updateLocalTransaction(localId, updates)
+replaceLocalTransactionLines(localId, lines)
+deleteLocalTransaction(localId)
+getLocalTransactionInvoice(localId)
+```
+
+Available sync-state helpers:
+
+```ts
+markLocalTransactionSyncing(localId)
+markLocalTransactionSynced(localId, serverId, serverReference)
+markLocalTransactionFailed(localId, reason)
+markLocalTransactionRejected(localId, reason)
+```
+
+Important rules:
+
+- Transactions store local IDs and eventual server IDs separately.
+- Each transaction has an idempotency key for safe retry later.
+- Transaction lines store product name, SKU, quantity, unit price, and line total snapshots.
+- Local invoices can be generated before the transaction syncs to the API.
+- Deleting a local transaction deletes its local line items too.
+
+## Current modules
+
+Routed through local sync:
 
 ```text
 Product revenue report reads
+Transaction local CRUD foundation
 ```
 
 Next candidates:
 
-- transactions list reads
+- route transaction record page through `createLocalTransaction`
+- route transactions list page through `listLocalTransactions`
+- route invoice page through `getLocalTransactionInvoice`
 - pending payments reads
 - business/shop hierarchy reads
 - product list reads
 - customer list reads
-- offline transaction creation queue
+- queued transaction sync processor
