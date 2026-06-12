@@ -1,6 +1,6 @@
 import { productSales } from "../../data/mockProductSales";
 import { workspace } from "../../data/mockWorkspace";
-import type { TeamMember, TransactionRecord } from "../../types/workspace";
+import type { ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
 import { getProductSearchText } from "../../utils/productDisplay";
 import type { LocalTransactionLineRecord, LocalTransactionRecord } from "../localSync/localSyncStore";
 import { getLocalTransactionLines, listLocalTransactions } from "./transactionLocalRepository";
@@ -9,23 +9,28 @@ export interface TransactionBrowserRow extends TransactionRecord {
   productsLabel: string;
   productSearchText: string;
   source: "local" | "workspace";
+  serverId?: string;
   syncStatus?: LocalTransactionRecord["syncStatus"];
 }
 
-function getMockProducts(transactionId: string) {
+function isProductProfile(product: ProductProfile | undefined): product is ProductProfile {
+  return Boolean(product);
+}
+
+function getMockProducts(transactionId: string): ProductProfile[] {
   return productSales
     .filter((sale) => sale.transactionId === transactionId)
     .map((sale) => workspace.products.find((product) => product.id === sale.productId))
-    .filter(Boolean);
+    .filter(isProductProfile);
 }
 
 function getMockProductsLabel(transactionId: string): string {
   const products = getMockProducts(transactionId);
-  return products.length > 0 ? products.map((product) => product?.name).join(", ") : "—";
+  return products.length > 0 ? products.map((product) => product.name).join(", ") : "—";
 }
 
 function getMockProductSearchText(transactionId: string): string {
-  return getMockProducts(transactionId).map((product) => product ? getProductSearchText(product) : "").join(" ");
+  return getMockProducts(transactionId).map((product) => getProductSearchText(product)).join(" ");
 }
 
 function localLinesToProductsLabel(lines: LocalTransactionLineRecord[]): string {
@@ -63,6 +68,7 @@ function workspaceTransactionToRow(transaction: TransactionRecord): TransactionB
 function localTransactionToRow(transaction: LocalTransactionRecord, lines: LocalTransactionLineRecord[]): TransactionBrowserRow {
   return {
     id: transaction.localId,
+    serverId: transaction.serverId,
     reference: transaction.reference,
     businessId: transaction.businessId,
     businessUnitId: transaction.businessUnitId,
@@ -88,7 +94,7 @@ export async function listBrowserDbTransactions(currentMember: TeamMember, works
   }));
   const workspaceRows = workspaceTransactions.map(workspaceTransactionToRow);
   const workspaceIds = new Set(workspaceRows.map((transaction) => transaction.id));
-  const localOnlyRows = localRows.filter((transaction) => !transaction.syncStatus || !transaction.id || !workspaceIds.has(transaction.id));
+  const localOnlyRows = localRows.filter((transaction) => !transaction.serverId || !workspaceIds.has(transaction.serverId));
 
   return [...localOnlyRows, ...workspaceRows].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
