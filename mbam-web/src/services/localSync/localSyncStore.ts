@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import type { PaymentMethod, TransactionStatus } from "../../types/workspace";
 
 export type LocalSyncModule =
   | "businesses"
@@ -11,6 +12,46 @@ export type LocalSyncModule =
 
 export type LocalSyncMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type LocalSyncSource = "api" | "cache" | "fallback" | "queued";
+
+export type LocalTransactionSyncStatus = "local" | "queued" | "syncing" | "synced" | "failed" | "rejected";
+export type LocalTransactionPaymentStatus = "paid" | "pending";
+
+export interface LocalTransactionRecord {
+  localId: string;
+  serverId?: string;
+  reference: string;
+  businessId: string;
+  businessUnitId: string;
+  customerId?: string;
+  customerName: string;
+  customerContact?: string;
+  itemCount: number;
+  amount: number;
+  outstandingAmount?: number;
+  paymentMethod: PaymentMethod;
+  paymentStatus: LocalTransactionPaymentStatus;
+  status: TransactionStatus;
+  createdAt: string;
+  updatedAt: string;
+  recordedBy: string;
+  recordedByUserId?: string;
+  syncStatus: LocalTransactionSyncStatus;
+  syncError?: string;
+  idempotencyKey: string;
+  rolePolicyVersion?: string;
+}
+
+export interface LocalTransactionLineRecord {
+  localLineId: string;
+  transactionLocalId: string;
+  productId?: string;
+  productNameSnapshot: string;
+  skuSnapshot?: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  createdAt: string;
+}
 
 export interface LocalSyncCacheRecord<TData = unknown> {
   cacheKey: string;
@@ -56,6 +97,26 @@ interface MbamLocalSyncDb extends DBSchema {
       "by-module": LocalSyncModule;
     };
   };
+  transactions: {
+    key: string;
+    value: LocalTransactionRecord;
+    indexes: {
+      "by-sync-status": LocalTransactionSyncStatus;
+      "by-created-at": string;
+      "by-business-unit": string;
+      "by-customer": string;
+      "by-recorded-by": string;
+      "by-server-id": string;
+    };
+  };
+  transactionLines: {
+    key: string;
+    value: LocalTransactionLineRecord;
+    indexes: {
+      "by-transaction-local-id": string;
+      "by-product": string;
+    };
+  };
   meta: {
     key: string;
     value: LocalSyncMetaRecord;
@@ -63,7 +124,7 @@ interface MbamLocalSyncDb extends DBSchema {
 }
 
 const LOCAL_SYNC_DB_NAME = "mbam-local-sync";
-const LOCAL_SYNC_DB_VERSION = 1;
+const LOCAL_SYNC_DB_VERSION = 2;
 let dbPromise: Promise<IDBPDatabase<MbamLocalSyncDb>> | undefined;
 
 export function getLocalSyncDb(): Promise<IDBPDatabase<MbamLocalSyncDb>> {
@@ -78,6 +139,22 @@ export function getLocalSyncDb(): Promise<IDBPDatabase<MbamLocalSyncDb>> {
         const writeQueue = db.createObjectStore("writeQueue", { keyPath: "id" });
         writeQueue.createIndex("by-status", "status");
         writeQueue.createIndex("by-module", "module");
+      }
+
+      if (!db.objectStoreNames.contains("transactions")) {
+        const transactions = db.createObjectStore("transactions", { keyPath: "localId" });
+        transactions.createIndex("by-sync-status", "syncStatus");
+        transactions.createIndex("by-created-at", "createdAt");
+        transactions.createIndex("by-business-unit", "businessUnitId");
+        transactions.createIndex("by-customer", "customerName");
+        transactions.createIndex("by-recorded-by", "recordedBy");
+        transactions.createIndex("by-server-id", "serverId");
+      }
+
+      if (!db.objectStoreNames.contains("transactionLines")) {
+        const transactionLines = db.createObjectStore("transactionLines", { keyPath: "localLineId" });
+        transactionLines.createIndex("by-transaction-local-id", "transactionLocalId");
+        transactionLines.createIndex("by-product", "productId");
       }
 
       if (!db.objectStoreNames.contains("meta")) {
