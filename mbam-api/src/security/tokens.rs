@@ -29,6 +29,16 @@ pub struct OfflineGrantClaims {
     pub iat: usize,
 }
 
+/// User and authorization data embedded in an offline grant.
+pub struct OfflineGrantSubject {
+    pub user_id: Uuid,
+    pub display_name: String,
+    pub email: String,
+    pub business_ids: Vec<Uuid>,
+    pub permissions: Vec<String>,
+    pub authorization_version: i64,
+}
+
 /// Creates a signed access token for a user.
 pub fn create_access_token(
     user_id: Uuid,
@@ -59,12 +69,7 @@ pub fn create_refresh_token() -> String {
 
 /// Creates an ES256 grant that the web app can verify using the public key.
 pub fn create_offline_grant(
-    user_id: Uuid,
-    display_name: String,
-    email: String,
-    business_ids: Vec<Uuid>,
-    permissions: Vec<String>,
-    authorization_version: i64,
+    subject: OfflineGrantSubject,
     private_key_pem: &str,
     lifetime_days: i64,
 ) -> Result<String, jsonwebtoken::errors::Error> {
@@ -72,13 +77,13 @@ pub fn create_offline_grant(
     let offline_until = now + Duration::days(lifetime_days);
     let claims = OfflineGrantClaims {
         grant_id: Uuid::new_v4(),
-        user_id,
-        display_name,
-        email,
+        user_id: subject.user_id,
+        display_name: subject.display_name,
+        email: subject.email,
         device_id: Uuid::new_v4(),
-        business_ids,
-        permissions,
-        authorization_version,
+        business_ids: subject.business_ids,
+        permissions: subject.permissions,
+        authorization_version: subject.authorization_version,
         issued_at: now.to_rfc3339(),
         offline_until: offline_until.to_rfc3339(),
         iat: now.timestamp() as usize,

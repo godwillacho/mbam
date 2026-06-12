@@ -153,12 +153,14 @@ async fn build_auth_response(
         let scope = repository::get_offline_authorization_scope(db, user_id).await?;
         Some(
             tokens::create_offline_grant(
-                user_id,
-                full_name.clone(),
-                email.clone(),
-                scope.business_ids,
-                scope.permissions,
-                scope.authorization_version,
+                tokens::OfflineGrantSubject {
+                    user_id,
+                    display_name: full_name.clone(),
+                    email: email.clone(),
+                    business_ids: scope.business_ids,
+                    permissions: scope.permissions,
+                    authorization_version: scope.authorization_version,
+                },
                 private_key,
                 config.offline_grant_days,
             )
