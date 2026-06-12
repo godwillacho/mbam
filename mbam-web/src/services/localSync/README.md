@@ -88,22 +88,40 @@ Important rules:
 - Local invoices can be generated before the transaction syncs to the API.
 - Deleting a local transaction deletes its local line items too.
 
+## UI connection status
+
+Connected to browser IndexedDB:
+
+```text
+Record Transaction page -> createLocalTransaction
+Transactions page -> listLocalTransactions + getLocalTransactionLines
+Invoice page -> getLocalTransactionInvoice first, mock invoice fallback second
+```
+
+Still pending:
+
+```text
+Queued transaction sync processor
+Rust API transaction create endpoint
+Conflict/rejection UI
+Local pending payment generation from pending local sales
+Local inventory projection from queued sales
+```
+
 ## Current modules
 
-Routed through local sync:
+Routed through local sync/local browser storage:
 
 ```text
 Product revenue report reads
 Transaction local CRUD foundation
+Transaction record/list/invoice UI
 ```
 
 Next candidates:
 
-- route transaction record page through `createLocalTransaction`
-- route transactions list page through `listLocalTransactions`
-- route invoice page through `getLocalTransactionInvoice`
+- queued transaction sync processor
 - pending payments reads
 - business/shop hierarchy reads
 - product list reads
 - customer list reads
-- queued transaction sync processor
