@@ -282,13 +282,18 @@ export async function markLocalTransactionSyncing(localId: string): Promise<Loca
 }
 
 export async function markLocalTransactionSynced(localId: string, serverId: string, serverReference?: string): Promise<LocalTransactionRecord> {
-  return updateLocalTransaction(localId, {
+  const updates: Partial<Omit<LocalTransactionRecord, "localId" | "createdAt" | "idempotencyKey">> = {
     serverId,
-    reference: serverReference,
     syncStatus: "synced",
     status: "completed",
     syncError: undefined,
-  });
+  };
+
+  if (serverReference) {
+    updates.reference = serverReference;
+  }
+
+  return updateLocalTransaction(localId, updates);
 }
 
 export async function markLocalTransactionFailed(localId: string, syncError: string): Promise<LocalTransactionRecord> {
