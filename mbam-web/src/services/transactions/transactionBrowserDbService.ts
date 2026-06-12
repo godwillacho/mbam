@@ -6,6 +6,7 @@ import type { LocalTransactionLineRecord, LocalTransactionRecord } from "../loca
 import { getLocalTransactionLines, listLocalTransactions } from "./transactionLocalRepository";
 
 export interface TransactionBrowserRow extends TransactionRecord {
+  customerContact?: string;
   productsLabel: string;
   productSearchText: string;
   source: "local" | "workspace";
@@ -31,6 +32,10 @@ function getMockProductsLabel(transactionId: string): string {
 
 function getMockProductSearchText(transactionId: string): string {
   return getMockProducts(transactionId).map((product) => getProductSearchText(product)).join(" ");
+}
+
+function getCustomerContactByName(customerName: string): string | undefined {
+  return workspace.customers.find((customer) => customer.name.toLowerCase() === customerName.toLowerCase())?.contact;
 }
 
 function localLinesToProductsLabel(lines: LocalTransactionLineRecord[]): string {
@@ -59,6 +64,7 @@ function getScopedLocalFilters(currentMember: TeamMember) {
 function workspaceTransactionToRow(transaction: TransactionRecord): TransactionBrowserRow {
   return {
     ...transaction,
+    customerContact: getCustomerContactByName(transaction.customerName),
     productsLabel: getMockProductsLabel(transaction.id),
     productSearchText: getMockProductSearchText(transaction.id),
     source: "workspace",
@@ -73,6 +79,7 @@ function localTransactionToRow(transaction: LocalTransactionRecord, lines: Local
     businessId: transaction.businessId,
     businessUnitId: transaction.businessUnitId,
     customerName: transaction.customerName,
+    customerContact: transaction.customerContact,
     itemCount: transaction.itemCount,
     amount: transaction.amount,
     paymentMethod: transaction.paymentMethod,
