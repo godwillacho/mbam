@@ -21,8 +21,7 @@ function isSameUtcDay(value: string, date = new Date()): boolean {
 
 function getTransactionSearchText(transaction: TransactionBrowserRow, mode: SearchMode): string {
   if (mode === "customer") {
-    const customer = workspace.customers.find((item) => item.name.toLowerCase() === transaction.customerName.toLowerCase());
-    return [transaction.customerName, customer?.contact, transaction.reference].filter(Boolean).join(" ").toLowerCase();
+    return [transaction.customerName, transaction.customerContact, transaction.reference].filter(Boolean).join(" ").toLowerCase();
   }
 
   if (mode === "employee") {
