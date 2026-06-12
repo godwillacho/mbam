@@ -38,9 +38,18 @@ export default defineConfig(({ mode }) => {
       sourcemap: mode !== "production",
       rollupOptions: {
         output: {
-          manualChunks: {
-            "vendor-react": ["react", "react-dom", "react-router-dom"],
-            "vendor-i18n":  ["i18next", "react-i18next"],
+          manualChunks(id) {
+            if (!id.includes("node_modules")) return undefined;
+            if (id.includes("i18next")) return "vendor-i18n";
+            if (
+              id.includes("/react/") ||
+              id.includes("/react-dom/") ||
+              id.includes("/react-router") ||
+              id.includes("/react-i18next/")
+            ) {
+              return "vendor-react";
+            }
+            return undefined;
           },
         },
       },
