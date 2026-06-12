@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
+import { listBrowserDbCustomers, upsertBrowserDbCustomerFromTransaction } from "../../services/customers/customerBrowserDbService";
 import { createLocalTransaction } from "../../services/transactions/transactionLocalRepository";
 import type { CustomerProfile, PaymentMethod, ProductProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
@@ -69,6 +70,7 @@ export default function TransactionRecordPage() {
   const [customerContact, setCustomerContact] = useState("");
   const [note, setNote] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
+  const [customerOptions, setCustomerOptions] = useState<CustomerProfile[]>([]);
   const [useItemizedDetails, setUseItemizedDetails] = useState(false);
   const [lineItems, setLineItems] = useState<SaleLineItem[]>(() => [createLineItem()]);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -77,18 +79,34 @@ export default function TransactionRecordPage() {
   const isPendingPayment = paymentStatus === "pending";
   const customerQuery = customerName.trim().toLowerCase();
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadCustomers() {
+      const customers = await listBrowserDbCustomers(currentMember);
+      if (!ignore) setCustomerOptions(customers);
+    }
+
+    void loadCustomers();
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentMember.businessId, currentMember.businessUnitId, currentMember.fullName, currentMember.id, currentMember.roleId, currentMember.scopeLevel]);
+
   const customerSuggestions = useMemo(() => {
     if (customerQuery.length < 2 || selectedCustomer?.name.toLowerCase() === customerQuery) {
       return [];
     }
 
-    return workspace.customers
+    return customerOptions
+      .filter((customer) => !customer.businessId || customer.businessId === businessId)
       .filter((customer) =>
         customer.name.toLowerCase().includes(customerQuery) ||
         customer.contact?.toLowerCase().includes(customerQuery),
       )
       .slice(0, 4);
-  }, [customerQuery, selectedCustomer]);
+  }, [businessId, customerOptions, customerQuery, selectedCustomer]);
 
   const itemizedTotal = useMemo(() => {
     return lineItems.reduce((sum, item) => sum + toNumber(item.quantity) * toNumber(item.fixedPrice), 0);
@@ -166,12 +184,21 @@ export default function TransactionRecordPage() {
           })
         : [{ productName: t("invoice.transactionTotal"), quantity: 1, unitPrice: parsedTotal }];
 
+      const savedCustomer = await upsertBrowserDbCustomerFromTransaction({
+        existingCustomerId: selectedCustomer?.id,
+        name: sanitizeText(customerName, 80),
+        contact: sanitizeText(customerContact, 24),
+        businessId,
+        businessUnitId: unitId,
+        member: currentMember,
+      });
+
       const saved = await createLocalTransaction({
         businessId,
         businessUnitId: unitId,
-        customerId: selectedCustomer?.id,
-        customerName: sanitizeText(customerName, 80),
-        customerContact: sanitizeText(customerContact, 24),
+        customerId: savedCustomer.id,
+        customerName: savedCustomer.name,
+        customerContact: savedCustomer.contact,
         paymentMethod,
         paymentStatus,
         outstandingAmount: parsedOutstanding,
