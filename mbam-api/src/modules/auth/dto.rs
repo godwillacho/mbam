@@ -31,5 +31,7 @@ pub struct AuthUserResponse {
 pub struct AuthResponse {
     pub user: AuthUserResponse,
     pub access_token: String,
+    #[serde(skip_serializing)]
     pub refresh_token: String,
+    pub offline_grant: Option<String>,
 }

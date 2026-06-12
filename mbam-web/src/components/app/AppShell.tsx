@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
+import { getCurrentSession } from "../../services/authService";
 import {
   canAccessRoute,
   CURRENT_MEMBER_CHANGE_EVENT,
@@ -31,12 +32,14 @@ export default function AppShell() {
   useEffect(() => {
     const syncCurrentMember = () => setCurrentMember(getCurrentMember());
     window.addEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
-    window.addEventListener("storage", syncCurrentMember);
     return () => {
       window.removeEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
-      window.removeEventListener("storage", syncCurrentMember);
     };
   }, []);
+
+  if (!getCurrentSession()) {
+    return <Navigate to="/auth" replace />;
+  }
 
   return (
     <div className="app-shell">

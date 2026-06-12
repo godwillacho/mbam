@@ -12,7 +12,6 @@ export default function LanguageSwitcher() {
   const currentLanguage = i18n.resolvedLanguage?.startsWith("fr") ? "fr" : "en";
 
   const handleLanguageChange = async (language: SupportedLanguage) => {
-    window.localStorage.setItem("mbam_language", language);
     await i18n.changeLanguage(language);
     document.documentElement.lang = language;
   };

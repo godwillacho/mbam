@@ -1,10 +1,10 @@
 import { workspace } from "../data/mockWorkspace";
 import type { BusinessUnit, PendingPaymentRecord, TeamMember, TransactionRecord } from "../types/workspace";
-import { DASHBOARD_MEMBER_STORAGE_KEY } from "../pages/dashboard/dashboardPermissions";
 
 export type AppRouteKey = "recordTransaction" | "transactions" | "businesses" | "team" | "reports" | "products";
 
 export const CURRENT_MEMBER_CHANGE_EVENT = "mbam-current-member-change";
+let currentMemberId = workspace.teamMembers[0]?.id;
 
 const routeAccessByRole: Record<string, AppRouteKey[]> = {
   "role-master-owner": ["transactions", "businesses", "team", "reports", "products"],
@@ -14,13 +14,12 @@ const routeAccessByRole: Record<string, AppRouteKey[]> = {
 };
 
 export function getCurrentMember(): TeamMember {
-  const storedMemberId = typeof window === "undefined" ? undefined : localStorage.getItem(DASHBOARD_MEMBER_STORAGE_KEY) ?? undefined;
-  return workspace.teamMembers.find((member) => member.id === storedMemberId) ?? workspace.teamMembers[0];
+  return workspace.teamMembers.find((member) => member.id === currentMemberId) ?? workspace.teamMembers[0];
 }
 
 export function setCurrentMemberId(memberId: string): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(DASHBOARD_MEMBER_STORAGE_KEY, memberId);
+  currentMemberId = memberId;
   window.dispatchEvent(new Event(CURRENT_MEMBER_CHANGE_EVENT));
 }
 

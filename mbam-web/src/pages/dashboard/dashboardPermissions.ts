@@ -1,4 +1,4 @@
-import { workspace } from "../../data/mockWorkspace";
+import { getCurrentMember, setCurrentMemberId } from "../../security/accessControl";
 import type { TeamMember } from "../../types/workspace";
 
 export type DashboardMetricKey =
@@ -14,8 +14,6 @@ export type DashboardMetricKey =
   | "ownSales"
   | "ownTransactions"
   | "products";
-
-export const DASHBOARD_MEMBER_STORAGE_KEY = "mbam_dashboard_member_id";
 
 const roleMetricAccess: Record<string, DashboardMetricKey[]> = {
   "role-master-owner": [
@@ -53,12 +51,9 @@ export function canViewDashboardMetric(member: TeamMember, metricKey: DashboardM
 }
 
 export function getStoredDashboardMember(): TeamMember {
-  const storedMemberId = typeof window === "undefined" ? undefined : localStorage.getItem(DASHBOARD_MEMBER_STORAGE_KEY) ?? undefined;
-  return workspace.teamMembers.find((member) => member.id === storedMemberId) ?? workspace.teamMembers[0];
+  return getCurrentMember();
 }
 
 export function saveDashboardMemberId(memberId: string): void {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(DASHBOARD_MEMBER_STORAGE_KEY, memberId);
-  }
+  setCurrentMemberId(memberId);
 }

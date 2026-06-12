@@ -14,9 +14,15 @@ mod routes;
 mod security;
 mod state;
 
-use axum::Router;
+use axum::{
+    http::{header, HeaderValue, Method},
+    Router,
+};
 use std::net::SocketAddr;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{
+    cors::{AllowOrigin, CorsLayer},
+    trace::TraceLayer,
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{config::Config, db::pool::connect_database, state::AppState};
@@ -52,10 +58,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Builds the application router and attaches shared middleware.
 fn build_router(state: AppState) -> Router {
+    let web_origin = HeaderValue::from_str(&state.config.web_origin)
+        .expect("WEB_ORIGIN must be a valid HTTP origin");
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::exact(web_origin))
+        .allow_credentials(true)
+        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+        .allow_headers([header::ACCEPT, header::AUTHORIZATION, header::CONTENT_TYPE]);
+
     Router::new()
         .merge(routes::router())
         .nest("/api/v1/auth", modules::auth::routes::router())
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
@@ -63,7 +77,10 @@ fn build_router(state: AppState) -> Router {
 /// Initializes structured logs for local and production visibility.
 fn init_tracing() {
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "mbam_api=debug,tower_http=debug".into()))
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "mbam_api=debug,tower_http=debug".into()),
+        )
         .with(tracing_subscriber::fmt::layer())
         .init();
 }

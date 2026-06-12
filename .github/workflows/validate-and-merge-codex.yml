@@ -1,0 +1,189 @@
+name: Validate and merge Codex branches
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+concurrency:
+  group: validate-and-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web checks and smoke test
+    if: startsWith(github.event.pull_request.head.ref, 'codex/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: mbam-web
+
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mbam-web/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke test production build
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/mbam-web.log 2>&1 &
+          web_pid=$!
+          trap 'kill "$web_pid"' EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/mbam-web.log
+          exit 1
+
+  api:
+    name: API checks and smoke test
+    if: startsWith(github.event.pull_request.head.ref, 'codex/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: mbam_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mbam_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: mbam-api
+
+    env:
+      APP_ENV: test
+      API_HOST: 127.0.0.1
+      API_PORT: 8080
+      DATABASE_URL: postgres://postgres@127.0.0.1:5432/mbam_ci
+      JWT_ACCESS_SECRET: ${{ format('ci-access-{0}-{0}-{0}', github.run_id) }}
+      JWT_REFRESH_SECRET: ${{ format('ci-refresh-{0}-{0}-{0}', github.run_id) }}
+      WEB_ORIGIN: http://127.0.0.1:4173
+
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mbam-api
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Smoke test API startup
+        run: |
+          cargo run --locked --bin mbam-api > /tmp/mbam-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid"' EXIT
+
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8080/health > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/mbam-api.log
+          exit 1
+
+  merge:
+    name: Merge validated Codex pull request
+    needs:
+      - web
+      - api
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.base.ref == 'main' &&
+      startsWith(github.event.pull_request.head.ref, 'codex/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Confirm pull request is mergeable
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          for attempt in {1..12}; do
+            mergeable=$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.mergeable')
+
+            if [ "$mergeable" = "true" ]; then
+              exit 0
+            fi
+
+            if [ "$mergeable" = "false" ]; then
+              echo "Pull request has merge conflicts."
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+          echo "GitHub did not finish computing mergeability."
+          exit 1
+
+      - name: Squash merge into main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh api \
+            --method PUT \
+            "repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
+            --field merge_method=squash \
+            --field sha="$HEAD_SHA"
