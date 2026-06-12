@@ -112,5 +112,8 @@ fn login_as_seeded_cashier_plan() {
 fn call_auth_me_plan() {
     println!("Pending implementation: call /auth/me.");
     println!("Expected GET once route exists:");
-    println!("curl {}/api/v1/auth/me -H 'Authorization: Bearer <token>'", base_url());
+    println!(
+        "curl {}/api/v1/auth/me -H 'Authorization: Bearer <token>'",
+        base_url()
+    );
 }

@@ -1,4 +1,8 @@
-use axum::{http::StatusCode, response::{IntoResponse, Response}, Json};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -44,7 +48,9 @@ impl IntoResponse for ApiError {
             ApiError::Database(_) | ApiError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        let body = Json(ErrorBody { error: self.to_string() });
+        let body = Json(ErrorBody {
+            error: self.to_string(),
+        });
         (status, body).into_response()
     }
 }
