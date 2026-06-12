@@ -107,10 +107,8 @@ export default function MasterDashboard() {
       setSelectedMetric(null);
     };
     window.addEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
-    window.addEventListener("storage", syncCurrentMember);
     return () => {
       window.removeEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
-      window.removeEventListener("storage", syncCurrentMember);
     };
   }, []);
 

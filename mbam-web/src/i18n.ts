@@ -433,8 +433,7 @@ void i18n
     supportedLngs: [...supportedLanguages],
     interpolation: { escapeValue: false },
     detection: {
-      order: ["localStorage", "navigator", "htmlTag"],
-      lookupLocalStorage: "mbam_language",
+      order: ["navigator", "htmlTag"],
       caches: [],
     },
   })

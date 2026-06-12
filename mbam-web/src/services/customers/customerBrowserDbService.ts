@@ -1,6 +1,7 @@
 import { workspace } from "../../data/mockWorkspace";
 import type { CustomerProfile, TeamMember } from "../../types/workspace";
 import type { LocalCustomerRecord, LocalTransactionRecord } from "../localSync/localSyncStore";
+import { isOfflineVaultUnlocked } from "../offlineVaultService";
 import { listLocalTransactions } from "../transactions/transactionLocalRepository";
 import {
   deleteLocalCustomers,
@@ -139,6 +140,9 @@ async function refreshScopedLocalCustomerCache(member: TeamMember): Promise<Loca
 }
 
 export async function listBrowserDbCustomers(member: TeamMember): Promise<CustomerProfile[]> {
+  if (!isOfflineVaultUnlocked()) {
+    return getWorkspaceCustomersAllowedForMember(member);
+  }
   const customers = await refreshScopedLocalCustomerCache(member);
   return customers.map(localCustomerToProfile);
 }

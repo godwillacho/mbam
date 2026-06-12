@@ -1,5 +1,5 @@
 use chrono::{Duration, Utc};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -11,8 +11,30 @@ pub struct AccessTokenClaims {
     pub iat: usize,
 }
 
+/// Claims in a device-specific grant used only to unlock cached offline data.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfflineGrantClaims {
+    pub grant_id: Uuid,
+    pub user_id: Uuid,
+    pub display_name: String,
+    pub email: String,
+    pub device_id: Uuid,
+    pub business_ids: Vec<Uuid>,
+    pub permissions: Vec<String>,
+    pub authorization_version: i64,
+    pub issued_at: String,
+    pub offline_until: String,
+    pub exp: usize,
+    pub iat: usize,
+}
+
 /// Creates a signed access token for a user.
-pub fn create_access_token(user_id: Uuid, secret: &str, lifetime_minutes: i64) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn create_access_token(
+    user_id: Uuid,
+    secret: &str,
+    lifetime_minutes: i64,
+) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now();
     let claims = AccessTokenClaims {
         sub: user_id,
@@ -20,7 +42,11 @@ pub fn create_access_token(user_id: Uuid, secret: &str, lifetime_minutes: i64) -
         exp: (now + Duration::minutes(lifetime_minutes)).timestamp() as usize,
     };
 
-    encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
 }
 
 /// Creates a high-entropy opaque refresh token.
@@ -31,8 +57,46 @@ pub fn create_refresh_token() -> String {
     Uuid::new_v4().to_string()
 }
 
+/// Creates an ES256 grant that the web app can verify using the public key.
+pub fn create_offline_grant(
+    user_id: Uuid,
+    display_name: String,
+    email: String,
+    business_ids: Vec<Uuid>,
+    permissions: Vec<String>,
+    authorization_version: i64,
+    private_key_pem: &str,
+    lifetime_days: i64,
+) -> Result<String, jsonwebtoken::errors::Error> {
+    let now = Utc::now();
+    let offline_until = now + Duration::days(lifetime_days);
+    let claims = OfflineGrantClaims {
+        grant_id: Uuid::new_v4(),
+        user_id,
+        display_name,
+        email,
+        device_id: Uuid::new_v4(),
+        business_ids,
+        permissions,
+        authorization_version,
+        issued_at: now.to_rfc3339(),
+        offline_until: offline_until.to_rfc3339(),
+        iat: now.timestamp() as usize,
+        exp: offline_until.timestamp() as usize,
+    };
+
+    encode(
+        &Header::new(Algorithm::ES256),
+        &claims,
+        &EncodingKey::from_ec_pem(private_key_pem.as_bytes())?,
+    )
+}
+
 /// Verifies an access token and returns its claims.
-pub fn verify_access_token(token: &str, secret: &str) -> Result<AccessTokenClaims, jsonwebtoken::errors::Error> {
+pub fn verify_access_token(
+    token: &str,
+    secret: &str,
+) -> Result<AccessTokenClaims, jsonwebtoken::errors::Error> {
     let token_data = decode::<AccessTokenClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),

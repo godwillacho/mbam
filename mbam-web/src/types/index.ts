@@ -10,3 +10,4 @@ export type * from "./product.types";
 export type * from "./transaction.types";
 export type * from "./analytics.types";
 export type * from "./api.types";
+export type * from "./offline.types";

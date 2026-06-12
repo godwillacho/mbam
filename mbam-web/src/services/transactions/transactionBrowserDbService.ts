@@ -3,6 +3,7 @@ import { workspace } from "../../data/mockWorkspace";
 import type { ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
 import { getProductSearchText } from "../../utils/productDisplay";
 import type { LocalTransactionLineRecord, LocalTransactionRecord } from "../localSync/localSyncStore";
+import { isOfflineVaultUnlocked } from "../offlineVaultService";
 import { getLocalTransactionLines, listLocalTransactions } from "./transactionLocalRepository";
 
 export interface TransactionBrowserRow extends TransactionRecord {
@@ -94,6 +95,11 @@ function localTransactionToRow(transaction: LocalTransactionRecord, lines: Local
 }
 
 export async function listBrowserDbTransactions(currentMember: TeamMember, workspaceTransactions: TransactionRecord[]): Promise<TransactionBrowserRow[]> {
+  if (!isOfflineVaultUnlocked()) {
+    return workspaceTransactions
+      .map(workspaceTransactionToRow)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
   const localRecords = await listLocalTransactions(getScopedLocalFilters(currentMember));
   const localRows = await Promise.all(localRecords.map(async (transaction) => {
     const lines = await getLocalTransactionLines(transaction.localId);

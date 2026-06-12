@@ -6,6 +6,11 @@ The local sync layer is the frontend gateway between UI modules and the Rust API
 
 All business modules should pass through this layer except security-sensitive operations.
 
+Sensitive cached records and queued writes are encrypted with AES-GCM before
+they enter IndexedDB. The data key exists only in memory while the offline vault
+is unlocked. A passphrase-derived key wraps the data key, and the cloud-signed
+offline grant controls the maximum disconnected-access period.
+
 Direct API only:
 
 - authentication
@@ -22,7 +27,7 @@ These operations must never be queued offline because stale or unauthorized secu
 For normal business reads:
 
 1. If online and API is configured, try API first.
-2. If API succeeds, cache response in IndexedDB.
+2. If API succeeds and the vault is unlocked, encrypt and cache the response in IndexedDB.
 3. If offline or API fails, return cached response if available.
 4. If no cache exists, return the module fallback data.
 
@@ -31,7 +36,7 @@ For normal business reads:
 For normal business writes:
 
 1. If online and API is configured, try API first.
-2. If API fails or device is offline, queue the write in IndexedDB.
+2. If API fails or the device is offline, encrypt and queue the write in IndexedDB.
 3. A future queue processor will retry queued writes.
 
 ## Role change behavior
@@ -189,9 +194,9 @@ Manual test path:
 Still pending:
 
 ```text
-Queued transaction sync processor
 Rust API transaction create endpoint
 Rust API customer create/update/list endpoints
+Rust API sync push/pull endpoints
 Conflict/rejection UI
 Local pending payment generation from pending local sales
 Local inventory projection from queued sales

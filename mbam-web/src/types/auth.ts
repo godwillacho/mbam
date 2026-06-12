@@ -1,3 +1,5 @@
+import type { SignedOfflineGrant } from "./offline.types";
+
 export type AuthProvider = "google" | "apple" | "microsoft";
 
 export interface AuthUser {
@@ -12,6 +14,7 @@ export interface AuthUser {
 export interface AuthSession {
   user: AuthUser;
   accessToken: string;
+  offlineGrant?: SignedOfflineGrant;
   createdAt: string;
 }
 
