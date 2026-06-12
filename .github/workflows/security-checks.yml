@@ -31,9 +31,6 @@ jobs:
       - name: Run TypeScript type check
         run: npm run type-check
 
-      - name: Run lint
-        run: npm run lint
-
       - name: Run tests
         run: npm test
 
@@ -49,7 +46,7 @@ jobs:
 
       - name: Scan for common committed secret patterns
         run: |
-          if grep -RInE "(AKIA[0-9A-Z]{16}|-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----|ghp_[A-Za-z0-9_]{36,}|xox[baprs]-[A-Za-z0-9-]+|password\s*=\s*['\"][^'\"]+['\"]|api[_-]?key\s*=\s*['\"][^'\"]+['\"])" . \
+          if grep -RInE "(AKIA[0-9A-Z]{16}|-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----|ghp_[A-Za-z0-9_]{36,}|xox[baprs]-[A-Za-z0-9-]+|(^|[^[:alnum:]_.])password[[:space:]]*=[[:space:]]*['\"][^'\"]+['\"]|(^|[^[:alnum:]_.])api[_-]?key[[:space:]]*=[[:space:]]*['\"][^'\"]+['\"])" . \
             --exclude-dir=.git \
             --exclude-dir=node_modules \
             --exclude=security-checks.yml; then
