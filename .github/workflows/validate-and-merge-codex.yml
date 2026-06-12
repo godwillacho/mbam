@@ -74,8 +74,8 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
           POSTGRES_DB: mbam_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
@@ -92,9 +92,9 @@ jobs:
       APP_ENV: test
       API_HOST: 127.0.0.1
       API_PORT: 8080
-      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/mbam_ci
-      JWT_ACCESS_SECRET: ci_access_secret_at_least_32_characters_long
-      JWT_REFRESH_SECRET: ci_refresh_secret_at_least_32_characters_long
+      DATABASE_URL: postgres://postgres@127.0.0.1:5432/mbam_ci
+      JWT_ACCESS_SECRET: ${{ format('ci-access-{0}-{0}-{0}', github.run_id) }}
+      JWT_REFRESH_SECRET: ${{ format('ci-refresh-{0}-{0}-{0}', github.run_id) }}
       WEB_ORIGIN: http://127.0.0.1:4173
 
     steps:
