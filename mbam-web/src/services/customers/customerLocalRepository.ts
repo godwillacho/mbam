@@ -116,6 +116,19 @@ function matchesFilter(customer: LocalCustomerRecord, filters: ListLocalCustomer
   return true;
 }
 
+async function findExistingCustomerForUpsert(input: CreateLocalCustomerInput): Promise<LocalCustomerRecord | undefined> {
+  const db = await getLocalSyncDb();
+  const localId = input.localId ?? input.serverId;
+
+  if (localId) {
+    return db.get("customers", localId);
+  }
+
+  const normalizedName = normalizeCustomerName(input.name);
+  const customers = await db.getAll("customers");
+  return customers.find((customer) => customer.normalizedName === normalizedName && customer.businessId === input.businessId);
+}
+
 export async function createLocalCustomer(input: CreateLocalCustomerInput): Promise<LocalCustomerRecord> {
   const db = await getLocalSyncDb();
   const customer = createRecord(input);
@@ -125,8 +138,7 @@ export async function createLocalCustomer(input: CreateLocalCustomerInput): Prom
 
 export async function upsertLocalCustomer(input: CreateLocalCustomerInput): Promise<LocalCustomerRecord> {
   const db = await getLocalSyncDb();
-  const localId = input.localId ?? input.serverId;
-  const existing = localId ? await db.get("customers", localId) : undefined;
+  const existing = await findExistingCustomerForUpsert(input);
   const next = existing ? mergeCustomer(existing, input) : createRecord(input);
   await db.put("customers", next);
   return next;
