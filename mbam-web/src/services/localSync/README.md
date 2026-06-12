@@ -48,6 +48,53 @@ shouldRefreshLocalDataForRoleChange()
 markRolePolicyRefreshComplete()
 ```
 
+## Customer local CRUD and scoped download
+
+Customers now have a dedicated IndexedDB store:
+
+```text
+customers
+```
+
+Available customer CRUD functions:
+
+```ts
+createLocalCustomer(input)
+upsertLocalCustomer(input)
+upsertLocalCustomers(inputs)
+getLocalCustomer(localId)
+listLocalCustomers(filters)
+updateLocalCustomer(localId, updates)
+deleteLocalCustomer(localId)
+deleteLocalCustomers(localIds)
+localCustomerToProfile(customer)
+```
+
+The customer browser DB service is responsible for role-scoped customer download/cache behavior:
+
+```ts
+listBrowserDbCustomers(member)
+upsertBrowserDbCustomerFromTransaction(input)
+```
+
+Role scoping rules:
+
+```text
+Master owner:
+  downloads all customers.
+
+Business admin:
+  downloads customers under assigned business.
+
+Shop manager:
+  downloads customers with transactions or pending balances in assigned shop/unit.
+
+Cashier:
+  downloads only customers they attended to personally.
+```
+
+This matters because local storage is not just a cache; it can remain on the device while offline. We should not store customer records locally when the current role is not allowed to see them.
+
 ## Transaction local CRUD
 
 Transactions now have dedicated IndexedDB stores:
@@ -117,8 +164,11 @@ The transactions page must not directly import `listLocalTransactions` or `getLo
 Connected to browser IndexedDB:
 
 ```text
+Record Transaction page -> listBrowserDbCustomers for customer suggestions
+Record Transaction page -> upsertBrowserDbCustomerFromTransaction before sale save
 Record Transaction page -> createLocalTransaction
 Transactions page -> listBrowserDbTransactions
+Transactions customer search -> TransactionBrowserRow.customerContact
 Invoice page -> getLocalTransactionInvoice first, mock invoice fallback second
 ```
 
@@ -126,12 +176,14 @@ Manual test path:
 
 ```text
 1. Open /transactions/new
-2. Record a sale
-3. Confirm browser navigates to /transactions/<localId>/invoice
-4. Go back to /transactions
-5. Confirm the local queued transaction appears in the table
-6. Click that local row
-7. Confirm the invoice loads from IndexedDB
+2. Type a customer name/contact and confirm suggestions come from scoped local customer cache
+3. Record a sale
+4. Confirm the customer is upserted into IndexedDB
+5. Confirm browser navigates to /transactions/<localId>/invoice
+6. Go back to /transactions
+7. Confirm the local queued transaction appears in the table
+8. Search by customer name or contact
+9. Click that local row and confirm the invoice loads from IndexedDB
 ```
 
 Still pending:
@@ -139,9 +191,11 @@ Still pending:
 ```text
 Queued transaction sync processor
 Rust API transaction create endpoint
+Rust API customer create/update/list endpoints
 Conflict/rejection UI
 Local pending payment generation from pending local sales
 Local inventory projection from queued sales
+Pending payments page customer lookup through local customer service
 ```
 
 ## Current modules
@@ -150,6 +204,7 @@ Routed through local sync/local browser storage:
 
 ```text
 Product revenue report reads
+Customer local CRUD and role-scoped browser cache
 Transaction local CRUD foundation
 Transaction record/list/invoice UI
 ```
@@ -160,4 +215,3 @@ Next candidates:
 - pending payments reads
 - business/shop hierarchy reads
 - product list reads
-- customer list reads
