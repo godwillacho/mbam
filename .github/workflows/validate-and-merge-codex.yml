@@ -122,7 +122,7 @@ jobs:
 
       - name: Smoke test API startup
         run: |
-          cargo run --locked > /tmp/mbam-api.log 2>&1 &
+          cargo run --locked --bin mbam-api > /tmp/mbam-api.log 2>&1 &
           api_pid=$!
           trap 'kill "$api_pid"' EXIT
 
