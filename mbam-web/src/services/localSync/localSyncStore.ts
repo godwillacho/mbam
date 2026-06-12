@@ -15,6 +15,30 @@ export type LocalSyncSource = "api" | "cache" | "fallback" | "queued";
 
 export type LocalTransactionSyncStatus = "local" | "queued" | "syncing" | "synced" | "failed" | "rejected";
 export type LocalTransactionPaymentStatus = "paid" | "pending";
+export type LocalCustomerSyncStatus = "local" | "queued" | "synced" | "failed" | "rejected";
+export type LocalCustomerSource = "api" | "workspace" | "local";
+
+export interface LocalCustomerRecord {
+  localId: string;
+  serverId?: string;
+  name: string;
+  normalizedName: string;
+  contact?: string;
+  businessId?: string;
+  businessUnitIds: string[];
+  attendedByNames: string[];
+  attendedByUserIds: string[];
+  lastPurchaseAt?: string;
+  lastPaymentAt?: string;
+  paymentDate?: string;
+  totalSpent: number;
+  pendingBalance: number;
+  source: LocalCustomerSource;
+  syncStatus: LocalCustomerSyncStatus;
+  createdAt: string;
+  updatedAt: string;
+  rolePolicyVersion?: string;
+}
 
 export interface LocalTransactionRecord {
   localId: string;
@@ -97,6 +121,16 @@ interface MbamLocalSyncDb extends DBSchema {
       "by-module": LocalSyncModule;
     };
   };
+  customers: {
+    key: string;
+    value: LocalCustomerRecord;
+    indexes: {
+      "by-business": string;
+      "by-name": string;
+      "by-server-id": string;
+      "by-sync-status": LocalCustomerSyncStatus;
+    };
+  };
   transactions: {
     key: string;
     value: LocalTransactionRecord;
@@ -124,7 +158,7 @@ interface MbamLocalSyncDb extends DBSchema {
 }
 
 const LOCAL_SYNC_DB_NAME = "mbam-local-sync";
-const LOCAL_SYNC_DB_VERSION = 2;
+const LOCAL_SYNC_DB_VERSION = 3;
 let dbPromise: Promise<IDBPDatabase<MbamLocalSyncDb>> | undefined;
 
 export function getLocalSyncDb(): Promise<IDBPDatabase<MbamLocalSyncDb>> {
@@ -139,6 +173,14 @@ export function getLocalSyncDb(): Promise<IDBPDatabase<MbamLocalSyncDb>> {
         const writeQueue = db.createObjectStore("writeQueue", { keyPath: "id" });
         writeQueue.createIndex("by-status", "status");
         writeQueue.createIndex("by-module", "module");
+      }
+
+      if (!db.objectStoreNames.contains("customers")) {
+        const customers = db.createObjectStore("customers", { keyPath: "localId" });
+        customers.createIndex("by-business", "businessId");
+        customers.createIndex("by-name", "normalizedName");
+        customers.createIndex("by-server-id", "serverId");
+        customers.createIndex("by-sync-status", "syncStatus");
       }
 
       if (!db.objectStoreNames.contains("transactions")) {
