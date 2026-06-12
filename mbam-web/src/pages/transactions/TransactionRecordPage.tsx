@@ -1,6 +1,9 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
+import { getCurrentMember } from "../../security/accessControl";
+import { createLocalTransaction } from "../../services/transactions/transactionLocalRepository";
 import type { CustomerProfile, PaymentMethod, ProductProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import { getProductDescriptor, getProductSearchText } from "../../utils/productDisplay";
@@ -54,6 +57,8 @@ function resolveProductPrice(product: ProductProfile, customerId?: string) {
 
 export default function TransactionRecordPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const currentMember = getCurrentMember();
   const [businessId, setBusinessId] = useState(workspace.businesses[0]?.id ?? "");
   const [unitId, setUnitId] = useState(workspace.businessUnits[0]?.id ?? "");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
@@ -67,7 +72,7 @@ export default function TransactionRecordPage() {
   const [useItemizedDetails, setUseItemizedDetails] = useState(false);
   const [lineItems, setLineItems] = useState<SaleLineItem[]>(() => [createLineItem()]);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [formStatus, setFormStatus] = useState<"idle" | "validated">("idle");
+  const [formStatus, setFormStatus] = useState<"idle" | "saving" | "validated">("idle");
 
   const isPendingPayment = paymentStatus === "pending";
   const customerQuery = customerName.trim().toLowerCase();
@@ -133,7 +138,7 @@ export default function TransactionRecordPage() {
     return nextErrors;
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors = validateForm();
     setErrors(nextErrors);
@@ -143,7 +148,46 @@ export default function TransactionRecordPage() {
       return;
     }
 
-    setFormStatus("validated");
+    setFormStatus("saving");
+
+    try {
+      const parsedTotal = parsePositiveMoney(totalAmount) ?? 0;
+      const parsedOutstanding = isPendingPayment ? parsePositiveMoney(outstandingAmount) ?? 0 : 0;
+      const lines = useItemizedDetails
+        ? lineItems.map((item) => {
+            const product = item.productId ? workspace.products.find((candidate) => candidate.id === item.productId) : undefined;
+            return {
+              productId: item.productId,
+              productName: sanitizeText(item.itemName, 100),
+              sku: product?.sku,
+              quantity: toNumber(item.quantity),
+              unitPrice: toNumber(item.fixedPrice),
+            };
+          })
+        : [{ productName: t("invoice.transactionTotal"), quantity: 1, unitPrice: parsedTotal }];
+
+      const saved = await createLocalTransaction({
+        businessId,
+        businessUnitId: unitId,
+        customerId: selectedCustomer?.id,
+        customerName: sanitizeText(customerName, 80),
+        customerContact: sanitizeText(customerContact, 24),
+        paymentMethod,
+        paymentStatus,
+        outstandingAmount: parsedOutstanding,
+        recordedBy: currentMember.fullName,
+        recordedByUserId: currentMember.id,
+        status: "queued",
+        syncStatus: "queued",
+        lines,
+      });
+
+      setFormStatus("validated");
+      navigate(`/transactions/${saved.transaction.localId}/invoice`);
+    } catch (saveError) {
+      setFormStatus("idle");
+      setErrors({ submit: saveError instanceof Error ? saveError.message : t("transactionRecord.validation.summaryTitle") });
+    }
   };
 
   const handleCustomerSelect = (customer: CustomerProfile) => {
@@ -429,8 +473,8 @@ export default function TransactionRecordPage() {
         </div>
 
         <div className="form-actions">
-          <button className="secondary-btn" type="submit">{t("transactionRecord.saveDraft")}</button>
-          <button className="primary-btn" type="submit">{t("transactionRecord.recordSale")}</button>
+          <button className="secondary-btn" type="submit" disabled={formStatus === "saving"}>{t("transactionRecord.saveDraft")}</button>
+          <button className="primary-btn" type="submit" disabled={formStatus === "saving"}>{t("transactionRecord.recordSale")}</button>
         </div>
       </form>
     </section>
