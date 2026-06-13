@@ -61,7 +61,7 @@ function toBusinessUnit(unit: ApiBusinessUnit): BusinessUnit {
 }
 
 export async function listBusinesses(): Promise<Business[]> {
-  const businesses = await getJson<ApiBusiness[]>("/api/v1/businesses");
+  const businesses = await getJson<ApiBusiness[]>("/api/v1/businesses/");
   return businesses.map(toBusiness);
 }
 
@@ -71,7 +71,7 @@ export async function createBusiness(payload: CreateBusinessPayload): Promise<Bu
     business_type?: string;
     country?: string;
     currency: string;
-  }>("/api/v1/businesses", {
+  }>("/api/v1/businesses/", {
     name: payload.name,
     business_type: payload.businessType || undefined,
     country: payload.country || undefined,
