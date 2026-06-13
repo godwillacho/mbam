@@ -4,10 +4,6 @@ use uuid::Uuid;
 
 /// Shop, branch, warehouse, or other operational unit.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-<<<<<<< HEAD
-#[serde(rename_all = "camelCase")]
-=======
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 pub struct BusinessUnit {
     pub id: Uuid,
     #[serde(skip_serializing)]
@@ -22,24 +18,16 @@ pub struct BusinessUnit {
 }
 
 #[derive(Debug, Deserialize)]
-<<<<<<< HEAD
-#[serde(rename_all = "camelCase")]
-=======
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 pub struct CreateBusinessUnitRequest {
     pub name: String,
     pub unit_type: Option<String>,
     pub location: Option<String>,
 }
-<<<<<<< HEAD
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UpdateBusinessUnitRequest {
     pub name: String,
     pub unit_type: Option<String>,
     pub location: Option<String>,
     pub status: Option<String>,
 }
-=======
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
