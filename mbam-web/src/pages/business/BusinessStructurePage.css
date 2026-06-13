@@ -10,10 +10,17 @@
   margin: 16px 20px 0;
 }
 
-.business-form-actions {
+.business-heading-actions,
+.business-form-actions,
+.selected-business-header {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.business-form-actions {
+  justify-content: flex-end;
   padding: 0 20px;
 }
 
@@ -22,12 +29,59 @@
   text-align: center;
 }
 
+.selected-business-panel {
+  display: grid;
+  gap: 18px;
+  border-color: var(--forest-mid);
+}
+
+.selected-business-header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.business-unit-form {
+  display: grid;
+  gap: 16px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.business-unit-form .business-form-actions {
+  padding: 0;
+}
+
+.clickable-business-card {
+  cursor: pointer;
+}
+
+.clickable-business-card.selected {
+  border-color: var(--forest-mid);
+  box-shadow: 0 10px 24px rgba(27, 67, 50, 0.12);
+}
+
+.business-summary {
+  margin-top: 8px;
+}
+
+.business-unit-list {
+  margin-top: 16px;
+}
+
 @media (max-width: 720px) {
-  .business-create-form .form-grid {
+  .business-create-form .form-grid,
+  .business-unit-form .form-grid {
     grid-template-columns: 1fr;
   }
 
-  .business-create-form .form-field {
+  .business-create-form .form-field,
+  .business-unit-form .form-field {
     grid-column: 1;
+  }
+
+  .business-heading-actions,
+  .selected-business-header {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
