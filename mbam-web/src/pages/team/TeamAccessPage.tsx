@@ -29,8 +29,8 @@ export default function TeamAccessPage() {
   const businessFilter = searchParams.get("business") ?? "";
   const [workspace, setWorkspace] = useState<TeamWorkspace | null>(null);
   const [selectedId, setSelectedId] = useState(searchParams.get("member") ?? "");
-  const [invite, setInvite] = useState(emptyInvite);
-  const [showInvite, setShowInvite] = useState(false);
+  const [invite, setInvite] = useState(() => ({ ...emptyInvite, businessId: businessFilter }));
+  const [showInvite, setShowInvite] = useState(searchParams.get("invite") === "1");
   const [inviteUrl, setInviteUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -77,7 +77,7 @@ export default function TeamAccessPage() {
         business_unit_id: invite.unitId || undefined,
       });
       setInviteUrl(response.invite_url);
-      setInvite(emptyInvite);
+      setInvite({ ...emptyInvite, businessId: businessFilter });
       await reload();
       setMessage(t("team.inviteCreated"));
     } catch (requestError) {
