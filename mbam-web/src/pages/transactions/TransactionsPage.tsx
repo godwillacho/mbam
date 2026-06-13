@@ -41,7 +41,7 @@ export default function TransactionsPage() {
   const [searchMode, setSearchMode] = useState<SearchMode>("customer");
   const [searchQuery, setSearchQuery] = useState("");
   const [allTransactions, setAllTransactions] = useState<TransactionBrowserRow[]>([]);
-  const currentMember = getCurrentMember();
+  const currentMember = useMemo(() => getCurrentMember(), []);
 
   useEffect(() => {
     let ignore = false;
@@ -57,7 +57,7 @@ export default function TransactionsPage() {
     return () => {
       ignore = true;
     };
-  }, [currentMember.businessId, currentMember.businessUnitId, currentMember.fullName, currentMember.id, currentMember.roleId, currentMember.scopeLevel]);
+  }, [currentMember]);
 
   const todayTransactions = allTransactions.filter((transaction) => isSameUtcDay(transaction.createdAt));
   const queuedCount = allTransactions.filter((transaction) => transaction.status === "queued").length;

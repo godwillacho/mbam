@@ -59,7 +59,7 @@ function resolveProductPrice(product: ProductProfile, customerId?: string) {
 export default function TransactionRecordPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const currentMember = getCurrentMember();
+  const currentMember = useMemo(() => getCurrentMember(), []);
   const [businessId, setBusinessId] = useState(workspace.businesses[0]?.id ?? "");
   const [unitId, setUnitId] = useState(workspace.businessUnits[0]?.id ?? "");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
@@ -92,7 +92,7 @@ export default function TransactionRecordPage() {
     return () => {
       ignore = true;
     };
-  }, [currentMember.businessId, currentMember.businessUnitId, currentMember.fullName, currentMember.id, currentMember.roleId, currentMember.scopeLevel]);
+  }, [currentMember]);
 
   const customerSuggestions = useMemo(() => {
     if (customerQuery.length < 2 || selectedCustomer?.name.toLowerCase() === customerQuery) {
