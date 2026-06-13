@@ -69,6 +69,7 @@ fn build_router(state: AppState) -> Router {
     Router::new()
         .merge(routes::router())
         .nest("/api/v1/auth", modules::auth::routes::router())
+        .nest("/api/v1/businesses", modules::businesses::routes::router())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)

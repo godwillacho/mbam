@@ -1,0 +1,33 @@
+.business-create-form header {
+  padding: 20px 20px 0;
+}
+
+.business-create-form header small {
+  color: var(--muted);
+}
+
+.business-create-form .validation-summary {
+  margin: 16px 20px 0;
+}
+
+.business-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 20px;
+}
+
+.business-empty-state {
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .business-create-form .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .business-create-form .form-field {
+    grid-column: 1;
+  }
+}

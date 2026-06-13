@@ -181,7 +181,7 @@ function mapCsvRowsToDrafts(csvRows: string[][]): ProductDraft[] {
 
 export default function ProductRevenuePage() {
   const { t } = useTranslation();
-  const member = getCurrentMember();
+  const member = useMemo(() => getCurrentMember(), []);
   const [rows, setRows] = useState<ProductRevenueRow[]>([]);
   const [source, setSource] = useState<ProductRevenueReport["source"]>("mock");
   const [isLoading, setIsLoading] = useState(true);
@@ -226,7 +226,7 @@ export default function ProductRevenuePage() {
     return () => {
       ignore = true;
     };
-  }, [member.id, t]);
+  }, [member, t]);
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
