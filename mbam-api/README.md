@@ -27,3 +27,29 @@ cargo run
 ```
 
 The API defaults to `127.0.0.1:8080`.
+
+## Google sign-in
+
+Create an OAuth 2.0 Client ID for a **Web application** in Google Cloud Console.
+For local development, configure:
+
+- Authorized JavaScript origin: `http://localhost:5173`
+- Authorized redirect URI: `http://localhost:8080/api/v1/auth/oauth/google/callback`
+
+Then set these values in `mbam-api/.env`:
+
+```dotenv
+WEB_ORIGIN=http://localhost:5173
+GOOGLE_OAUTH_CLIENT_ID=your_google_client_id
+GOOGLE_OAUTH_CLIENT_SECRET=your_google_client_secret
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8080/api/v1/auth/oauth/google/callback
+```
+
+The frontend must use the same hostname in `mbam-web/.env.development`:
+
+```dotenv
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+Do not mix `localhost` and `127.0.0.1` in this flow. Browser cookie rules
+treat them as different sites, which prevents OAuth session completion.

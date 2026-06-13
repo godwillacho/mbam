@@ -17,6 +17,9 @@ pub struct Config {
     pub offline_grant_private_key_pem: Option<String>,
     pub offline_grant_days: i64,
     pub web_origin: String,
+    pub google_oauth_client_id: Option<String>,
+    pub google_oauth_client_secret: Option<String>,
+    pub google_oauth_redirect_uri: Option<String>,
 }
 
 impl Config {
@@ -42,6 +45,9 @@ impl Config {
                 .parse()
                 .unwrap_or(7),
             web_origin: read_or_default("WEB_ORIGIN", "http://localhost:5173"),
+            google_oauth_client_id: optional_var("GOOGLE_OAUTH_CLIENT_ID"),
+            google_oauth_client_secret: optional_var("GOOGLE_OAUTH_CLIENT_SECRET"),
+            google_oauth_redirect_uri: optional_var("GOOGLE_OAUTH_REDIRECT_URI"),
         })
     }
 }
@@ -49,4 +55,11 @@ impl Config {
 /// Reads an environment variable or returns a default value.
 fn read_or_default(key: &str, default_value: &str) -> String {
     env::var(key).unwrap_or_else(|_| default_value.to_string())
+}
+
+fn optional_var(key: &str) -> Option<String> {
+    env::var(key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty() && value != "replace_me")
 }

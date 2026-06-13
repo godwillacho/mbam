@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import LoginForm from "../../components/auth/LoginForm";
 import SignupForm from "../../components/auth/SignupForm";
@@ -18,21 +18,27 @@ export type AuthMode = "login" | "signup";
 export default function AuthPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<AuthMode>("login");
   const [session, setSession] = useState<AuthSession | null>(null);
   const [offlineConfigured, setOfflineConfigured] = useState(false);
   const [passphrase, setPassphrase] = useState("");
   const [offlineError, setOfflineError] = useState("");
   const [offlineBusy, setOfflineBusy] = useState(false);
+  const [oauthCompletionFailed, setOauthCompletionFailed] = useState(false);
+  const oauthComplete = searchParams.get("oauth") === "complete";
+  const oauthError = searchParams.has("oauth_error") || oauthCompletionFailed;
 
   useEffect(() => {
     void offlineAccessIsConfigured().then(setOfflineConfigured);
     if (navigator.onLine) {
       void refreshCloudSession()
         .then(setSession)
-        .catch(() => undefined);
+        .catch(() => {
+          if (oauthComplete) setOauthCompletionFailed(true);
+        });
     }
-  }, []);
+  }, [oauthComplete]);
 
   const unlockOffline = async () => {
     setOfflineBusy(true);
@@ -115,6 +121,11 @@ export default function AuthPage() {
 
   return (
     <AuthLayout mode={mode}>
+      {oauthError && (
+        <div className="alert alert-danger" role="alert">
+          {t("auth.socialError")}
+        </div>
+      )}
       <SSOButtons mode={mode} onSuccess={setSession} />
 
       <div className="divider">

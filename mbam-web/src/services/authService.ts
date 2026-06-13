@@ -224,7 +224,7 @@ export async function resendVerification(email: string): Promise<void> {
 export async function signInWithProvider(
   provider: AuthProvider,
 ): Promise<AuthSession> {
-  if (provider === "apple") {
+  if (provider !== "google") {
     throw new Error("provider_not_configured");
   }
 
