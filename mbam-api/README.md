@@ -18,7 +18,24 @@ The API is the security boundary between the React frontend and PostgreSQL. The 
 - `src/security/` contains password hashing and token helpers.
 - `src/modules/` contains domain modules for auth, users, accounts, businesses, units, roles, permissions, memberships, and sync.
 
-## Local development
+## Local development with Docker PostgreSQL
+
+Run these commands from the repository root:
+
+```bash
+cp docker-compose.private.env.example .env
+docker compose -f docker-compose.private.yml up -d db
+docker compose -f docker-compose.private.yml ps
+```
+
+Verify PostgreSQL before starting the API:
+
+```bash
+docker exec mbam-private-db pg_isready -U mbam -d mbam
+docker exec mbam-private-db psql -U mbam -d mbam -c "select current_database(), current_user;"
+```
+
+Run the API directly on the host:
 
 ```bash
 cd mbam-api
@@ -26,7 +43,37 @@ cp .env.example .env
 cargo run
 ```
 
-The API defaults to `127.0.0.1:8080`.
+The host API must use `127.0.0.1:5432` because Docker publishes PostgreSQL to the Mac. An API running inside Compose must use `db:5432`; `db` is only resolvable on the Compose network.
+
+The database name, user, and password in `mbam-api/.env` must match `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` in the root `.env`.
+
+PostgreSQL initialization variables apply only when the data volume is created. If `POSTGRES_PASSWORD` was changed after the first startup, either restore the old value or update the existing role without deleting data:
+
+```bash
+docker exec -it mbam-private-db psql -U mbam -d mbam \
+  -c "alter user mbam with password 'your_current_root_env_password';"
+```
+
+For disposable test data only, the alternative is to recreate the volume:
+
+```bash
+docker compose -f docker-compose.private.yml down -v
+docker compose -f docker-compose.private.yml up -d db
+```
+
+`down -v` permanently deletes the local database.
+
+The API defaults to `127.0.0.1:8080`. If the full Compose stack is already running, its web container owns host port 8080; do not also start a host API on that port.
+
+## Full Compose stack
+
+To run PostgreSQL, the Rust API, and the web application together:
+
+```bash
+docker compose -f docker-compose.private.yml up --build
+```
+
+In this mode, open the application through `http://localhost:8080`. The API is reached through the Nginx `/api` proxy and connects to PostgreSQL using the internal hostname `db`.
 
 ## Google sign-in
 
