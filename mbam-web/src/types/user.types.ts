@@ -5,7 +5,7 @@
 
 export type UserRole = "owner" | "cashier";
 
-export type AuthProvider = "email" | "google" | "apple" | "microsoft";
+export type AuthProvider = "email" | "google" | "microsoft";
 
 export type Language = "en" | "fr";
 

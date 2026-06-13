@@ -15,8 +15,10 @@ use crate::{
 };
 
 use super::{
-    dto::{AuthResponse, AuthUserResponse, LoginRequest, SignupRequest},
-    repository,
+    dto::{
+        AuthResponse, AuthUserResponse, CompletePasswordResetRequest, LoginRequest, SignupRequest,
+    },
+    mailer, repository,
 };
 
 #[derive(Debug, serde::Deserialize)]
@@ -30,6 +32,21 @@ struct GoogleUserInfo {
     email: String,
     email_verified: bool,
     name: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct MicrosoftTokenResponse {
+    access_token: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct MicrosoftUserInfo {
+    id: String,
+    #[serde(rename = "displayName")]
+    display_name: String,
+    mail: Option<String>,
+    #[serde(rename = "userPrincipalName")]
+    user_principal_name: String,
 }
 
 /// Normalizes emails before storing or comparing them.
@@ -225,6 +242,135 @@ pub async fn login_with_google(
     .await
 }
 
+pub async fn login_with_microsoft(
+    db: &PgPool,
+    config: &Config,
+    code: &str,
+) -> Result<AuthResponse, ApiError> {
+    let client_id = config
+        .microsoft_oauth_client_id
+        .as_deref()
+        .ok_or(ApiError::Internal)?;
+    let client_secret = config
+        .microsoft_oauth_client_secret
+        .as_deref()
+        .ok_or(ApiError::Internal)?;
+    let redirect_uri = config
+        .microsoft_oauth_redirect_uri
+        .as_deref()
+        .ok_or(ApiError::Internal)?;
+    let client = reqwest::Client::new();
+    let token_response = client
+        .post("https://login.microsoftonline.com/common/oauth2/v2.0/token")
+        .form(&[
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("code", code),
+            ("redirect_uri", redirect_uri),
+            ("grant_type", "authorization_code"),
+            ("scope", "openid profile email User.Read"),
+        ])
+        .send()
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+    if !token_response.status().is_success() {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let token = token_response
+        .json::<MicrosoftTokenResponse>()
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+    let profile_response = client
+        .get("https://graph.microsoft.com/v1.0/me")
+        .query(&[("$select", "id,displayName,mail,userPrincipalName")])
+        .bearer_auth(token.access_token)
+        .send()
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+    if !profile_response.status().is_success() {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let profile = profile_response
+        .json::<MicrosoftUserInfo>()
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+    let email = normalize_email(
+        profile
+            .mail
+            .as_deref()
+            .unwrap_or(&profile.user_principal_name),
+    );
+    if !email.contains('@') {
+        return Err(ApiError::Unauthorized);
+    }
+    let user = repository::find_or_create_oauth_user(
+        db,
+        repository::OAuthIdentity {
+            provider: "microsoft",
+            provider_user_id: &profile.id,
+            email: &email,
+            full_name: profile.display_name.trim(),
+        },
+    )
+    .await?;
+
+    build_auth_response(
+        db,
+        config,
+        user.id,
+        user.full_name,
+        user.email,
+        user.email_verified,
+    )
+    .await
+}
+
+pub async fn request_password_reset(
+    db: &PgPool,
+    config: &Config,
+    email: &str,
+) -> Result<(), ApiError> {
+    let email = normalize_email(email);
+    let Some(user) = repository::find_user_by_email(db, &email).await? else {
+        return Ok(());
+    };
+
+    let raw_token = Uuid::new_v4().to_string();
+    let token_hash = hash_secret(&raw_token);
+    repository::store_password_reset_token(
+        db,
+        user.id,
+        &token_hash,
+        Utc::now() + Duration::minutes(30),
+    )
+    .await?;
+    let reset_url = format!("{}/reset-password?token={raw_token}", config.web_origin);
+    mailer::send_password_reset(config, &user.full_name, &user.email, &reset_url).await
+}
+
+pub async fn complete_password_reset(
+    db: &PgPool,
+    payload: CompletePasswordResetRequest,
+) -> Result<(), ApiError> {
+    validate_password(&payload.password)?;
+    let password_hash =
+        password::hash_password(&payload.password).map_err(|_| ApiError::Internal)?;
+    let consumed = repository::consume_password_reset_token(
+        db,
+        &hash_secret(payload.token.trim()),
+        &password_hash,
+    )
+    .await?;
+    if !consumed {
+        return Err(ApiError::BadRequest(
+            "password reset link is invalid or expired".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 /// Builds the public authentication response and stores a hashed refresh token.
 async fn build_auth_response(
     db: &PgPool,
@@ -291,12 +437,19 @@ fn validate_signup(full_name: &str, email: &str, password: &str) -> Result<(), A
         return Err(ApiError::BadRequest("email must be valid".to_string()));
     }
 
-    if password.len() < 8 {
+    validate_password(password)
+}
+
+fn validate_password(password: &str) -> Result<(), ApiError> {
+    if password.len() < 8
+        || !password.chars().any(char::is_uppercase)
+        || !password.chars().any(|value| value.is_ascii_digit())
+    {
         return Err(ApiError::BadRequest(
-            "password must be at least 8 characters".to_string(),
+            "password must be at least 8 characters with an uppercase letter and number"
+                .to_string(),
         ));
     }
-
     Ok(())
 }
 
@@ -305,6 +458,10 @@ fn validate_signup(full_name: &str, email: &str, password: &str) -> Result<(), A
 /// Refresh tokens are bearer secrets. Storing only the hash reduces the damage
 /// if the database is exposed.
 fn hash_refresh_token(token: &str) -> String {
+    hash_secret(token)
+}
+
+fn hash_secret(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     format!("{:x}", hasher.finalize())

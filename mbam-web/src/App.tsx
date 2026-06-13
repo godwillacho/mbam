@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/app/AppShell";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import AuthPage from "./pages/auth/AuthPage";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import BusinessStructurePage from "./pages/business/BusinessStructurePage";
 import DashboardMetricDetailPage from "./pages/dashboard/DashboardMetricDetailPage";
 import MasterDashboard from "./pages/dashboard/MasterDashboard";
@@ -18,6 +19,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<MasterDashboard />} />

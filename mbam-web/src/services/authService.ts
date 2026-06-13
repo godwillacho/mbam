@@ -207,6 +207,16 @@ export async function requestPasswordReset(email: string): Promise<void> {
   });
 }
 
+export async function completePasswordReset(
+  token: string,
+  password: string,
+): Promise<void> {
+  await postJson<void, { token: string; password: string }>(
+    "/api/v1/auth/password-reset/complete",
+    { token, password },
+  );
+}
+
 export async function resendVerification(email: string): Promise<void> {
   const validated = validateLoginInput({
     email,
@@ -224,10 +234,6 @@ export async function resendVerification(email: string): Promise<void> {
 export async function signInWithProvider(
   provider: AuthProvider,
 ): Promise<AuthSession> {
-  if (provider !== "google") {
-    throw new Error("provider_not_configured");
-  }
-
   window.location.assign(buildApiUrl(`/api/v1/auth/oauth/${provider}/start`));
   return new Promise<AuthSession>(() => undefined);
 }

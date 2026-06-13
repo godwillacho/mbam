@@ -20,6 +20,15 @@ pub struct Config {
     pub google_oauth_client_id: Option<String>,
     pub google_oauth_client_secret: Option<String>,
     pub google_oauth_redirect_uri: Option<String>,
+    pub microsoft_oauth_client_id: Option<String>,
+    pub microsoft_oauth_client_secret: Option<String>,
+    pub microsoft_oauth_redirect_uri: Option<String>,
+    pub smtp_host: Option<String>,
+    pub smtp_port: u16,
+    pub smtp_username: Option<String>,
+    pub smtp_password: Option<String>,
+    pub smtp_from_email: Option<String>,
+    pub smtp_from_name: String,
 }
 
 impl Config {
@@ -48,6 +57,15 @@ impl Config {
             google_oauth_client_id: optional_var("GOOGLE_OAUTH_CLIENT_ID"),
             google_oauth_client_secret: optional_var("GOOGLE_OAUTH_CLIENT_SECRET"),
             google_oauth_redirect_uri: optional_var("GOOGLE_OAUTH_REDIRECT_URI"),
+            microsoft_oauth_client_id: optional_var("MICROSOFT_OAUTH_CLIENT_ID"),
+            microsoft_oauth_client_secret: optional_var("MICROSOFT_OAUTH_CLIENT_SECRET"),
+            microsoft_oauth_redirect_uri: optional_var("MICROSOFT_OAUTH_REDIRECT_URI"),
+            smtp_host: optional_var("SMTP_HOST"),
+            smtp_port: read_or_default("SMTP_PORT", "587").parse().unwrap_or(587),
+            smtp_username: optional_var("SMTP_USERNAME"),
+            smtp_password: optional_var("SMTP_PASSWORD"),
+            smtp_from_email: optional_var("SMTP_FROM_EMAIL"),
+            smtp_from_name: read_or_default("SMTP_FROM_NAME", "Mbam"),
         })
     }
 }
