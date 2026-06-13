@@ -3,26 +3,41 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { ApiClientError } from "../../services/apiClient";
-import { createBusiness, listBusinesses } from "../../services/businessService";
+import {
+  createBusiness,
+  createBusinessUnit,
+  listBusinesses,
+  listBusinessUnits,
+} from "../../services/businessService";
 import { loadTeamWorkspace, type TeamWorkspace } from "../../services/teamService";
-import type { Business } from "../../types/workspace";
+import type { Business, BusinessUnit, UnitType } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
 import "./BusinessStructurePage.css";
 
-const initialForm = {
+const initialBusinessForm = {
   name: "",
   businessType: "retail",
   country: "",
   currency: workspace.masterAccount.currency,
 };
 
+const initialUnitForm: { name: string; unitType: UnitType; location: string } = {
+  name: "",
+  unitType: "shop",
+  location: "",
+};
+
 export default function BusinessStructurePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [teamWorkspace, setTeamWorkspace] = useState<TeamWorkspace | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [form, setForm] = useState(initialForm);
+  const [selectedBusinessId, setSelectedBusinessId] = useState("");
+  const [isBusinessFormOpen, setIsBusinessFormOpen] = useState(false);
+  const [isUnitFormOpen, setIsUnitFormOpen] = useState(false);
+  const [businessForm, setBusinessForm] = useState(initialBusinessForm);
+  const [unitForm, setUnitForm] = useState(initialUnitForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -30,30 +45,40 @@ export default function BusinessStructurePage() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([listBusinesses(), loadTeamWorkspace()])
-      .then(([loadedBusinesses, loadedTeam]) => {
+    async function loadPage() {
+      try {
+        const [loadedBusinesses, loadedTeam] = await Promise.all([
+          listBusinesses(),
+          loadTeamWorkspace(),
+        ]);
+        const loadedUnits = (
+          await Promise.all(loadedBusinesses.map((business) => listBusinessUnits(business.id)))
+        ).flat();
+
         if (active) {
           setBusinesses(loadedBusinesses);
+          setBusinessUnits(loadedUnits);
           setTeamWorkspace(loadedTeam);
         }
-      })
-      .catch((requestError: unknown) => {
+      } catch (requestError) {
         if (active) setError(apiErrorMessage(requestError, t("businesses.loadError")));
-      })
-      .finally(() => {
+      } finally {
         if (active) setIsLoading(false);
-      });
+      }
+    }
 
+    void loadPage();
     return () => {
       active = false;
     };
   }, [t]);
 
+  const selectedBusiness = businesses.find((business) => business.id === selectedBusinessId);
+
   const submitBusiness = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
-
-    const name = form.name.trim();
+    const name = businessForm.name.trim();
     if (name.length < 2) {
       setError(t("businesses.nameRequired"));
       return;
@@ -63,13 +88,14 @@ export default function BusinessStructurePage() {
     try {
       const business = await createBusiness({
         name,
-        businessType: form.businessType.trim(),
-        country: form.country.trim(),
-        currency: form.currency.trim().toUpperCase(),
+        businessType: businessForm.businessType.trim(),
+        country: businessForm.country.trim(),
+        currency: businessForm.currency.trim().toUpperCase(),
       });
       setBusinesses((current) => [...current, business]);
-      setForm(initialForm);
-      setIsFormOpen(false);
+      setBusinessForm(initialBusinessForm);
+      setIsBusinessFormOpen(false);
+      setSelectedBusinessId(business.id);
     } catch (requestError) {
       setError(apiErrorMessage(requestError, t("businesses.createError")));
     } finally {
@@ -77,8 +103,46 @@ export default function BusinessStructurePage() {
     }
   };
 
-  const openBusinessEmployees = (businessId: string) => {
-    navigate(`/team?business=${businessId}`);
+  const submitUnit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedBusiness) return;
+    setError("");
+    if (unitForm.name.trim().length < 2) {
+      setError(t("businesses.unitNameRequired", { defaultValue: "Enter a business unit name with at least 2 characters." }));
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const unit = await createBusinessUnit(selectedBusiness.id, {
+        name: unitForm.name.trim(),
+        unitType: unitForm.unitType,
+        location: unitForm.location.trim(),
+      });
+      setBusinessUnits((current) => [...current, unit]);
+      setTeamWorkspace((current) => current ? {
+        ...current,
+        business_units: [...current.business_units, { id: unit.id, business_id: unit.businessId, name: unit.name }],
+      } : current);
+      setUnitForm(initialUnitForm);
+      setIsUnitFormOpen(false);
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, t("businesses.unitCreateError", { defaultValue: "The business unit could not be created." })));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const selectBusiness = (businessId: string) => {
+    setSelectedBusinessId(businessId);
+    setIsUnitFormOpen(false);
+    setError("");
+  };
+
+  const openCreateEmployee = (businessId?: string) => {
+    const query = new URLSearchParams({ invite: "1" });
+    if (businessId) query.set("business", businessId);
+    navigate(`/team?${query.toString()}`);
   };
 
   const openMember = (event: MouseEvent<HTMLButtonElement>, memberId: string) => {
@@ -89,7 +153,7 @@ export default function BusinessStructurePage() {
   const handleBusinessKeyDown = (event: KeyboardEvent<HTMLElement>, businessId: string) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      openBusinessEmployees(businessId);
+      selectBusiness(businessId);
     }
   };
 
@@ -101,14 +165,17 @@ export default function BusinessStructurePage() {
           <h2>{t("businesses.title")}</h2>
           <p>{t("businesses.description")}</p>
         </div>
-        <div className="dashboard-heading-action">
-          <button className="primary-btn" type="button" onClick={() => setIsFormOpen((open) => !open)}>
-            {isFormOpen ? t("common.cancel") : t("businesses.createBusiness")}
+        <div className="dashboard-heading-action business-heading-actions">
+          <button className="secondary-btn" type="button" onClick={() => openCreateEmployee()}>
+            {t("businesses.addEmployee", { defaultValue: "Add employee" })}
+          </button>
+          <button className="primary-btn" type="button" onClick={() => setIsBusinessFormOpen((open) => !open)}>
+            {isBusinessFormOpen ? t("common.cancel") : t("businesses.createBusiness")}
           </button>
         </div>
       </div>
 
-      {isFormOpen && (
+      {isBusinessFormOpen && (
         <form className="form-card business-create-form" noValidate onSubmit={submitBusiness}>
           <header>
             <h3>{t("businesses.formTitle")}</h3>
@@ -118,82 +185,95 @@ export default function BusinessStructurePage() {
           <div className="form-grid">
             <div className="form-field full">
               <label htmlFor="business-name">{t("businesses.name")}</label>
-              <input
-                id="business-name"
-                maxLength={120}
-                required
-                value={form.name}
-                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-              />
+              <input id="business-name" maxLength={120} required value={businessForm.name} onChange={(event) => setBusinessForm((current) => ({ ...current, name: event.target.value }))} />
             </div>
             <div className="form-field">
               <label htmlFor="business-type">{t("businesses.type")}</label>
-              <input
-                id="business-type"
-                maxLength={80}
-                value={form.businessType}
-                onChange={(event) => setForm((current) => ({ ...current, businessType: event.target.value }))}
-              />
+              <input id="business-type" maxLength={80} value={businessForm.businessType} onChange={(event) => setBusinessForm((current) => ({ ...current, businessType: event.target.value }))} />
             </div>
             <div className="form-field">
               <label htmlFor="business-country">{t("businesses.country")}</label>
-              <input
-                id="business-country"
-                maxLength={80}
-                value={form.country}
-                onChange={(event) => setForm((current) => ({ ...current, country: event.target.value }))}
-              />
+              <input id="business-country" maxLength={80} value={businessForm.country} onChange={(event) => setBusinessForm((current) => ({ ...current, country: event.target.value }))} />
             </div>
             <div className="form-field">
               <label htmlFor="business-currency">{t("businesses.currency")}</label>
-              <input
-                id="business-currency"
-                maxLength={3}
-                required
-                value={form.currency}
-                onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
-              />
+              <input id="business-currency" maxLength={3} required value={businessForm.currency} onChange={(event) => setBusinessForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))} />
             </div>
           </div>
           <div className="business-form-actions">
-            <button className="secondary-btn" type="button" onClick={() => setIsFormOpen(false)}>
-              {t("common.cancel")}
-            </button>
-            <button className="primary-btn" type="submit" disabled={isSaving}>
-              {isSaving ? t("businesses.creating") : t("businesses.createBusiness")}
-            </button>
+            <button className="secondary-btn" type="button" onClick={() => setIsBusinessFormOpen(false)}>{t("common.cancel")}</button>
+            <button className="primary-btn" type="submit" disabled={isSaving}>{isSaving ? t("businesses.creating") : t("businesses.createBusiness")}</button>
           </div>
         </form>
       )}
 
-      {!isFormOpen && error && <div className="validation-summary" role="alert">{error}</div>}
+      {!isBusinessFormOpen && error && <div className="validation-summary" role="alert">{error}</div>}
       {isLoading && <p className="card-muted">{t("businesses.loading")}</p>}
       {!isLoading && businesses.length === 0 && <div className="card business-empty-state">{t("businesses.empty")}</div>}
 
+      {selectedBusiness && (
+        <article className="card selected-business-panel">
+          <header className="selected-business-header">
+            <div>
+              <span className="eyebrow">{t("businesses.selectedBusiness", { defaultValue: "Selected business" })}</span>
+              <h3>{selectedBusiness.name}</h3>
+              <p className="card-muted">{[selectedBusiness.type, selectedBusiness.country, selectedBusiness.currency].filter(Boolean).join(" · ")}</p>
+            </div>
+            <div className="dashboard-heading-action">
+              <button className="secondary-btn" type="button" onClick={() => openCreateEmployee(selectedBusiness.id)}>
+                {t("businesses.createEmployee", { defaultValue: "Create employee" })}
+              </button>
+              <button className="primary-btn" type="button" onClick={() => setIsUnitFormOpen((open) => !open)}>
+                {isUnitFormOpen ? t("common.cancel") : t("businesses.createUnit", { defaultValue: "Create business unit" })}
+              </button>
+            </div>
+          </header>
+
+          {isUnitFormOpen && (
+            <form className="business-unit-form" onSubmit={submitUnit}>
+              <div className="form-grid">
+                <div className="form-field">
+                  <label htmlFor="unit-name">{t("businesses.unitName", { defaultValue: "Unit name" })}</label>
+                  <input id="unit-name" required maxLength={120} value={unitForm.name} onChange={(event) => setUnitForm((current) => ({ ...current, name: event.target.value }))} />
+                </div>
+                <div className="form-field">
+                  <label htmlFor="unit-type">{t("businesses.unitType", { defaultValue: "Unit type" })}</label>
+                  <select id="unit-type" value={unitForm.unitType} onChange={(event) => setUnitForm((current) => ({ ...current, unitType: event.target.value as UnitType }))}>
+                    <option value="shop">{t("unitTypes.shop")}</option>
+                    <option value="warehouse">{t("unitTypes.warehouse")}</option>
+                    <option value="sales_desk">{t("unitTypes.sales_desk")}</option>
+                  </select>
+                </div>
+                <div className="form-field full">
+                  <label htmlFor="unit-location">{t("businesses.unitLocation", { defaultValue: "Location" })}</label>
+                  <input id="unit-location" maxLength={160} value={unitForm.location} onChange={(event) => setUnitForm((current) => ({ ...current, location: event.target.value }))} />
+                </div>
+              </div>
+              <div className="business-form-actions">
+                <button className="primary-btn" type="submit" disabled={isSaving}>
+                  {isSaving ? t("businesses.creating") : t("businesses.createUnit", { defaultValue: "Create business unit" })}
+                </button>
+              </div>
+            </form>
+          )}
+        </article>
+      )}
+
       <div className="card-grid two">
         {businesses.map((business) => {
-          const units = workspace.businessUnits.filter((unit) => unit.businessId === business.id);
+          const units = businessUnits.filter((unit) => unit.businessId === business.id);
           const revenue = units.reduce((sum, unit) => sum + unit.todayRevenue, 0);
-          const scopedUnitIds = new Set(
-            teamWorkspace?.business_units
-              .filter((unit) => unit.business_id === business.id)
-              .map((unit) => unit.id) ?? [],
-          );
-          const businessTeam =
-            teamWorkspace?.members.filter(
-              (member) =>
-                member.business_id === business.id ||
-                (member.business_unit_id && scopedUnitIds.has(member.business_unit_id)),
-            ) ?? [];
+          const scopedUnitIds = new Set(units.map((unit) => unit.id));
+          const businessTeam = teamWorkspace?.members.filter((member) => member.business_id === business.id || Boolean(member.business_unit_id && scopedUnitIds.has(member.business_unit_id))) ?? [];
 
           return (
             <article
-              aria-label={`${business.name} ${t("businesses.openEmployees")}`}
-              className="card clickable-business-card"
+              aria-pressed={selectedBusinessId === business.id}
+              className={selectedBusinessId === business.id ? "card clickable-business-card selected" : "card clickable-business-card"}
               key={business.id}
               role="button"
               tabIndex={0}
-              onClick={() => openBusinessEmployees(business.id)}
+              onClick={() => selectBusiness(business.id)}
               onKeyDown={(event) => handleBusinessKeyDown(event, business.id)}
             >
               <header>
@@ -201,28 +281,27 @@ export default function BusinessStructurePage() {
                   <h3>{business.name}</h3>
                   <p className="card-muted">{[business.type, business.country, business.currency].filter(Boolean).join(" · ")}</p>
                 </div>
-                <span className="badge">{t("businesses.openEmployees")}</span>
+                {selectedBusinessId === business.id && <span className="badge">{t("businesses.selected", { defaultValue: "Selected" })}</span>}
               </header>
 
-              <p className="card-muted" style={{ marginTop: 8 }}>
+              <p className="card-muted business-summary">
                 {t("businesses.totalToday")}: {formatMoney(revenue, business.currency)} · {t("businesses.employeeCount", { count: businessTeam.length })}
               </p>
 
-              <div className="list-stack" style={{ marginTop: 16 }}>
+              <div className="list-stack business-unit-list">
                 {units.length === 0 && <small className="card-muted">{t("businesses.noUnits")}</small>}
                 {units.map((unit) => {
-                  const unitTeam = workspace.teamMembers.filter((member) => member.businessUnitId === unit.id);
-
+                  const unitTeam = teamWorkspace?.members.filter((member) => member.business_unit_id === unit.id) ?? [];
                   return (
                     <div className="list-item nested-business-unit" key={unit.id}>
                       <div>
                         <strong>{unit.name}</strong>
-                        <small>{t(`unitTypes.${unit.type}`)} · {unit.location}</small>
+                        <small>{t(`unitTypes.${unit.type}`)}{unit.location ? ` · ${unit.location}` : ""}</small>
                         <div className="nested-team-list">
                           <span>{t("businesses.teamMembers")}</span>
                           {unitTeam.length > 0 ? unitTeam.map((member) => (
                             <button key={member.id} className="text-button" type="button" onClick={(event) => openMember(event, member.id)}>
-                              {member.fullName} · {t(`roles.${member.roleId}`)}
+                              {member.full_name} · {member.role_name}
                             </button>
                           )) : <small>{t("businesses.noTeamMembers")}</small>}
                         </div>
