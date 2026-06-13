@@ -27,16 +27,10 @@ export default function TeamAccessPage() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const businessFilter = searchParams.get("business") ?? "";
-  const openInviteFromQuery = searchParams.get("invite") === "1";
   const [workspace, setWorkspace] = useState<TeamWorkspace | null>(null);
   const [selectedId, setSelectedId] = useState(searchParams.get("member") ?? "");
-<<<<<<< HEAD
-  const [invite, setInvite] = useState({ ...emptyInvite, businessId: businessFilter });
-  const [showInvite, setShowInvite] = useState(openInviteFromQuery);
-=======
   const [invite, setInvite] = useState(() => ({ ...emptyInvite, businessId: businessFilter }));
   const [showInvite, setShowInvite] = useState(searchParams.get("invite") === "1");
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
   const [inviteUrl, setInviteUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
