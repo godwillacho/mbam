@@ -196,7 +196,6 @@ Still pending:
 ```text
 Rust API transaction create endpoint
 Rust API customer create/update/list endpoints
-Rust API sync push/pull endpoints
 Conflict/rejection UI
 Local pending payment generation from pending local sales
 Local inventory projection from queued sales

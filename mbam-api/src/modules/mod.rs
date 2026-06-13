@@ -7,4 +7,5 @@ pub mod memberships;
 pub mod permissions;
 pub mod roles;
 pub mod sync;
+pub mod team;
 pub mod users;

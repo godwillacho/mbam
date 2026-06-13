@@ -11,6 +11,10 @@ import {
   refreshCloudSession,
   unlockOfflineSession,
 } from "../../services/authService";
+import {
+  createApiSyncTransport,
+  synchronizeOfflineChanges,
+} from "../../services/offlineSyncService";
 import type { AuthSession } from "../../types/auth";
 
 export type AuthMode = "login" | "signup";
@@ -28,6 +32,9 @@ export default function AuthPage() {
   const [oauthCompletionFailed, setOauthCompletionFailed] = useState(false);
   const oauthComplete = searchParams.get("oauth") === "complete";
   const oauthError = searchParams.has("oauth_error") || oauthCompletionFailed;
+  const nextPath =
+    searchParams.get("next") ??
+    (typeof window === "undefined" ? null : sessionStorage.getItem("mbam-auth-next"));
 
   useEffect(() => {
     void offlineAccessIsConfigured().then(setOfflineConfigured);
@@ -45,7 +52,7 @@ export default function AuthPage() {
     setOfflineError("");
     try {
       await unlockOfflineSession(passphrase);
-      navigate("/dashboard", { replace: true });
+      navigate(nextPath ?? "/dashboard", { replace: true });
     } catch {
       setOfflineError(t("auth.offlineUnlockError"));
     } finally {
@@ -59,7 +66,8 @@ export default function AuthPage() {
     setOfflineError("");
     try {
       await enableOfflineAccess(session, passphrase);
-      navigate("/dashboard", { replace: true });
+      await synchronizeOfflineChanges(createApiSyncTransport());
+      navigate(nextPath ?? "/dashboard", { replace: true });
     } catch {
       setOfflineError(t("auth.offlineSetupError"));
     } finally {
@@ -110,7 +118,7 @@ export default function AuthPage() {
           <button
             type="button"
             className="forgot-link"
-            onClick={() => navigate("/dashboard", { replace: true })}
+            onClick={() => navigate(nextPath ?? "/dashboard", { replace: true })}
           >
             {t("auth.continueOnline")}
           </button>

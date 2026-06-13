@@ -70,6 +70,12 @@ fn build_router(state: AppState) -> Router {
         .merge(routes::router())
         .nest("/api/v1/auth", modules::auth::routes::router())
         .nest("/api/v1/businesses", modules::businesses::routes::router())
+        .nest("/api/v1/team-members", modules::team::routes::team_router())
+        .nest(
+            "/api/v1/invites",
+            modules::team::routes::invitation_router(),
+        )
+        .nest("/api/v1/sync", modules::sync::routes::router())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)

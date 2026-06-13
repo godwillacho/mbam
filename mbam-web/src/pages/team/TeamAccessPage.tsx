@@ -1,125 +1,147 @@
-import { useMemo, useState } from "react";
+import {
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { productSales } from "../../data/mockProductSales";
-import { workspace } from "../../data/mockWorkspace";
-import type { TeamMember } from "../../types/workspace";
-import { formatMoney } from "../../utils/formatters";
+import { ApiClientError } from "../../services/apiClient";
+import {
+  cancelInvitation,
+  disableEmployee,
+  inviteEmployee,
+  loadTeamWorkspace,
+  updateEmployee,
+  type TeamEmployee,
+  type TeamWorkspace,
+} from "../../services/teamService";
+import { markRolePolicyChanged } from "../../services/localSync/localSyncClient";
 import "./TeamAccessPage.css";
 
-const configurablePermissions = [
-  "Record sales",
-  "View own transactions",
-  "View shop reports",
-  "Manage one shop",
-  "View reports",
-  "Invite workers",
-  "Manage one business",
-  "Roles",
-  "Reports",
-  "Settings",
-  "All shops",
-  "All businesses",
-];
-
-const recommendedRoleIds = ["role-cashier", "role-shop-manager", "role-business-admin"];
-type PermissionMode = "role-cashier" | "role-shop-manager" | "role-business-admin" | "custom";
-
-function resolveRole(roleId: string, t: (key: string) => string) {
-  return workspace.roles.find((role) => role.id === roleId) ? t(`roles.${roleId}`) : t("common.unknownRole");
-}
-
-function resolveScope(memberBusinessId: string | undefined, memberUnitId: string | undefined, t: (key: string) => string) {
-  if (memberUnitId) return workspace.businessUnits.find((unit) => unit.id === memberUnitId)?.name ?? t("common.unknownUnit");
-  if (memberBusinessId) return workspace.businesses.find((business) => business.id === memberBusinessId)?.name ?? t("common.unknownBusiness");
-  return t("common.entireMasterAccount");
-}
-
-function getRolePermissions(roleId: string): string[] {
-  return workspace.roles.find((role) => role.id === roleId)?.permissions ?? [];
-}
-
-function getDefaultPermissions(member: TeamMember): string[] {
-  return getRolePermissions(member.roleId);
-}
-
-function getDefaultPermissionMode(member: TeamMember): PermissionMode {
-  return recommendedRoleIds.includes(member.roleId) ? member.roleId as PermissionMode : "custom";
-}
-
-function belongsToBusiness(member: TeamMember, businessId: string): boolean {
-  if (member.businessId === businessId) return true;
-  const unit = member.businessUnitId ? workspace.businessUnits.find((item) => item.id === member.businessUnitId) : undefined;
-  return unit?.businessId === businessId;
-}
+const emptyInvite = { email: "", roleId: "", businessId: "", unitId: "" };
 
 export default function TeamAccessPage() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const businessFilter = searchParams.get("business") ?? "";
-  const requestedMemberId = searchParams.get("member") ?? "";
-  const initialMemberId = requestedMemberId || workspace.teamMembers.find((member) => businessFilter && belongsToBusiness(member, businessFilter))?.id || workspace.teamMembers[0]?.id || "";
-  const [selectedMemberId, setSelectedMemberId] = useState(initialMemberId);
-  const [isEditingAccess, setIsEditingAccess] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
-  const [memberPermissions, setMemberPermissions] = useState<Record<string, string[]>>(() => {
-    return Object.fromEntries(workspace.teamMembers.map((member) => [member.id, getDefaultPermissions(member)]));
-  });
-  const [permissionModes, setPermissionModes] = useState<Record<string, PermissionMode>>(() => {
-    return Object.fromEntries(workspace.teamMembers.map((member) => [member.id, getDefaultPermissionMode(member)]));
-  });
+  const [workspace, setWorkspace] = useState<TeamWorkspace | null>(null);
+  const [selectedId, setSelectedId] = useState(searchParams.get("member") ?? "");
+  const [invite, setInvite] = useState(emptyInvite);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  const visibleMembers = useMemo(() => {
-    if (!businessFilter) return workspace.teamMembers;
-    return workspace.teamMembers.filter((member) => belongsToBusiness(member, businessFilter));
-  }, [businessFilter]);
-
-  const selectedMember = workspace.teamMembers.find((member) => member.id === selectedMemberId) ?? visibleMembers[0] ?? workspace.teamMembers[0];
-  const selectedPermissions = memberPermissions[selectedMember.id] ?? getDefaultPermissions(selectedMember);
-  const selectedMode = permissionModes[selectedMember.id] ?? getDefaultPermissionMode(selectedMember);
-  const memberTransactions = workspace.transactions.filter((transaction) => transaction.recordedBy === selectedMember.fullName);
-  const memberSales = productSales.filter((sale) => sale.recordedBy === selectedMember.fullName);
-  const memberRevenue = memberTransactions.reduce((sum, transaction) => sum + transaction.amount, 0);
-  const productQuantity = memberSales.reduce((sum, sale) => sum + sale.quantity, 0);
-  const maxProductQuantity = Math.max(...memberSales.map((sale) => sale.quantity), 1);
-
-  const selectEmployee = (memberId: string) => {
-    setSelectedMemberId(memberId);
-    setSaveMessage("");
-    setIsEditingAccess(false);
+  const reload = async () => {
+    const data = await loadTeamWorkspace();
+    setWorkspace(data);
+    setSelectedId((current) => current || data.members[0]?.id || "");
+    return data;
   };
 
-  const selectPermissionMode = (mode: PermissionMode) => {
-    setSaveMessage("");
-    setPermissionModes((current) => ({ ...current, [selectedMember.id]: mode }));
-    if (mode !== "custom") {
-      setMemberPermissions((current) => ({ ...current, [selectedMember.id]: getRolePermissions(mode) }));
+  useEffect(() => {
+    reload().catch((requestError) => setError(errorMessage(requestError, t("team.loadError"))));
+  }, [t]);
+
+  const visibleMembers = useMemo(() => {
+    if (!workspace) return [];
+    if (!businessFilter) return workspace.members;
+    const unitIds = new Set(
+      workspace.business_units
+        .filter((unit) => unit.business_id === businessFilter)
+        .map((unit) => unit.id),
+    );
+    return workspace.members.filter(
+      (member) =>
+        member.business_id === businessFilter ||
+        (member.business_unit_id && unitIds.has(member.business_unit_id)),
+    );
+  }, [businessFilter, workspace]);
+
+  const selected = workspace?.members.find((member) => member.id === selectedId);
+
+  const submitInvite = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    setSaving(true);
+    try {
+      const response = await inviteEmployee({
+        email: invite.email.trim(),
+        role_id: invite.roleId,
+        business_id: invite.businessId || undefined,
+        business_unit_id: invite.unitId || undefined,
+      });
+      setInviteUrl(response.invite_url);
+      setInvite(emptyInvite);
+      await reload();
+      setMessage(t("team.inviteCreated"));
+    } catch (requestError) {
+      setError(errorMessage(requestError, t("team.inviteError")));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const togglePermission = (permission: string) => {
-    setSaveMessage("");
-    setPermissionModes((current) => ({ ...current, [selectedMember.id]: "custom" }));
-    setMemberPermissions((current) => {
-      const permissions = current[selectedMember.id] ?? getDefaultPermissions(selectedMember);
-      const nextPermissions = permissions.includes(permission)
-        ? permissions.filter((item) => item !== permission)
-        : [...permissions, permission];
-
-      return { ...current, [selectedMember.id]: nextPermissions };
-    });
+  const saveEmployee = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selected) return;
+    const form = new FormData(event.currentTarget);
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await updateEmployee(selected.id, {
+        role_id: String(form.get("roleId")),
+        business_id: String(form.get("businessId")) || null,
+        business_unit_id: String(form.get("unitId")) || null,
+        status: String(form.get("status")) as "active" | "disabled",
+      });
+      setWorkspace((current) =>
+        current
+          ? {
+              ...current,
+              members: current.members.map((member) => (member.id === updated.id ? updated : member)),
+            }
+          : current,
+      );
+      await markRolePolicyChanged(String(Date.now()));
+      setMessage(t("team.employeeSaved"));
+    } catch (requestError) {
+      setError(errorMessage(requestError, t("team.saveError")));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const resetPermissions = () => {
-    setSaveMessage("");
-    setPermissionModes((current) => ({ ...current, [selectedMember.id]: getDefaultPermissionMode(selectedMember) }));
-    setMemberPermissions((current) => ({ ...current, [selectedMember.id]: getDefaultPermissions(selectedMember) }));
+  const removeEmployee = async (employee: TeamEmployee) => {
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await disableEmployee(employee.id);
+      setWorkspace((current) =>
+        current
+          ? {
+              ...current,
+              members: current.members.map((member) => (member.id === updated.id ? updated : member)),
+            }
+          : current,
+      );
+      await markRolePolicyChanged(String(Date.now()));
+      setMessage(t("team.employeeDisabled"));
+    } catch (requestError) {
+      setError(errorMessage(requestError, t("team.saveError")));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const savePermissions = () => {
-    setSaveMessage(t("team.permissionsSaved", { name: selectedMember.fullName }));
-    setIsEditingAccess(false);
-  };
+  if (!workspace) {
+    return <section className="page-grid"><p className="card-muted">{t("team.loading")}</p>{error && <div className="validation-summary">{error}</div>}</section>;
+  }
 
   return (
     <section className="page-grid">
@@ -129,129 +151,93 @@ export default function TeamAccessPage() {
           <h2>{t("team.title")}</h2>
           <p>{t("team.description")}</p>
         </div>
-        <div className="dashboard-heading-action">
-          <button className="primary-btn" type="button">{t("team.inviteWorker")}</button>
-        </div>
+        <button className="primary-btn" type="button" onClick={() => setShowInvite((value) => !value)}>
+          {showInvite ? t("common.cancel") : t("team.inviteWorker")}
+        </button>
       </div>
 
-      {saveMessage && <div className="validation-success" role="status">{saveMessage}</div>}
+      {error && <div className="validation-summary" role="alert">{error}</div>}
+      {message && <div className="validation-success" role="status">{message}</div>}
+
+      {showInvite && (
+        <form className="form-card employee-form" onSubmit={submitInvite}>
+          <header><h3>{t("team.inviteTitle")}</h3><small>{t("team.inviteHint")}</small></header>
+          <div className="form-grid">
+            <div className="form-field full">
+              <label htmlFor="invite-email">{t("team.email")}</label>
+              <input id="invite-email" type="email" required value={invite.email} onChange={(event) => setInvite((current) => ({ ...current, email: event.target.value }))} />
+            </div>
+            <ScopeFields workspace={workspace} roleId={invite.roleId} businessId={invite.businessId} unitId={invite.unitId} onChange={setInvite} />
+          </div>
+          <button className="primary-btn" disabled={saving} type="submit">{t("team.createInvite")}</button>
+          {inviteUrl && (
+            <div className="invite-link-box">
+              <strong>{t("team.inviteLink")}</strong>
+              <input readOnly value={inviteUrl} onFocus={(event) => event.currentTarget.select()} />
+            </div>
+          )}
+        </form>
+      )}
 
       <article className="table-card">
-        <header>
-          <h3>{t("team.members")}</h3>
-          <small>{businessFilter ? workspace.businesses.find((business) => business.id === businessFilter)?.name : t("team.scopedHint")}</small>
-        </header>
+        <header><h3>{t("team.members")}</h3><small>{t("team.scopedHint")}</small></header>
         <table className="data-table">
-          <thead>
-            <tr>
-              <th>{t("team.name")}</th>
-              <th>{t("team.email")}</th>
-              <th>{t("team.role")}</th>
-              <th>{t("team.scope")}</th>
-              <th>{t("team.status")}</th>
-            </tr>
-          </thead>
+          <thead><tr><th>{t("team.name")}</th><th>{t("team.email")}</th><th>{t("team.role")}</th><th>{t("team.scope")}</th><th>{t("team.status")}</th></tr></thead>
           <tbody>
             {visibleMembers.map((member) => (
-              <tr key={member.id} className={member.id === selectedMember.id ? "selected-row" : undefined}>
-                <td>
-                  <button className="text-button" type="button" onClick={() => selectEmployee(member.id)}>
-                    {member.fullName}
-                  </button>
-                </td>
-                <td>{member.email}</td>
-                <td>{resolveRole(member.roleId, t)}</td>
-                <td>{resolveScope(member.businessId, member.businessUnitId, t)}</td>
-                <td><span className={member.status === "invited" ? "badge warning" : "badge"}>{t(`common.${member.status}`)}</span></td>
+              <tr className={member.id === selectedId ? "selected-row" : undefined} key={member.id}>
+                <td><button className="text-button" type="button" onClick={() => setSelectedId(member.id)}>{member.full_name}</button></td>
+                <td>{member.email}</td><td>{member.role_name}</td>
+                <td>{scopeName(workspace, member.business_id, member.business_unit_id)}</td>
+                <td><span className={member.status === "active" ? "badge" : "badge warning"}>{member.status}</span></td>
+              </tr>
+            ))}
+            {workspace.invitations.map((invitation) => (
+              <tr key={invitation.id}>
+                <td>{t("team.pendingInvite")}</td><td>{invitation.email}</td><td>{invitation.role_name}</td>
+                <td>{scopeName(workspace, invitation.business_id, invitation.business_unit_id)}</td>
+                <td><button className="text-button danger-text" type="button" onClick={() => void cancelInvitation(invitation.id).then(reload)}>{t("team.cancelInvite")}</button></td>
               </tr>
             ))}
           </tbody>
         </table>
       </article>
 
-      <article className="card permission-editor-card">
-        <header className="permission-editor-header">
-          <div>
-            <span className="eyebrow">{t("team.performance")}</span>
-            <h3>{selectedMember.fullName}</h3>
-            <p className="card-muted">{t("team.performanceHint")}</p>
-          </div>
-          <button className="secondary-btn" type="button" onClick={() => setIsEditingAccess((current) => !current)}>
-            {isEditingAccess ? t("team.hideEmployeeAccess") : t("team.editEmployeeAccess")}
-          </button>
-        </header>
-
-        <div className="metrics-grid clean-metrics-grid">
-          <article className="metric-card"><span>{t("team.revenueHandled")}</span><strong>{formatMoney(memberRevenue, workspace.masterAccount.currency)}</strong><small>{selectedMember.fullName}</small></article>
-          <article className="metric-card"><span>{t("team.transactionsHandled")}</span><strong>{memberTransactions.length}</strong><small>{resolveRole(selectedMember.roleId, t)}</small></article>
-          <article className="metric-card"><span>{t("team.productsSold")}</span><strong>{productQuantity}</strong><small>{resolveScope(selectedMember.businessId, selectedMember.businessUnitId, t)}</small></article>
-        </div>
-
-        {memberSales.length === 0 ? <p className="card-muted">{t("team.noPerformance")}</p> : (
-          <div className="list-stack" style={{ marginTop: 16 }}>
-            {memberSales.map((sale) => {
-              const product = workspace.products.find((item) => item.id === sale.productId);
-              const width = `${Math.max((sale.quantity / maxProductQuantity) * 100, 8)}%`;
-              return (
-                <div className="list-item" key={sale.id}>
-                  <div style={{ width: "100%" }}>
-                    <strong>{product?.name ?? sale.productId}</strong>
-                    <small>{sale.customerName} · {formatMoney(sale.quantity * sale.unitPrice, workspace.masterAccount.currency)}</small>
-                    <div className="performance-bar"><span style={{ width }} /></div>
-                  </div>
-                  <span className="badge">{sale.quantity}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </article>
-
-      {isEditingAccess && (
-        <article className="card permission-editor-card">
+      {selected && (
+        <form className="card permission-editor-card" onSubmit={saveEmployee}>
           <header className="permission-editor-header">
-            <div>
-              <span className="eyebrow">{t("team.permissionProfile")}</span>
-              <h3>{selectedMember.fullName}</h3>
-              <p className="card-muted">{resolveRole(selectedMember.roleId, t)} · {resolveScope(selectedMember.businessId, selectedMember.businessUnitId, t)}</p>
-            </div>
-            <div className="dashboard-heading-action">
-              <button className="secondary-btn" type="button" onClick={resetPermissions}>{t("team.resetDefaults")}</button>
-              <button className="primary-btn" type="button" onClick={savePermissions}>{t("team.savePermissions")}</button>
-            </div>
+            <div><span className="eyebrow">{t("team.editEmployeeAccess")}</span><h3>{selected.full_name}</h3><p className="card-muted">{selected.email}</p></div>
+            <button className="secondary-btn danger-text" disabled={saving || selected.status === "disabled"} type="button" onClick={() => void removeEmployee(selected)}>{t("team.disableEmployee")}</button>
           </header>
-
-          <div className="permission-profile-grid">
-            {recommendedRoleIds.map((roleId) => (
-              <button key={roleId} className={selectedMode === roleId ? "permission-profile-card active" : "permission-profile-card"} type="button" onClick={() => selectPermissionMode(roleId as PermissionMode)}>
-                <strong>{t(`roles.${roleId}`)}</strong>
-                <small>{t(`team.roleRecommendations.${roleId}`)}</small>
-              </button>
-            ))}
-            <button className={selectedMode === "custom" ? "permission-profile-card active" : "permission-profile-card"} type="button" onClick={() => selectPermissionMode("custom")}>
-              <strong>{t("team.customizable")}</strong>
-              <small>{t("team.customizableHint")}</small>
-            </button>
+          <div className="form-grid">
+            <div className="form-field"><label htmlFor="employee-role">{t("team.role")}</label><select id="employee-role" name="roleId" defaultValue={selected.role_id}>{workspace.roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></div>
+            <div className="form-field"><label htmlFor="employee-business">{t("team.business")}</label><select id="employee-business" name="businessId" defaultValue={selected.business_id ?? ""}><option value="">{t("team.noBusiness")}</option>{workspace.businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}</select></div>
+            <div className="form-field"><label htmlFor="employee-unit">{t("team.unit")}</label><select id="employee-unit" name="unitId" defaultValue={selected.business_unit_id ?? ""}><option value="">{t("team.noUnit")}</option>{workspace.business_units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></div>
+            <div className="form-field"><label htmlFor="employee-status">{t("team.status")}</label><select id="employee-status" name="status" defaultValue={selected.status}><option value="active">{t("common.active")}</option><option value="disabled">{t("team.disabledLabel")}</option></select></div>
           </div>
-
-          {selectedMode === "custom" && (
-            <div className="permission-toggle-grid">
-              {configurablePermissions.map((permission) => {
-                const enabled = selectedPermissions.includes(permission);
-                return (
-                  <label className={enabled ? "permission-toggle enabled" : "permission-toggle"} key={permission}>
-                    <input type="checkbox" checked={enabled} onChange={() => togglePermission(permission)} />
-                    <span>
-                      <strong>{t(`permissions.${permission}`)}</strong>
-                      <small>{enabled ? t("team.permissionEnabled") : t("team.permissionDisabled")}</small>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </article>
+          <button className="primary-btn" disabled={saving} type="submit">{t("team.saveEmployee")}</button>
+        </form>
       )}
     </section>
   );
+}
+
+function ScopeFields({ workspace, roleId, businessId, unitId, onChange }: { workspace: TeamWorkspace; roleId: string; businessId: string; unitId: string; onChange: Dispatch<SetStateAction<typeof emptyInvite>> }) {
+  const { t } = useTranslation();
+  const units = workspace.business_units.filter((unit) => unit.business_id === businessId);
+  return <>
+    <div className="form-field"><label htmlFor="invite-role">{t("team.role")}</label><select id="invite-role" required value={roleId} onChange={(event) => onChange((current) => ({ ...current, roleId: event.target.value }))}><option value="">{t("team.selectRole")}</option>{workspace.roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></div>
+    <div className="form-field"><label htmlFor="invite-business">{t("team.business")}</label><select id="invite-business" required value={businessId} onChange={(event) => onChange((current) => ({ ...current, businessId: event.target.value, unitId: "" }))}><option value="">{t("team.selectBusiness")}</option>{workspace.businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}</select></div>
+    <div className="form-field"><label htmlFor="invite-unit">{t("team.unit")}</label><select id="invite-unit" value={unitId} onChange={(event) => onChange((current) => ({ ...current, unitId: event.target.value }))}><option value="">{t("team.noUnit")}</option>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></div>
+  </>;
+}
+
+function scopeName(workspace: TeamWorkspace, businessId?: string, unitId?: string): string {
+  if (unitId) return workspace.business_units.find((unit) => unit.id === unitId)?.name ?? unitId;
+  if (businessId) return workspace.businesses.find((business) => business.id === businessId)?.name ?? businessId;
+  return "Master account";
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiClientError ? error.message : fallback;
 }

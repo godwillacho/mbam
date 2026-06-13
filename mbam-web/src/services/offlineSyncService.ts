@@ -17,11 +17,14 @@ import {
   putConflictRecord,
   putEncryptedEntity,
   putOutboxRecord,
+  reconcileCloudEntities,
+  reconcileOfflineOutbox,
   setSyncCursor,
   type EncryptedOutboxRecord,
 } from "./offlineDatabase";
 import { requireOfflineDataKey } from "./offlineVaultService";
 import { getJson, postJson } from "./apiClient";
+import { reconcileRoleScopedLocalData } from "./localSync/localSyncStore";
 
 export interface QueueOperationInput<T> {
   deviceId: string;
@@ -235,6 +238,16 @@ export async function synchronizeOfflineChanges(
   }
 
   const pullResult = await transport.pull(await getSyncCursor());
+  await reconcileCloudEntities(pullResult.allowedEntityKeys);
+  await reconcileOfflineOutbox(
+    pullResult.authorizationScopes,
+    pullResult.authorizationVersion,
+  );
+  await reconcileRoleScopedLocalData({
+    userId: pullResult.userId,
+    authorizationScopes: pullResult.authorizationScopes,
+    authorizationVersion: pullResult.authorizationVersion,
+  });
   for (const change of pullResult.changes) {
     await applyCloudChange(change);
   }

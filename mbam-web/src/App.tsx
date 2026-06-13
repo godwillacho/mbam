@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/app/AppShell";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import AuthPage from "./pages/auth/AuthPage";
+import InviteAcceptancePage from "./pages/auth/InviteAcceptancePage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import BusinessStructurePage from "./pages/business/BusinessStructurePage";
 import DashboardMetricDetailPage from "./pages/dashboard/DashboardMetricDetailPage";
@@ -19,6 +20,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/invite" element={<InviteAcceptancePage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/dashboard" replace />} />

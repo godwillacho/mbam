@@ -85,3 +85,22 @@ SMTP_FROM_NAME=Mbam
 Password-reset tokens expire after 30 minutes, are stored only as SHA-256
 hashes, are single-use, and revoke the user's existing refresh tokens when
 consumed.
+
+## Employees, invitations, and offline scope
+
+Employee access is managed through direct API routes:
+
+```text
+GET    /api/v1/team-members
+PATCH  /api/v1/team-members/:membership_id
+DELETE /api/v1/team-members/:membership_id
+POST   /api/v1/invites
+POST   /api/v1/invites/details
+POST   /api/v1/invites/accept
+POST   /api/v1/invites/register
+DELETE /api/v1/invites/:invitation_id
+```
+
+Role and scope changes are never queued offline. `GET /api/v1/sync/pull`
+returns a server-filtered authorization snapshot and allowed entity keys.
+Every push and pull attempt is recorded in `sync_runs`.
