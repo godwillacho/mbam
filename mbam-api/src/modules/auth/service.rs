@@ -19,6 +19,19 @@ use super::{
     repository,
 };
 
+#[derive(Debug, serde::Deserialize)]
+struct GoogleTokenResponse {
+    access_token: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct GoogleUserInfo {
+    sub: String,
+    email: String,
+    email_verified: bool,
+    name: String,
+}
+
 /// Normalizes emails before storing or comparing them.
 pub fn normalize_email(email: &str) -> String {
     email.trim().to_lowercase()
@@ -127,6 +140,89 @@ pub async fn logout(db: &PgPool, raw_refresh_token: &str) -> Result<(), ApiError
         repository::revoke_refresh_token(db, stored.id).await?;
     }
     Ok(())
+}
+
+/// Exchanges a Google authorization code and creates a normal Mbam session.
+pub async fn login_with_google(
+    db: &PgPool,
+    config: &Config,
+    code: &str,
+) -> Result<AuthResponse, ApiError> {
+    let client_id = config
+        .google_oauth_client_id
+        .as_deref()
+        .ok_or_else(|| ApiError::BadRequest("Google sign-in is not configured".to_string()))?;
+    let client_secret = config
+        .google_oauth_client_secret
+        .as_deref()
+        .ok_or_else(|| ApiError::BadRequest("Google sign-in is not configured".to_string()))?;
+    let redirect_uri = config
+        .google_oauth_redirect_uri
+        .as_deref()
+        .ok_or_else(|| ApiError::BadRequest("Google sign-in is not configured".to_string()))?;
+
+    let client = reqwest::Client::new();
+    let token_response = client
+        .post("https://oauth2.googleapis.com/token")
+        .form(&[
+            ("code", code),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("redirect_uri", redirect_uri),
+            ("grant_type", "authorization_code"),
+        ])
+        .send()
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    if !token_response.status().is_success() {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let token = token_response
+        .json::<GoogleTokenResponse>()
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+    let user_info_response = client
+        .get("https://openidconnect.googleapis.com/v1/userinfo")
+        .bearer_auth(token.access_token)
+        .send()
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    if !user_info_response.status().is_success() {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let profile = user_info_response
+        .json::<GoogleUserInfo>()
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+    if !profile.email_verified {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let email = normalize_email(&profile.email);
+    let user = repository::find_or_create_oauth_user(
+        db,
+        repository::OAuthIdentity {
+            provider: "google",
+            provider_user_id: &profile.sub,
+            email: &email,
+            full_name: profile.name.trim(),
+        },
+    )
+    .await?;
+
+    build_auth_response(
+        db,
+        config,
+        user.id,
+        user.full_name,
+        user.email,
+        user.email_verified,
+    )
+    .await
 }
 
 /// Builds the public authentication response and stores a hashed refresh token.

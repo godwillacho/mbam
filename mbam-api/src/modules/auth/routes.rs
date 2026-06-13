@@ -1,11 +1,13 @@
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{header, HeaderMap, HeaderValue},
-    routing::post,
+    response::Redirect,
+    routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use uuid::Uuid;
 
 use crate::{error::ApiError, state::AppState};
 
@@ -15,10 +17,18 @@ use super::{
 };
 
 const REFRESH_COOKIE_NAME: &str = "mbam_refresh_token";
+const GOOGLE_STATE_COOKIE_NAME: &str = "mbam_google_oauth_state";
 
 #[derive(Debug, Deserialize)]
 struct EmailRequest {
     email: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GoogleCallbackQuery {
+    code: Option<String>,
+    state: Option<String>,
+    error: Option<String>,
 }
 
 /// Registers authentication routes under `/api/v1/auth`.
@@ -30,6 +40,8 @@ pub fn router() -> Router<AppState> {
         .route("/logout", post(logout))
         .route("/password-reset", post(password_reset))
         .route("/verification/resend", post(resend_verification))
+        .route("/oauth/google/start", get(google_start))
+        .route("/oauth/google/callback", get(google_callback))
 }
 
 async fn signup(
@@ -85,10 +97,79 @@ async fn resend_verification(Json(payload): Json<EmailRequest>) -> Json<Value> {
     Json(json!({ "message": "If verification is pending, a new message will be sent." }))
 }
 
+async fn google_start(State(state): State<AppState>) -> Result<(HeaderMap, Redirect), ApiError> {
+    let (Some(client_id), Some(redirect_uri), Some(_client_secret)) = (
+        state.config.google_oauth_client_id.as_deref(),
+        state.config.google_oauth_redirect_uri.as_deref(),
+        state.config.google_oauth_client_secret.as_deref(),
+    ) else {
+        return oauth_error_redirect(&state, "google_not_configured");
+    };
+
+    let oauth_state = Uuid::new_v4().to_string();
+    let mut authorization_url = reqwest::Url::parse("https://accounts.google.com/o/oauth2/v2/auth")
+        .map_err(|_| ApiError::Internal)?;
+    authorization_url.query_pairs_mut().extend_pairs([
+        ("client_id", client_id),
+        ("redirect_uri", redirect_uri),
+        ("response_type", "code"),
+        ("scope", "openid email profile"),
+        ("state", oauth_state.as_str()),
+        ("prompt", "select_account"),
+    ]);
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&oauth_state_cookie(&state, &oauth_state, 600))
+            .map_err(|_| ApiError::Internal)?,
+    );
+    Ok((headers, Redirect::temporary(authorization_url.as_str())))
+}
+
+async fn google_callback(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<GoogleCallbackQuery>,
+) -> Result<(HeaderMap, Redirect), ApiError> {
+    if query.error.is_some() {
+        return oauth_error_redirect(&state, "google_denied");
+    }
+
+    let expected_state =
+        cookie_value(&headers, GOOGLE_STATE_COOKIE_NAME).ok_or(ApiError::Unauthorized)?;
+    let returned_state = query.state.as_deref().ok_or(ApiError::Unauthorized)?;
+    if expected_state != returned_state {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let code = query.code.as_deref().ok_or(ApiError::Unauthorized)?;
+    let response = match service::login_with_google(&state.db, &state.config, code).await {
+        Ok(response) => response,
+        Err(_) => return oauth_error_redirect(&state, "google_failed"),
+    };
+
+    let mut response_headers = auth_cookie_headers(&state, &response)?;
+    response_headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&oauth_state_cookie(&state, "", 0))
+            .map_err(|_| ApiError::Internal)?,
+    );
+    Ok((
+        response_headers,
+        Redirect::to(&format!("{}/auth?oauth=complete", state.config.web_origin)),
+    ))
+}
+
 fn auth_response(
     state: &AppState,
     response: AuthResponse,
 ) -> Result<(HeaderMap, Json<AuthResponse>), ApiError> {
+    let headers = auth_cookie_headers(state, &response)?;
+    Ok((headers, Json(response)))
+}
+
+fn auth_cookie_headers(state: &AppState, response: &AuthResponse) -> Result<HeaderMap, ApiError> {
     let secure = if state.config.app_env == "development" {
         ""
     } else {
@@ -105,15 +186,45 @@ fn auth_response(
         header::SET_COOKIE,
         HeaderValue::from_str(&cookie).map_err(|_| ApiError::Internal)?,
     );
-    Ok((headers, Json(response)))
+    Ok(headers)
 }
 
 fn refresh_cookie(headers: &HeaderMap) -> Option<&str> {
+    cookie_value(headers, REFRESH_COOKIE_NAME)
+}
+
+fn cookie_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     headers
         .get(header::COOKIE)?
         .to_str()
         .ok()?
         .split(';')
         .map(str::trim)
-        .find_map(|cookie| cookie.strip_prefix(&format!("{REFRESH_COOKIE_NAME}=")))
+        .find_map(|cookie| cookie.strip_prefix(&format!("{name}=")))
+}
+
+fn oauth_state_cookie(state: &AppState, value: &str, max_age: i32) -> String {
+    let secure = if state.config.app_env == "development" {
+        ""
+    } else {
+        "; Secure"
+    };
+    format!(
+        "{GOOGLE_STATE_COOKIE_NAME}={value}; HttpOnly; SameSite=Lax; Path=/api/v1/auth/oauth/google; Max-Age={max_age}{secure}"
+    )
+}
+
+fn oauth_error_redirect(state: &AppState, error: &str) -> Result<(HeaderMap, Redirect), ApiError> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&oauth_state_cookie(state, "", 0)).map_err(|_| ApiError::Internal)?,
+    );
+    Ok((
+        headers,
+        Redirect::to(&format!(
+            "{}/auth?oauth_error={error}",
+            state.config.web_origin
+        )),
+    ))
 }
