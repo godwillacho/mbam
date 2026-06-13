@@ -1,9 +1,5 @@
 import type { Business, BusinessUnit, UnitType } from "../types/workspace";
-<<<<<<< HEAD
 import { getJson, patchJson, postJson } from "./apiClient";
-=======
-import { getJson, postJson } from "./apiClient";
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 
 interface ApiBusiness {
   id: string;
@@ -30,27 +26,11 @@ export interface CreateBusinessPayload {
   currency: string;
 }
 
-<<<<<<< HEAD
-interface ApiBusinessUnit {
-  id: string;
-  businessId: string;
-  name: string;
-  unitType: UnitType;
-  location: string | null;
-  status: "active" | "disabled";
-}
-
 export interface BusinessUnitPayload {
   name: string;
   unitType: UnitType;
   location?: string;
   status?: "active" | "disabled";
-=======
-export interface CreateBusinessUnitPayload {
-  name: string;
-  unitType: UnitType;
-  location?: string;
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 }
 
 function toBusiness(business: ApiBusiness): Business {
@@ -102,22 +82,6 @@ export async function createBusiness(payload: CreateBusinessPayload): Promise<Bu
   return toBusiness(business);
 }
 
-<<<<<<< HEAD
-function toBusinessUnit(unit: ApiBusinessUnit): BusinessUnit {
-  return {
-    id: unit.id,
-    businessId: unit.businessId,
-    name: unit.name,
-    type: unit.unitType,
-    location: unit.location ?? "",
-    status: unit.status,
-    todayRevenue: 0,
-    queuedTransactions: 0,
-  };
-}
-
-=======
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 export async function listBusinessUnits(businessId: string): Promise<BusinessUnit[]> {
   const units = await getJson<ApiBusinessUnit[]>(`/api/v1/businesses/${businessId}/units`);
   return units.map(toBusinessUnit);
@@ -125,18 +89,7 @@ export async function listBusinessUnits(businessId: string): Promise<BusinessUni
 
 export async function createBusinessUnit(
   businessId: string,
-<<<<<<< HEAD
   payload: BusinessUnitPayload,
-): Promise<BusinessUnit> {
-  const unit = await postJson<ApiBusinessUnit, {
-    name: string;
-    unitType: UnitType;
-    location?: string;
-  }>(`/api/v1/businesses/${businessId}/units`, {
-    name: payload.name,
-    unitType: payload.unitType,
-=======
-  payload: CreateBusinessUnitPayload,
 ): Promise<BusinessUnit> {
   const unit = await postJson<ApiBusinessUnit, {
     name: string;
@@ -145,23 +98,26 @@ export async function createBusinessUnit(
   }>(`/api/v1/businesses/${businessId}/units`, {
     name: payload.name,
     unit_type: payload.unitType,
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
     location: payload.location || undefined,
   });
   return toBusinessUnit(unit);
 }
-<<<<<<< HEAD
 
 export async function updateBusinessUnit(
   businessId: string,
   unitId: string,
   payload: BusinessUnitPayload,
 ): Promise<BusinessUnit> {
-  const unit = await patchJson<ApiBusinessUnit, BusinessUnitPayload>(
-    `/api/v1/businesses/${businessId}/units/${unitId}`,
-    payload,
-  );
+  const unit = await patchJson<ApiBusinessUnit, {
+    name: string;
+    unit_type: UnitType;
+    location?: string;
+    status?: "active" | "disabled";
+  }>(`/api/v1/businesses/${businessId}/units/${unitId}`, {
+    name: payload.name,
+    unit_type: payload.unitType,
+    location: payload.location || undefined,
+    status: payload.status,
+  });
   return toBusinessUnit(unit);
 }
-=======
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
