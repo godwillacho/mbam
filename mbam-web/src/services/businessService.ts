@@ -1,4 +1,4 @@
-import type { Business } from "../types/workspace";
+import type { Business, BusinessUnit, UnitType } from "../types/workspace";
 import { getJson, postJson } from "./apiClient";
 
 interface ApiBusiness {
@@ -10,11 +10,26 @@ interface ApiBusiness {
   status: "active" | "disabled";
 }
 
+interface ApiBusinessUnit {
+  id: string;
+  business_id: string;
+  name: string;
+  unit_type: string;
+  location: string | null;
+  status: "active" | "disabled";
+}
+
 export interface CreateBusinessPayload {
   name: string;
   businessType?: string;
   country?: string;
   currency: string;
+}
+
+export interface CreateBusinessUnitPayload {
+  name: string;
+  unitType: UnitType;
+  location?: string;
 }
 
 function toBusiness(business: ApiBusiness): Business {
@@ -25,6 +40,23 @@ function toBusiness(business: ApiBusiness): Business {
     country: business.country ?? "",
     currency: business.currency,
     status: business.status,
+  };
+}
+
+function toUnitType(value: string): UnitType {
+  return value === "warehouse" || value === "sales_desk" ? value : "shop";
+}
+
+function toBusinessUnit(unit: ApiBusinessUnit): BusinessUnit {
+  return {
+    id: unit.id,
+    businessId: unit.business_id,
+    name: unit.name,
+    type: toUnitType(unit.unit_type),
+    location: unit.location ?? "",
+    status: unit.status,
+    todayRevenue: 0,
+    queuedTransactions: 0,
   };
 }
 
@@ -47,4 +79,25 @@ export async function createBusiness(payload: CreateBusinessPayload): Promise<Bu
   });
 
   return toBusiness(business);
+}
+
+export async function listBusinessUnits(businessId: string): Promise<BusinessUnit[]> {
+  const units = await getJson<ApiBusinessUnit[]>(`/api/v1/businesses/${businessId}/units`);
+  return units.map(toBusinessUnit);
+}
+
+export async function createBusinessUnit(
+  businessId: string,
+  payload: CreateBusinessUnitPayload,
+): Promise<BusinessUnit> {
+  const unit = await postJson<ApiBusinessUnit, {
+    name: string;
+    unit_type: UnitType;
+    location?: string;
+  }>(`/api/v1/businesses/${businessId}/units`, {
+    name: payload.name,
+    unit_type: payload.unitType,
+    location: payload.location || undefined,
+  });
+  return toBusinessUnit(unit);
 }
