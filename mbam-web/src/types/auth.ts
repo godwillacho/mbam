@@ -1,6 +1,6 @@
 import type { SignedOfflineGrant } from "./offline.types";
 
-export type AuthProvider = "google" | "apple" | "microsoft";
+export type AuthProvider = "google" | "microsoft";
 
 export interface AuthUser {
   id: string;

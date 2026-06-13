@@ -12,7 +12,7 @@ Built with **React** · **TypeScript** · **Vite** · **PWA (offline-first)**
 | Build | Vite |
 | Styling | CSS Modules |
 | PWA | vite-plugin-pwa (IndexedDB offline sync) |
-| Auth | JWT + SSO (Google, Apple, Microsoft) |
+| Auth | JWT + SSO (Google, Microsoft) |
 | Language | English / French toggle |
 
 ## Getting started

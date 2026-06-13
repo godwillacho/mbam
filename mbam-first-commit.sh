@@ -43,7 +43,7 @@ git commit -m "feat: initial scaffold
 - Argon2id password hashing
 - JWT access + refresh token auth (15min / 30d)
 - Email verification flow
-- SSO: Google, Apple, Microsoft OAuth2
+- SSO: Google and Microsoft OAuth2
 - Full domain model (domain.rs) with all enums and structs
 - PostgreSQL migrations (users, tokens, sso_identities)
 - ApiResponse<T> envelope
@@ -70,7 +70,7 @@ git commit -m "feat: initial scaffold
   Transaction, TransactionDraftModel, DailySummary, SyncRecord
 - Filter library: filterTransactions, searchProducts, formatCurrency, etc.
 - Tool registry with billing tier structure
-- Auth screens: login, signup, SSO (Google/Apple/Microsoft)
+- Auth screens: login, signup, SSO (Google/Microsoft)
 - Password strength meter, email verification screen
 - EN/FR language toggle
 - STANDARDS.md: comment rules, tool architecture, git discipline

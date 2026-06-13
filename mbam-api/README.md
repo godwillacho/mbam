@@ -53,3 +53,35 @@ VITE_API_BASE_URL=http://localhost:8080
 
 Do not mix `localhost` and `127.0.0.1` in this flow. Browser cookie rules
 treat them as different sites, which prevents OAuth session completion.
+
+## Microsoft sign-in
+
+Create an app registration in Microsoft Entra ID that accepts personal
+Microsoft accounts and organizational accounts. Add this web redirect URI:
+
+`http://localhost:8080/api/v1/auth/oauth/microsoft/callback`
+
+Create a client secret, grant delegated `User.Read` permission, and set:
+
+```dotenv
+MICROSOFT_OAUTH_CLIENT_ID=your_application_client_id
+MICROSOFT_OAUTH_CLIENT_SECRET=your_client_secret
+MICROSOFT_OAUTH_REDIRECT_URI=http://localhost:8080/api/v1/auth/oauth/microsoft/callback
+```
+
+## Password-reset email
+
+Configure an SMTP account that supports STARTTLS on port 587:
+
+```dotenv
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=your_smtp_username
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM_EMAIL=no-reply@example.com
+SMTP_FROM_NAME=Mbam
+```
+
+Password-reset tokens expire after 30 minutes, are stored only as SHA-256
+hashes, are single-use, and revoke the user's existing refresh tokens when
+consumed.

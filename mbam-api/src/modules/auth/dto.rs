@@ -17,6 +17,13 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+/// Completes a password reset using a single-use emailed token.
+#[derive(Debug, Deserialize)]
+pub struct CompletePasswordResetRequest {
+    pub token: String,
+    pub password: String,
+}
+
 /// Public user shape returned to the frontend after authentication.
 #[derive(Debug, Serialize)]
 pub struct AuthUserResponse {

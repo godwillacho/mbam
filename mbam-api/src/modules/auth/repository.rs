@@ -25,6 +25,12 @@ pub struct RefreshTokenRecord {
     pub expires_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PasswordResetRecord {
+    pub id: Uuid,
+    pub user_id: Uuid,
+}
+
 /// Current authorization scope embedded in a short-lived offline grant.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct OfflineAuthorizationScope {
@@ -361,6 +367,95 @@ pub async fn revoke_refresh_token(db: &PgPool, token_id: Uuid) -> Result<(), sql
     .execute(db)
     .await?;
     Ok(())
+}
+
+pub async fn store_password_reset_token(
+    db: &PgPool,
+    user_id: Uuid,
+    token_hash: &str,
+    expires_at: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    let mut tx = db.begin().await?;
+    sqlx::query(
+        r#"
+        update password_reset_tokens
+        set used_at = now()
+        where user_id = $1 and used_at is null
+        "#,
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        r#"
+        insert into password_reset_tokens (user_id, token_hash, expires_at)
+        values ($1, $2, $3)
+        "#,
+    )
+    .bind(user_id)
+    .bind(token_hash)
+    .bind(expires_at)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await
+}
+
+pub async fn consume_password_reset_token(
+    db: &PgPool,
+    token_hash: &str,
+    password_hash: &str,
+) -> Result<bool, sqlx::Error> {
+    let mut tx = db.begin().await?;
+    let record = sqlx::query_as::<_, PasswordResetRecord>(
+        r#"
+        select id, user_id
+        from password_reset_tokens
+        where token_hash = $1
+          and used_at is null
+          and expires_at > now()
+        for update
+        "#,
+    )
+    .bind(token_hash)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(record) = record else {
+        tx.rollback().await?;
+        return Ok(false);
+    };
+
+    sqlx::query(
+        r#"
+        update users
+        set password_hash = $1, updated_at = now()
+        where id = $2 and status = 'active'
+        "#,
+    )
+    .bind(password_hash)
+    .bind(record.user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query("update password_reset_tokens set used_at = now() where id = $1")
+        .bind(record.id)
+        .execute(&mut *tx)
+        .await?;
+
+    sqlx::query(
+        r#"
+        update refresh_tokens
+        set revoked_at = now()
+        where user_id = $1 and revoked_at is null
+        "#,
+    )
+    .bind(record.user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(true)
 }
 
 /// Loads the user's current business scope and permission snapshot.
