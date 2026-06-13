@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::modules::products::{model::ProductWriteRequest, repository as product_repository};
+use crate::modules::transactions::model::{CreateTransactionLineRequest, CreateTransactionRequest};
 
 use super::model::{
     CloudChange, SyncAuthorizationScope, SyncPullResult, SyncPushRequest, SyncPushResult,
@@ -106,7 +107,7 @@ pub async fn push(
 struct ProductSyncOperation {
     operation_id: String,
     entity_type: String,
-    entity_id: Uuid,
+    entity_id: String,
     action: String,
     base_version: Option<i64>,
     payload: Value,
@@ -118,50 +119,47 @@ async fn apply_operation(db: &PgPool, user_id: Uuid, value: Value) -> SyncPushRe
         Err(_) => return rejected_result("unknown", "sync operation is malformed"),
     };
     if operation.entity_type != "product" {
+        if operation.entity_type == "transaction" {
+            return apply_transaction_operation(db, user_id, operation).await;
+        }
         return rejected_result(
             &operation.operation_id,
             "this entity type does not yet have a server sync handler",
         );
     }
+    let product_id = match Uuid::parse_str(&operation.entity_id) {
+        Ok(product_id) => product_id,
+        Err(_) => return rejected_result(&operation.operation_id, "product id is malformed"),
+    };
     let mut product = match serde_json::from_value::<ProductWriteRequest>(operation.payload) {
         Ok(product) => product,
         Err(_) => return rejected_result(&operation.operation_id, "product payload is malformed"),
     };
-    product.id = Some(operation.entity_id);
+    product.id = Some(product_id);
 
     let result = match operation.action.as_str() {
         "create" => crate::modules::products::service::create(db, user_id, product).await,
-        "update" => {
-            match product_repository::find_visible(db, user_id, operation.entity_id).await {
-                Ok(Some(cloud))
-                    if operation
-                        .base_version
-                        .is_some_and(|version| version != cloud.updated_at.timestamp_millis()) =>
-                {
-                    return SyncPushResult {
-                        operation_id: operation.operation_id,
-                        outcome: "conflict".to_string(),
-                        server_id: Some(cloud.id),
-                        server_version: Some(cloud.updated_at.timestamp_millis()),
-                        error: Some("the cloud product changed after the offline edit".to_string()),
-                        cloud_value: serde_json::to_value(cloud).ok(),
-                    };
-                }
-                Ok(_) => {
-                    crate::modules::products::service::update(
-                        db,
-                        user_id,
-                        operation.entity_id,
-                        product,
-                    )
-                    .await
-                }
-                Err(error) => Err(ApiError::Database(error)),
+        "update" => match product_repository::find_visible(db, user_id, product_id).await {
+            Ok(Some(cloud))
+                if operation
+                    .base_version
+                    .is_some_and(|version| version != cloud.updated_at.timestamp_millis()) =>
+            {
+                return SyncPushResult {
+                    operation_id: operation.operation_id,
+                    outcome: "conflict".to_string(),
+                    server_id: Some(cloud.id),
+                    server_version: Some(cloud.updated_at.timestamp_millis()),
+                    error: Some("the cloud product changed after the offline edit".to_string()),
+                    cloud_value: serde_json::to_value(cloud).ok(),
+                };
             }
-        }
-        "delete" => {
-            crate::modules::products::service::disable(db, user_id, operation.entity_id).await
-        }
+            Ok(_) => {
+                crate::modules::products::service::update(db, user_id, product_id, product).await
+            }
+            Err(error) => Err(ApiError::Database(error)),
+        },
+        "delete" => crate::modules::products::service::disable(db, user_id, product_id).await,
         _ => return rejected_result(&operation.operation_id, "product action is not supported"),
     };
 
@@ -171,6 +169,90 @@ async fn apply_operation(db: &PgPool, user_id: Uuid, value: Value) -> SyncPushRe
             outcome: "accepted".to_string(),
             server_id: Some(product.id),
             server_version: Some(product.updated_at.timestamp_millis()),
+            error: None,
+            cloud_value: None,
+        },
+        Err(error) => rejected_result(&operation.operation_id, &error.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OfflineTransactionPayload {
+    transaction: OfflineTransactionRecord,
+    lines: Vec<OfflineTransactionLine>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OfflineTransactionRecord {
+    business_id: Uuid,
+    business_unit_id: Option<Uuid>,
+    customer_name: String,
+    customer_contact: Option<String>,
+    payment_method: String,
+    payment_status: String,
+    outstanding_amount: Option<f64>,
+    idempotency_key: String,
+    created_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OfflineTransactionLine {
+    product_id: Option<Uuid>,
+    product_name_snapshot: String,
+    sku_snapshot: Option<String>,
+    quantity: f64,
+    unit_price: f64,
+}
+
+async fn apply_transaction_operation(
+    db: &PgPool,
+    user_id: Uuid,
+    operation: ProductSyncOperation,
+) -> SyncPushResult {
+    if operation.action != "create" {
+        return rejected_result(
+            &operation.operation_id,
+            "offline transaction updates are not supported",
+        );
+    }
+    let payload = match serde_json::from_value::<OfflineTransactionPayload>(operation.payload) {
+        Ok(payload) => payload,
+        Err(_) => {
+            return rejected_result(&operation.operation_id, "transaction payload is malformed")
+        }
+    };
+    let request = CreateTransactionRequest {
+        id: Uuid::parse_str(&operation.entity_id).ok(),
+        business_id: payload.transaction.business_id,
+        business_unit_id: payload.transaction.business_unit_id,
+        customer_name: payload.transaction.customer_name,
+        customer_contact: payload.transaction.customer_contact,
+        payment_method: payload.transaction.payment_method,
+        payment_status: Some(payload.transaction.payment_status),
+        outstanding_amount: payload.transaction.outstanding_amount,
+        idempotency_key: payload.transaction.idempotency_key,
+        created_at: Some(payload.transaction.created_at),
+        lines: payload
+            .lines
+            .into_iter()
+            .map(|line| CreateTransactionLineRequest {
+                product_id: line.product_id,
+                product_name: line.product_name_snapshot,
+                sku: line.sku_snapshot,
+                quantity: line.quantity,
+                unit_price: line.unit_price,
+            })
+            .collect(),
+    };
+    match crate::modules::transactions::service::create(db, user_id, request).await {
+        Ok(transaction) => SyncPushResult {
+            operation_id: operation.operation_id,
+            outcome: "accepted".to_string(),
+            server_id: Some(transaction.transaction.id),
+            server_version: Some(transaction.transaction.updated_at.timestamp_millis()),
             error: None,
             cloud_value: None,
         },
@@ -258,6 +340,30 @@ async fn build_snapshot(
            and (membership.business_id is null or membership.business_id = product.business_id)
           where product.status = 'active'
         ),
+        transaction_memberships as (
+          select distinct m.*, r.code as role_code
+          from memberships m
+          join roles r on r.id = m.role_id
+          join role_permissions rp on rp.role_id = m.role_id
+          join permissions p on p.id = rp.permission_id
+          where m.user_id = $1 and m.status = 'active' and p.code = 'sale.view'
+        ),
+        visible_transactions as (
+          select distinct transaction.*, recorder.full_name as recorded_by
+          from transactions transaction
+          join users recorder on recorder.id = transaction.recorded_by_user_id
+          join transaction_memberships membership
+            on membership.business_account_id = transaction.business_account_id
+           and (membership.business_id is null or membership.business_id = transaction.business_id)
+           and (
+             membership.business_unit_id is null
+             or membership.business_unit_id = transaction.business_unit_id
+           )
+           and (
+             membership.role_code <> 'cashier'
+             or transaction.recorded_by_user_id = $1
+           )
+        ),
         worker_memberships as (
           select distinct m.*
           from memberships m
@@ -302,6 +408,37 @@ async fn build_snapshot(
             'status', status, 'createdAt', created_at, 'updatedAt', updated_at
           )
         from visible_products
+        union all
+        select 'transaction', id, updated_at,
+          jsonb_build_object(
+            'transaction', jsonb_build_object(
+              'localId', id::text, 'serverId', id, 'reference', upper(substr(id::text, 1, 8)),
+              'businessId', business_id, 'businessUnitId', business_unit_id,
+              'customerName', customer_name, 'customerContact', customer_contact,
+              'itemCount', (
+                select coalesce(sum(line.quantity), 0)
+                from transaction_lines line where line.transaction_id = visible_transactions.id
+              ),
+              'amount', total_amount, 'outstandingAmount', outstanding_amount,
+              'paymentMethod', payment_method, 'paymentStatus', payment_status,
+              'status', status, 'createdAt', created_at, 'updatedAt', updated_at,
+              'recordedBy', recorded_by, 'recordedByUserId', recorded_by_user_id,
+              'syncStatus', 'synced', 'idempotencyKey', idempotency_key
+            ),
+            'lines', (
+              select coalesce(jsonb_agg(jsonb_build_object(
+                'localLineId', line.id::text,
+                'transactionLocalId', line.transaction_id::text,
+                'productId', line.product_id,
+                'productNameSnapshot', line.product_name_snapshot,
+                'skuSnapshot', line.sku_snapshot, 'quantity', line.quantity,
+                'unitPrice', line.unit_price, 'lineTotal', line.line_total,
+                'createdAt', line.created_at
+              ) order by line.created_at, line.id), '[]'::jsonb)
+              from transaction_lines line where line.transaction_id = visible_transactions.id
+            )
+          )
+        from visible_transactions
         union all
         select 'employee', id, updated_at,
           jsonb_build_object(

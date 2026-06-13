@@ -27,7 +27,7 @@ export interface CreateLocalTransactionLineInput {
 export interface CreateLocalTransactionInput {
   reference?: string;
   businessId: string;
-  businessUnitId: string;
+  businessUnitId?: string;
   customerId?: string;
   customerName: string;
   customerContact?: string;

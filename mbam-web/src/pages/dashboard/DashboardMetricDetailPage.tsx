@@ -54,7 +54,11 @@ export default function DashboardMetricDetailPage() {
   const scopedUnits = getScopedUnits(member);
   const scopedUnitIds = new Set(scopedUnits.map((unit) => unit.id));
   const scopedBusinessIds = new Set(scopedUnits.map((unit) => unit.businessId));
-  const scopedTransactions = workspace.transactions.filter((transaction) => scopedUnitIds.has(transaction.businessUnitId));
+  const scopedTransactions = workspace.transactions.filter(
+    (transaction) =>
+      transaction.businessUnitId === undefined ||
+      scopedUnitIds.has(transaction.businessUnitId),
+  );
   const visibleTransactions = member.roleId === "role-cashier"
     ? scopedTransactions.filter((transaction) => transaction.recordedBy === member.fullName)
     : scopedTransactions;
@@ -129,7 +133,7 @@ export default function DashboardMetricDetailPage() {
         <article className="metric-detail-row" key={transaction.id}>
           <div>
             <strong>{transaction.reference} · {transaction.customerName}</strong>
-            <small>{unitName(transaction.businessUnitId)} · {formatDateTime(transaction.createdAt)} · {t("roleDashboard.labels.recordedBy")}: {transaction.recordedBy}</small>
+            <small>{transaction.businessUnitId ? unitName(transaction.businessUnitId) : businessName(transaction.businessId)} · {formatDateTime(transaction.createdAt)} · {t("roleDashboard.labels.recordedBy")}: {transaction.recordedBy}</small>
           </div>
           <span className={transaction.status === "queued" ? "badge warning" : "badge"}>{formatMoney(transaction.amount, workspace.masterAccount.currency)}</span>
         </article>

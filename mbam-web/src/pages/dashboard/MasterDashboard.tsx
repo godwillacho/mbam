@@ -63,7 +63,11 @@ function getScopedUnits(member: TeamMember): BusinessUnit[] {
 
 function getScopedTransactions(member: TeamMember, units: BusinessUnit[]): TransactionRecord[] {
   const unitIds = new Set(units.map((unit) => unit.id));
-  const transactions = workspace.transactions.filter((transaction) => unitIds.has(transaction.businessUnitId));
+  const transactions = workspace.transactions.filter(
+    (transaction) =>
+      transaction.businessUnitId === undefined ||
+      unitIds.has(transaction.businessUnitId),
+  );
 
   if (member.roleId === "role-cashier") {
     return transactions.filter((transaction) => transaction.recordedBy === member.fullName);

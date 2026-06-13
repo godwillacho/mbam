@@ -1,9 +1,15 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
+import { listBusinesses, listBusinessUnits } from "../../services/businessService";
+import { getCurrentSession } from "../../services/authService";
 import { listBrowserDbCustomers, upsertBrowserDbCustomerFromTransaction } from "../../services/customers/customerBrowserDbService";
+import { listProducts } from "../../services/productService";
+import { createCloudTransaction } from "../../services/transactionService";
+import { ApiClientError } from "../../services/apiClient";
+import { isOfflineVaultUnlocked } from "../../services/offlineVaultService";
 import { createLocalTransaction } from "../../services/transactions/transactionLocalRepository";
 import type { CustomerProfile, PaymentMethod, ProductProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
@@ -59,9 +65,14 @@ function resolveProductPrice(product: ProductProfile, customerId?: string) {
 export default function TransactionRecordPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const currentMember = useMemo(() => getCurrentMember(), []);
-  const [businessId, setBusinessId] = useState(workspace.businesses[0]?.id ?? "");
-  const [unitId, setUnitId] = useState(workspace.businessUnits[0]?.id ?? "");
+  const session = getCurrentSession();
+  const [businessOptions, setBusinessOptions] = useState(workspace.businesses);
+  const [unitOptions, setUnitOptions] = useState(workspace.businessUnits);
+  const [productOptions, setProductOptions] = useState(workspace.products);
+  const [businessId, setBusinessId] = useState(searchParams.get("business") ?? workspace.businesses[0]?.id ?? "");
+  const [unitId, setUnitId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [totalAmount, setTotalAmount] = useState("");
@@ -94,6 +105,28 @@ export default function TransactionRecordPage() {
     };
   }, [currentMember]);
 
+  useEffect(() => {
+    let active = true;
+    Promise.all([listBusinesses(), listProducts(workspace.products)])
+      .then(async ([businesses, catalogue]) => {
+        const units = (await Promise.all(businesses.map((business) => listBusinessUnits(business.id)))).flat();
+        if (!active) return;
+        setBusinessOptions(businesses);
+        setUnitOptions(units);
+        setProductOptions(catalogue.products);
+        setBusinessId((current) => current || businesses[0]?.id || "");
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedBusinessUnits = useMemo(
+    () => unitOptions.filter((unit) => unit.businessId === businessId && unit.status === "active"),
+    [businessId, unitOptions],
+  );
+
   const customerSuggestions = useMemo(() => {
     if (customerQuery.length < 2 || selectedCustomer?.name.toLowerCase() === customerQuery) {
       return [];
@@ -120,8 +153,8 @@ export default function TransactionRecordPage() {
 
   const validateForm = (): FormErrors => {
     const nextErrors: FormErrors = {};
-    const selectedBusiness = workspace.businesses.find((business) => business.id === businessId);
-    const selectedUnit = workspace.businessUnits.find((unit) => unit.id === unitId);
+    const selectedBusiness = businessOptions.find((business) => business.id === businessId);
+    const selectedUnit = unitOptions.find((unit) => unit.id === unitId);
     const normalizedCustomerName = sanitizeText(customerName, 80);
     const normalizedCustomerContact = sanitizeText(customerContact, 24);
     const normalizedNote = sanitizeText(note, 240);
@@ -129,7 +162,12 @@ export default function TransactionRecordPage() {
     const parsedOutstanding = isPendingPayment ? parsePositiveMoney(outstandingAmount) : 0;
 
     if (!selectedBusiness) nextErrors.business = t("transactionRecord.validation.businessRequired");
-    if (!selectedUnit || selectedUnit.businessId !== businessId) nextErrors.unit = t("transactionRecord.validation.unitRequired");
+    if (
+      currentMember.scopeLevel === "unit" &&
+      (!selectedUnit || selectedUnit.businessId !== businessId)
+    ) {
+      nextErrors.unit = t("transactionRecord.validation.unitRequired");
+    }
     if (!validateSafeText(normalizedCustomerName, 80)) nextErrors.customerName = t("transactionRecord.validation.customerNameRequired");
     if (!validatePhone(normalizedCustomerContact)) nextErrors.customerContact = t("transactionRecord.validation.customerContactInvalid");
     if (!allowedPaymentMethods.includes(paymentMethod)) nextErrors.paymentMethod = t("transactionRecord.validation.paymentMethodInvalid");
@@ -173,7 +211,7 @@ export default function TransactionRecordPage() {
       const parsedOutstanding = isPendingPayment ? parsePositiveMoney(outstandingAmount) ?? 0 : 0;
       const lines = useItemizedDetails
         ? lineItems.map((item) => {
-            const product = item.productId ? workspace.products.find((candidate) => candidate.id === item.productId) : undefined;
+            const product = item.productId ? productOptions.find((candidate) => candidate.id === item.productId) : undefined;
             return {
               productId: item.productId,
               productName: sanitizeText(item.itemName, 100),
@@ -184,33 +222,58 @@ export default function TransactionRecordPage() {
           })
         : [{ productName: t("invoice.transactionTotal"), quantity: 1, unitPrice: parsedTotal }];
 
-      const savedCustomer = await upsertBrowserDbCustomerFromTransaction({
-        existingCustomerId: selectedCustomer?.id,
-        name: sanitizeText(customerName, 80),
-        contact: sanitizeText(customerContact, 24),
-        businessId,
-        businessUnitId: unitId,
-        member: currentMember,
-      });
-
-      const saved = await createLocalTransaction({
-        businessId,
-        businessUnitId: unitId,
-        customerId: savedCustomer.id,
-        customerName: savedCustomer.name,
-        customerContact: savedCustomer.contact,
-        paymentMethod,
-        paymentStatus,
-        outstandingAmount: parsedOutstanding,
-        recordedBy: currentMember.fullName,
-        recordedByUserId: currentMember.id,
-        status: "queued",
-        syncStatus: "queued",
-        lines,
-      });
-
-      setFormStatus("validated");
-      navigate(`/transactions/${saved.transaction.localId}/invoice`);
+      const idempotencyKey = crypto.randomUUID();
+      try {
+        const saved = await createCloudTransaction({
+          businessId,
+          businessUnitId: unitId || undefined,
+          customerName: sanitizeText(customerName, 80),
+          customerContact: sanitizeText(customerContact, 24) || undefined,
+          paymentMethod,
+          paymentStatus,
+          outstandingAmount: parsedOutstanding,
+          idempotencyKey,
+          lines,
+        });
+        setFormStatus("validated");
+        navigate(`/transactions/${saved.id}/invoice`);
+      } catch (cloudError) {
+        if (
+          cloudError instanceof ApiClientError &&
+          cloudError.status >= 400 &&
+          cloudError.status < 500
+        ) {
+          throw cloudError;
+        }
+        if (!isOfflineVaultUnlocked()) {
+          throw cloudError;
+        }
+        const savedCustomer = await upsertBrowserDbCustomerFromTransaction({
+          existingCustomerId: selectedCustomer?.id,
+          name: sanitizeText(customerName, 80),
+          contact: sanitizeText(customerContact, 24),
+          businessId,
+          businessUnitId: unitId || undefined,
+          member: currentMember,
+        });
+        const saved = await createLocalTransaction({
+          businessId,
+          businessUnitId: unitId || undefined,
+          customerId: savedCustomer.id,
+          customerName: savedCustomer.name,
+          customerContact: savedCustomer.contact,
+          paymentMethod,
+          paymentStatus,
+          outstandingAmount: parsedOutstanding,
+          recordedBy: session?.user.fullName ?? currentMember.fullName,
+          recordedByUserId: session?.user.id ?? currentMember.id,
+          status: "queued",
+          syncStatus: "queued",
+          lines,
+        });
+        setFormStatus("validated");
+        navigate(`/transactions/${saved.transaction.localId}/invoice`);
+      }
     } catch (saveError) {
       setFormStatus("idle");
       setErrors({ submit: saveError instanceof Error ? saveError.message : t("transactionRecord.validation.summaryTitle") });
@@ -271,7 +334,7 @@ export default function TransactionRecordPage() {
       return [];
     }
 
-    return workspace.products
+    return productOptions
       .filter((product) => getProductSearchText(product).includes(query))
       .slice(0, 6);
   };
@@ -322,8 +385,11 @@ export default function TransactionRecordPage() {
         <div className="form-grid">
           <div className="form-field">
             <label htmlFor="business">{t("transactionRecord.business")}</label>
-            <select id="business" value={businessId} onChange={(event) => setBusinessId(event.target.value)}>
-              {workspace.businesses.map((business) => (
+            <select id="business" value={businessId} onChange={(event) => {
+              setBusinessId(event.target.value);
+              setUnitId("");
+            }}>
+              {businessOptions.map((business) => (
                 <option key={business.id} value={business.id}>{business.name}</option>
               ))}
             </select>
@@ -333,7 +399,8 @@ export default function TransactionRecordPage() {
           <div className="form-field">
             <label htmlFor="unit">{t("transactionRecord.unit")}</label>
             <select id="unit" value={unitId} onChange={(event) => setUnitId(event.target.value)}>
-              {workspace.businessUnits.map((unit) => (
+              <option value="">{t("transactionRecord.directBusinessSale")}</option>
+              {selectedBusinessUnits.map((unit) => (
                 <option key={unit.id} value={unit.id}>{unit.name}</option>
               ))}
             </select>
