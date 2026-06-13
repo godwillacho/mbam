@@ -69,6 +69,10 @@ export interface ProductProfile {
   timesSold: number;
   lastSoldAt?: string;
   customerPrices?: ProductCustomerPrice[];
+  serverVersion?: number;
+  status?: "active" | "disabled";
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TransactionRecord {

@@ -14,7 +14,13 @@ pub struct SyncPushRequest {
 pub struct SyncPushResult {
     pub operation_id: String,
     pub outcome: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_version: Option<i64>,
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cloud_value: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]

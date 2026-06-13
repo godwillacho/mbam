@@ -36,21 +36,14 @@ async function parseJsonResponse<TResponse>(
 }
 
 export function isApiConfigured(): boolean {
-  return API_BASE_URL.length > 0;
+  return true;
 }
 
 export function buildApiUrl(path: string): string {
-  if (!isApiConfigured()) {
-    throw new ApiClientError("API base URL is not configured", 0);
-  }
   return `${API_BASE_URL}${path}`;
 }
 
 export async function getJson<TResponse>(path: string): Promise<TResponse> {
-  if (!isApiConfigured()) {
-    throw new ApiClientError("API base URL is not configured", 0);
-  }
-
   const accessToken = getAccessToken();
   const response = await fetch(buildApiUrl(path), {
     method: "GET",
@@ -79,9 +72,6 @@ export async function patchJson<TResponse, TPayload>(
 }
 
 export async function deleteJson<TResponse>(path: string): Promise<TResponse> {
-  if (!isApiConfigured()) {
-    throw new ApiClientError("API base URL is not configured", 0);
-  }
   const accessToken = getAccessToken();
   const response = await fetch(buildApiUrl(path), {
     method: "DELETE",
@@ -99,10 +89,6 @@ async function sendJson<TResponse, TPayload>(
   path: string,
   payload: TPayload,
 ): Promise<TResponse> {
-  if (!isApiConfigured()) {
-    throw new ApiClientError("API base URL is not configured", 0);
-  }
-
   const accessToken = getAccessToken();
   const response = await fetch(buildApiUrl(path), {
     method,

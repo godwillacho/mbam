@@ -54,6 +54,33 @@ VITE_API_BASE_URL=http://localhost:8080
 Do not mix `localhost` and `127.0.0.1` in this flow. Browser cookie rules
 treat them as different sites, which prevents OAuth session completion.
 
+## Product API and deployed base URL
+
+Products use the same API base URL as authentication and synchronization:
+
+```dotenv
+VITE_API_BASE_URL=https://api.example.com
+```
+
+Leave `VITE_API_BASE_URL` empty when the web application and API share a
+domain. The included Nginx deployment proxies `/api/*` to the Rust service.
+For separate domains, set `WEB_ORIGIN` on the API to the public web origin.
+
+Product routes:
+
+```text
+GET    /api/v1/products
+POST   /api/v1/products
+POST   /api/v1/products/bulk
+PATCH  /api/v1/products/:product_id
+DELETE /api/v1/products/:product_id
+```
+
+Product reads and writes are permission and business-scope checked. Product
+changes queued offline are encrypted, pushed through `/api/v1/sync/push`, and
+included in scoped `/api/v1/sync/pull` snapshots. Each pull and push is tracked
+in `sync_runs`.
+
 ## Microsoft sign-in
 
 Create an app registration in Microsoft Entra ID that accepts personal

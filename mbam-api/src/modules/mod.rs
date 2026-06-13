@@ -5,6 +5,7 @@ pub mod business_units;
 pub mod businesses;
 pub mod memberships;
 pub mod permissions;
+pub mod products;
 pub mod roles;
 pub mod sync;
 pub mod team;
