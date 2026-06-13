@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
-    http::{header, HeaderMap, StatusCode},
-    routing::{get, patch},
+    http::{header, HeaderMap},
+    routing::patch,
     Json, Router,
 };
 use uuid::Uuid;
@@ -9,49 +9,12 @@ use uuid::Uuid;
 use crate::{error::ApiError, security::tokens, state::AppState};
 
 use super::{
-    model::{BusinessUnit, CreateBusinessUnitRequest, UpdateBusinessUnitRequest},
+    model::{BusinessUnit, UpdateBusinessUnitRequest},
     service,
 };
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/:business_id/units", get(list).post(create))
-        .route("/:business_id/units/:unit_id", patch(update))
-}
-
-async fn list(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Path(business_id): Path<Uuid>,
-) -> Result<Json<Vec<BusinessUnit>>, ApiError> {
-    Ok(Json(
-        service::list(
-            &state.db,
-            authenticated_user_id(&headers, &state)?,
-            business_id,
-        )
-        .await?,
-    ))
-}
-
-async fn create(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Path(business_id): Path<Uuid>,
-    Json(payload): Json<CreateBusinessUnitRequest>,
-) -> Result<(StatusCode, Json<BusinessUnit>), ApiError> {
-    Ok((
-        StatusCode::CREATED,
-        Json(
-            service::create(
-                &state.db,
-                authenticated_user_id(&headers, &state)?,
-                business_id,
-                payload,
-            )
-            .await?,
-        ),
-    ))
+    Router::new().route("/:business_id/units/:unit_id", patch(update))
 }
 
 async fn update(
