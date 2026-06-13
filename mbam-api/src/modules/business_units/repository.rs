@@ -93,6 +93,30 @@ pub async fn name_exists(
     .await
 }
 
+pub async fn name_exists_for_other_unit(
+    db: &PgPool,
+    business_id: Uuid,
+    unit_id: Uuid,
+    name: &str,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar(
+        r#"
+        select exists(
+          select 1 from business_units
+          where business_id = $1
+            and id <> $2
+            and lower(name) = lower($3)
+            and status = 'active'
+        )
+        "#,
+    )
+    .bind(business_id)
+    .bind(unit_id)
+    .bind(name)
+    .fetch_one(db)
+    .await
+}
+
 pub async fn create(
     db: &PgPool,
     actor_user_id: Uuid,
@@ -144,12 +168,13 @@ pub async fn update(
     params: UpdateUnitParams<'_>,
 ) -> Result<Option<BusinessUnit>, sqlx::Error> {
     let mut tx = db.begin().await?;
-    let unit = sqlx::query_as(
+    let unit = sqlx::query_as::<_, BusinessUnit>(
         r#"
         update business_units set name = $4, unit_type = $5, location = $6,
           status = $7, updated_at = now()
         where id = $1 and business_account_id = $2 and business_id = $3
-        returning *
+        returning id, business_account_id, business_id, name, unit_type,
+          location, status, created_at, updated_at
         "#,
     )
     .bind(params.unit_id)
@@ -161,6 +186,7 @@ pub async fn update(
     .bind(params.status)
     .fetch_optional(&mut *tx)
     .await?;
+
     if unit.is_some() {
         audit(
             &mut tx,
@@ -172,6 +198,7 @@ pub async fn update(
         )
         .await?;
     }
+
     tx.commit().await?;
     Ok(unit)
 }
