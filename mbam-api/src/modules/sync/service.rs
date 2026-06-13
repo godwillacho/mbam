@@ -1,9 +1,11 @@
 use chrono::Utc;
+use serde::Deserialize;
 use serde_json::Value;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::error::ApiError;
+use crate::modules::products::{model::ProductWriteRequest, repository as product_repository};
 
 use super::model::{
     CloudChange, SyncAuthorizationScope, SyncPullResult, SyncPushRequest, SyncPushResult,
@@ -67,28 +69,124 @@ pub async fn push(
     .fetch_one(db)
     .await?;
 
-    let results = payload
-        .operations
+    let mut results = Vec::with_capacity(payload.operations.len());
+    for operation in payload.operations {
+        results.push(if can_push {
+            apply_operation(db, user_id, operation).await
+        } else {
+            rejected_result(
+                operation
+                    .get("operationId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown"),
+                "role does not grant offline upload access",
+            )
+        });
+    }
+    let accepted_count = results
         .iter()
-        .map(|operation| {
-            let operation_id = operation
-                .get("operationId")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown")
-                .to_string();
-            SyncPushResult {
-                operation_id,
-                outcome: "rejected".to_string(),
-                error: Some(if can_push {
-                    "this entity type does not yet have a server sync handler".to_string()
-                } else {
-                    "role does not grant offline upload access".to_string()
-                }),
-            }
-        })
-        .collect::<Vec<_>>();
-    finish_run(db, run_id, "completed", None, 0, results.len() as i32, None).await?;
+        .filter(|result| result.outcome == "accepted")
+        .count() as i32;
+    let rejected_count = results.len() as i32 - accepted_count;
+    finish_run(
+        db,
+        run_id,
+        "completed",
+        None,
+        accepted_count,
+        rejected_count,
+        None,
+    )
+    .await?;
     Ok(results)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProductSyncOperation {
+    operation_id: String,
+    entity_type: String,
+    entity_id: Uuid,
+    action: String,
+    base_version: Option<i64>,
+    payload: Value,
+}
+
+async fn apply_operation(db: &PgPool, user_id: Uuid, value: Value) -> SyncPushResult {
+    let operation = match serde_json::from_value::<ProductSyncOperation>(value) {
+        Ok(operation) => operation,
+        Err(_) => return rejected_result("unknown", "sync operation is malformed"),
+    };
+    if operation.entity_type != "product" {
+        return rejected_result(
+            &operation.operation_id,
+            "this entity type does not yet have a server sync handler",
+        );
+    }
+    let mut product = match serde_json::from_value::<ProductWriteRequest>(operation.payload) {
+        Ok(product) => product,
+        Err(_) => return rejected_result(&operation.operation_id, "product payload is malformed"),
+    };
+    product.id = Some(operation.entity_id);
+
+    let result = match operation.action.as_str() {
+        "create" => crate::modules::products::service::create(db, user_id, product).await,
+        "update" => {
+            match product_repository::find_visible(db, user_id, operation.entity_id).await {
+                Ok(Some(cloud))
+                    if operation
+                        .base_version
+                        .is_some_and(|version| version != cloud.updated_at.timestamp_millis()) =>
+                {
+                    return SyncPushResult {
+                        operation_id: operation.operation_id,
+                        outcome: "conflict".to_string(),
+                        server_id: Some(cloud.id),
+                        server_version: Some(cloud.updated_at.timestamp_millis()),
+                        error: Some("the cloud product changed after the offline edit".to_string()),
+                        cloud_value: serde_json::to_value(cloud).ok(),
+                    };
+                }
+                Ok(_) => {
+                    crate::modules::products::service::update(
+                        db,
+                        user_id,
+                        operation.entity_id,
+                        product,
+                    )
+                    .await
+                }
+                Err(error) => Err(ApiError::Database(error)),
+            }
+        }
+        "delete" => {
+            crate::modules::products::service::disable(db, user_id, operation.entity_id).await
+        }
+        _ => return rejected_result(&operation.operation_id, "product action is not supported"),
+    };
+
+    match result {
+        Ok(product) => SyncPushResult {
+            operation_id: operation.operation_id,
+            outcome: "accepted".to_string(),
+            server_id: Some(product.id),
+            server_version: Some(product.updated_at.timestamp_millis()),
+            error: None,
+            cloud_value: None,
+        },
+        Err(error) => rejected_result(&operation.operation_id, &error.to_string()),
+    }
+}
+
+fn rejected_result(operation_id: &str, error: &str) -> SyncPushResult {
+    SyncPushResult {
+        operation_id: operation_id.to_string(),
+        outcome: "rejected".to_string(),
+        server_id: None,
+        server_version: None,
+        error: Some(error.to_string()),
+        cloud_value: None,
+    }
 }
 
 async fn build_snapshot(
@@ -145,6 +243,21 @@ async fn build_snapshot(
             and (m.business_id is null or m.business_id = bu.business_id)
             and (m.business_unit_id is null or m.business_unit_id = bu.id)
         ),
+        product_memberships as (
+          select distinct m.*
+          from memberships m
+          join role_permissions rp on rp.role_id = m.role_id
+          join permissions p on p.id = rp.permission_id
+          where m.user_id = $1 and m.status = 'active' and p.code = 'product.view'
+        ),
+        visible_products as (
+          select distinct product.*
+          from products product
+          join product_memberships membership
+            on membership.business_account_id = product.business_account_id
+           and (membership.business_id is null or membership.business_id = product.business_id)
+          where product.status = 'active'
+        ),
         worker_memberships as (
           select distinct m.*
           from memberships m
@@ -176,6 +289,19 @@ async fn build_snapshot(
             'unitType', unit_type, 'location', location, 'status', status
           )
         from visible_units
+        union all
+        select 'product', id, updated_at,
+          jsonb_build_object(
+            'id', id, 'businessId', business_id, 'name', name, 'sku', sku,
+            'category', category, 'manufacturer', manufacturer, 'brand', brand,
+            'variant', variant, 'packageSize', package_size,
+            'unitOfMeasure', unit_of_measure, 'barcode', barcode,
+            'availableQuantity', available_quantity,
+            'lowStockThreshold', low_stock_threshold, 'expiryDate', expiry_date,
+            'costPrice', cost_price, 'defaultPrice', default_price,
+            'status', status, 'createdAt', created_at, 'updatedAt', updated_at
+          )
+        from visible_products
         union all
         select 'employee', id, updated_at,
           jsonb_build_object(

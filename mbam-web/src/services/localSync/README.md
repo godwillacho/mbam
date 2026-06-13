@@ -219,3 +219,10 @@ Next candidates:
 - pending payments reads
 - business/shop hierarchy reads
 - product list reads
+- product create, bulk import, update, and disable operations
+
+The product catalogue uses `VITE_API_BASE_URL` when the API is deployed on a
+separate origin and same-origin `/api` paths behind the included Nginx proxy.
+Offline product writes use the encrypted primary outbox and retain the server
+version used for conflict detection. A successful role-scoped pull removes
+products and queued writes that are no longer authorized.

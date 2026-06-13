@@ -2,7 +2,7 @@ import { productSales, type ProductSaleLine } from "../data/mockProductSales";
 import { workspace } from "../data/mockWorkspace";
 import type { TeamMember } from "../types/workspace";
 import { getProductDescriptor } from "../utils/productDisplay";
-import { localSyncRead } from "./localSync/localSyncClient";
+import { listProducts } from "./productService";
 
 export interface ProductRevenuePricePoint {
   id: string;
@@ -33,15 +33,20 @@ export interface ProductRevenueRow {
   averageUnitPrice: number;
   latestSoldAt?: string;
   pricePoints: ProductRevenuePricePoint[];
+  businessId?: string;
+  availableQuantity?: number;
+  lowStockThreshold?: number;
+  expiryDate?: string;
+  costPrice?: number;
+  defaultPrice?: number;
+  serverVersion?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProductRevenueReport {
   rows: ProductRevenueRow[];
   source: "api" | "mock" | "cache";
-}
-
-interface ProductRevenueApiResponse {
-  rows: ProductRevenueRow[];
 }
 
 function businessName(id: string): string {
@@ -119,26 +124,6 @@ function buildMockRevenueRows(member: TeamMember, noSkuLabel: string): ProductRe
   }, new Map()).values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
 }
 
-function buildProductRevenuePath(member: TeamMember): string {
-  const params = new URLSearchParams();
-
-  if (member.scopeLevel !== "master") {
-    params.set("scopeLevel", member.scopeLevel);
-  }
-  if (member.businessId) {
-    params.set("businessId", member.businessId);
-  }
-  if (member.businessUnitId) {
-    params.set("businessUnitId", member.businessUnitId);
-  }
-  if (member.roleId === "role-cashier") {
-    params.set("recordedBy", member.fullName);
-  }
-
-  const query = params.toString();
-  return query ? `/api/v1/reports/product-revenue?${query}` : "/api/v1/reports/product-revenue";
-}
-
 function getMockReport(member: TeamMember, noSkuLabel: string): ProductRevenueReport {
   return {
     rows: buildMockRevenueRows(member, noSkuLabel),
@@ -147,15 +132,39 @@ function getMockReport(member: TeamMember, noSkuLabel: string): ProductRevenueRe
 }
 
 export async function getProductRevenueReport(member: TeamMember, noSkuLabel: string): Promise<ProductRevenueReport> {
-  const path = buildProductRevenuePath(member);
-  const result = await localSyncRead<ProductRevenueApiResponse>({
-    module: "reports",
-    path,
-    fallback: () => ({ rows: getMockReport(member, noSkuLabel).rows }),
-  });
-
+  const catalogue = await listProducts(workspace.products);
+  if (catalogue.source === "fallback") {
+    return getMockReport(member, noSkuLabel);
+  }
   return {
-    rows: result.data.rows.sort((a, b) => b.totalRevenue - a.totalRevenue),
-    source: result.source === "api" ? "api" : result.source === "cache" ? "cache" : "mock",
+    rows: catalogue.products.map((product) => ({
+      productId: product.id,
+      productName: product.name,
+      sku: product.sku ?? noSkuLabel,
+      category: product.category,
+      businessId: product.businessId,
+      businessName: businessName(product.businessId ?? ""),
+      descriptor: getProductDescriptor(product),
+      manufacturer: product.manufacturer,
+      brand: product.brand,
+      variant: product.variant,
+      packageSize: product.packageSize,
+      unitOfMeasure: product.unitOfMeasure,
+      barcode: product.barcode,
+      quantitySold: product.timesSold,
+      totalRevenue: 0,
+      averageUnitPrice: product.defaultPrice,
+      latestSoldAt: product.lastSoldAt,
+      pricePoints: [],
+      availableQuantity: product.availableQuantity,
+      lowStockThreshold: product.lowStockThreshold,
+      expiryDate: product.expiryDate,
+      costPrice: product.costPrice,
+      defaultPrice: product.defaultPrice,
+      serverVersion: product.serverVersion,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    })),
+    source: catalogue.source === "api" ? "api" : "cache",
   };
 }

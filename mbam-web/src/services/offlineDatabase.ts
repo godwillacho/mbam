@@ -212,7 +212,11 @@ export async function reconcileCloudEntities(
   const transaction = database.transaction("entities", "readwrite");
   await Promise.all(
     records
-      .filter((record) => record.ownerId === "cloud" && !allowed.has(record.id))
+      .filter(
+        (record) =>
+          (record.ownerId === "cloud" || record.entityType === "product") &&
+          !allowed.has(record.id),
+      )
       .map((record) => transaction.store.delete(record.id)),
   );
   await transaction.done;

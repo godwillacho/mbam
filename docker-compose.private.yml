@@ -45,6 +45,9 @@ services:
   web:
     build:
       context: ./mbam-web
+      args:
+        # Empty means same-origin /api, which Nginx proxies to the API service.
+        VITE_API_BASE_URL: ""
     container_name: mbam-private-web
     restart: unless-stopped
     depends_on:

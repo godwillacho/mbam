@@ -3,6 +3,12 @@ import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
+import { listBusinesses } from "../../services/businessService";
+import {
+  createProducts,
+  updateProduct,
+  type ProductWritePayload,
+} from "../../services/productService";
 import { getProductRevenueReport, type ProductRevenueReport, type ProductRevenueRow } from "../../services/productRevenueService";
 import type { ProductProfile } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
@@ -82,14 +88,69 @@ function searchTextForRow(row: ProductRevenueRow, product?: ProductProfile): str
 }
 
 function toDraft(product: ProductProfile | undefined, row: ProductRevenueRow): ProductDraft {
+  const availableQuantity = product?.availableQuantity ?? row.availableQuantity;
+  const costPrice = product?.costPrice ?? row.costPrice;
   return {
     name: product?.name ?? row.productName,
     sku: product?.sku ?? row.sku,
     brand: product?.brand ?? row.brand ?? "",
     category: product?.category ?? row.category,
-    availableQuantity: typeof product?.availableQuantity === "number" ? String(product.availableQuantity) : "",
-    expiryDate: product?.expiryDate ?? "",
-    costPrice: typeof product?.costPrice === "number" ? String(product.costPrice) : "",
+    availableQuantity: typeof availableQuantity === "number" ? String(availableQuantity) : "",
+    expiryDate: product?.expiryDate ?? row.expiryDate ?? "",
+    costPrice: typeof costPrice === "number" ? String(costPrice) : "",
+  };
+}
+
+function optionalNumber(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function draftPayload(draft: ProductDraft, businessId: string): ProductWritePayload {
+  return {
+    businessId,
+    name: draft.name.trim(),
+    sku: draft.sku.trim() || undefined,
+    brand: draft.brand.trim() || undefined,
+    category: draft.category.trim() || "other",
+    availableQuantity: optionalNumber(draft.availableQuantity),
+    expiryDate: draft.expiryDate || undefined,
+    costPrice: optionalNumber(draft.costPrice),
+    defaultPrice: 0,
+  };
+}
+
+function rowProfile(row: ProductRevenueRow, draft: ProductDraft): ProductProfile {
+  return {
+    id: row.productId,
+    businessId: row.businessId,
+    name: draft.name,
+    sku: draft.sku || undefined,
+    category: draft.category,
+    brand: draft.brand || undefined,
+    availableQuantity: optionalNumber(draft.availableQuantity),
+    lowStockThreshold: row.lowStockThreshold,
+    expiryDate: draft.expiryDate || undefined,
+    costPrice: optionalNumber(draft.costPrice),
+    defaultPrice: row.defaultPrice ?? 0,
+    timesSold: row.quantitySold,
+    serverVersion: row.serverVersion,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function rowPayload(row: ProductRevenueRow, draft: ProductDraft): ProductWritePayload {
+  return {
+    ...draftPayload(draft, row.businessId ?? ""),
+    manufacturer: row.manufacturer,
+    variant: row.variant,
+    packageSize: row.packageSize,
+    unitOfMeasure: row.unitOfMeasure,
+    barcode: row.barcode,
+    lowStockThreshold: row.lowStockThreshold,
+    defaultPrice: row.defaultPrice ?? 0,
   };
 }
 
@@ -193,6 +254,10 @@ export default function ProductRevenuePage() {
   const [csvImportMessage, setCsvImportMessage] = useState("");
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
   const [newProductDrafts, setNewProductDrafts] = useState<ProductDraft[]>(() => [createEmptyProductDraft()]);
+  const [businessOptions, setBusinessOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState(member.businessId ?? "");
+  const [isSaving, setIsSaving] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
     let ignore = false;
@@ -226,7 +291,20 @@ export default function ProductRevenuePage() {
     return () => {
       ignore = true;
     };
-  }, [member, t]);
+  }, [member, refreshVersion, t]);
+
+  useEffect(() => {
+    listBusinesses()
+      .then((businesses) => {
+        setBusinessOptions(businesses);
+        setSelectedBusinessId((current) => current || member.businessId || businesses[0]?.id || "");
+      })
+      .catch(() => {
+        const businesses = workspace.businesses.map(({ id, name }) => ({ id, name }));
+        setBusinessOptions(businesses);
+        setSelectedBusinessId((current) => current || member.businessId || businesses[0]?.id || "");
+      });
+  }, [member.businessId]);
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -257,6 +335,45 @@ export default function ProductRevenuePage() {
     setIsEditingProducts(false);
     setIsAddingProducts(true);
     setCsvImportMessage("");
+  };
+
+  const saveNewProducts = async () => {
+    const drafts = newProductDrafts.filter((draft) => draft.name.trim().length > 0);
+    if (!selectedBusinessId || drafts.length === 0) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await createProducts(drafts.map((draft) => draftPayload(draft, selectedBusinessId)));
+      setNewProductDrafts([createEmptyProductDraft()]);
+      setIsAddingProducts(false);
+      setRefreshVersion((current) => current + 1);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : t("productRevenue.loadError"));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleProductEditing = async () => {
+    if (!isEditingProducts) {
+      setIsEditingProducts(true);
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await Promise.all(rows.map((row) => {
+        const draft = productDrafts[row.productId];
+        if (!draft || !row.businessId) return Promise.resolve();
+        return updateProduct(rowProfile(row, draft), rowPayload(row, draft));
+      }));
+      setIsEditingProducts(false);
+      setRefreshVersion((current) => current + 1);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : t("productRevenue.loadError"));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updateNewProductDraft = (index: number, field: keyof ProductDraft, value: string) => {
@@ -340,12 +457,21 @@ export default function ProductRevenuePage() {
               <p className="card-muted">{t("productRevenue.addProductsHint")}</p>
             </div>
             <div className="dashboard-heading-action">
+              <select
+                aria-label="Business"
+                value={selectedBusinessId}
+                onChange={(event) => setSelectedBusinessId(event.target.value)}
+              >
+                {businessOptions.map((business) => (
+                  <option key={business.id} value={business.id}>{business.name}</option>
+                ))}
+              </select>
               <label className="secondary-btn file-import-button">
                 {t("productRevenue.importCsv")}
                 <input type="file" accept=".csv,text/csv" onChange={importCsvProducts} />
               </label>
               <button className="secondary-btn" type="button" onClick={() => setIsAddingProducts(false)}>{t("productRevenue.cancelAddProducts")}</button>
-              <button className="primary-btn" type="button">{t("productRevenue.saveNewProducts")}</button>
+              <button className="primary-btn" type="button" disabled={isSaving || !selectedBusinessId} onClick={saveNewProducts}>{t("productRevenue.saveNewProducts")}</button>
             </div>
           </header>
 
@@ -402,7 +528,7 @@ export default function ProductRevenuePage() {
             </div>
             <div className="dashboard-heading-action">
               <button className="secondary-btn" type="button" onClick={openAddProducts}>{t("productRevenue.addProduct")}</button>
-              <button className={isEditingProducts ? "primary-btn" : "secondary-btn"} type="button" disabled={isAddingProducts} onClick={() => setIsEditingProducts((current) => !current)}>
+              <button className={isEditingProducts ? "primary-btn" : "secondary-btn"} type="button" disabled={isAddingProducts || isSaving} onClick={toggleProductEditing}>
                 {isEditingProducts ? t("productRevenue.doneEditing") : t("productRevenue.editProducts")}
               </button>
             </div>
@@ -426,7 +552,11 @@ export default function ProductRevenuePage() {
               {filteredRows.map((row) => {
                 const product = workspace.products.find((item) => item.id === row.productId);
                 const draft = productDrafts[row.productId] ?? toDraft(product, row);
-                const inventory = product ? getProductInventorySnapshot(product) : undefined;
+                const inventory = product
+                  ? getProductInventorySnapshot(product)
+                  : typeof row.availableQuantity === "number"
+                    ? { availableQuantity: row.availableQuantity }
+                    : undefined;
                 const transactionCount = row.pricePoints.length;
 
                 return (
