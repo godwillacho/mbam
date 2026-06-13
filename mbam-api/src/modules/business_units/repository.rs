@@ -3,6 +3,17 @@ use uuid::Uuid;
 
 use super::model::BusinessUnit;
 
+pub struct UpdateUnitParams<'a> {
+    pub actor_id: Uuid,
+    pub account_id: Uuid,
+    pub business_id: Uuid,
+    pub unit_id: Uuid,
+    pub name: &'a str,
+    pub unit_type: &'a str,
+    pub location: Option<&'a str>,
+    pub status: &'a str,
+}
+
 pub async fn permitted_account_id(
     db: &PgPool,
     user_id: Uuid,
@@ -82,6 +93,30 @@ pub async fn name_exists(
     .await
 }
 
+pub async fn name_exists_for_other_unit(
+    db: &PgPool,
+    business_id: Uuid,
+    unit_id: Uuid,
+    name: &str,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar(
+        r#"
+        select exists(
+          select 1 from business_units
+          where business_id = $1
+            and id <> $2
+            and lower(name) = lower($3)
+            and status = 'active'
+        )
+        "#,
+    )
+    .bind(business_id)
+    .bind(unit_id)
+    .bind(name)
+    .fetch_one(db)
+    .await
+}
+
 pub async fn create(
     db: &PgPool,
     actor_user_id: Uuid,
@@ -126,4 +161,70 @@ pub async fn create(
 
     tx.commit().await?;
     Ok(unit)
+}
+
+pub async fn update(
+    db: &PgPool,
+    params: UpdateUnitParams<'_>,
+) -> Result<Option<BusinessUnit>, sqlx::Error> {
+    let mut tx = db.begin().await?;
+    let unit = sqlx::query_as::<_, BusinessUnit>(
+        r#"
+        update business_units set name = $4, unit_type = $5, location = $6,
+          status = $7, updated_at = now()
+        where id = $1 and business_account_id = $2 and business_id = $3
+        returning id, business_account_id, business_id, name, unit_type,
+          location, status, created_at, updated_at
+        "#,
+    )
+    .bind(params.unit_id)
+    .bind(params.account_id)
+    .bind(params.business_id)
+    .bind(params.name)
+    .bind(params.unit_type)
+    .bind(params.location)
+    .bind(params.status)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if unit.is_some() {
+        audit(
+            &mut tx,
+            params.actor_id,
+            params.account_id,
+            params.business_id,
+            params.unit_id,
+            "unit.update",
+        )
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(unit)
+}
+
+async fn audit(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    actor_id: Uuid,
+    account_id: Uuid,
+    business_id: Uuid,
+    unit_id: Uuid,
+    action: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        insert into audit_logs (
+          actor_user_id, business_account_id, business_id, business_unit_id,
+          action, resource_type, resource_id
+        ) values ($1, $2, $3, $4, $5, 'business_unit', $4)
+        "#,
+    )
+    .bind(actor_id)
+    .bind(account_id)
+    .bind(business_id)
+    .bind(unit_id)
+    .bind(action)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }

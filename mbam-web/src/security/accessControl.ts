@@ -7,9 +7,9 @@ export const CURRENT_MEMBER_CHANGE_EVENT = "mbam-current-member-change";
 let currentMemberId = workspace.teamMembers[0]?.id;
 
 const routeAccessByRole: Record<string, AppRouteKey[]> = {
-  "role-master-owner": ["transactions", "businesses", "team", "reports", "products"],
-  "role-business-admin": ["transactions", "businesses", "team", "reports", "products"],
-  "role-shop-manager": ["transactions", "reports", "products"],
+  "role-master-owner": ["recordTransaction", "transactions", "businesses", "team", "reports", "products"],
+  "role-business-admin": ["recordTransaction", "transactions", "businesses", "team", "reports", "products"],
+  "role-shop-manager": ["recordTransaction", "transactions", "reports", "products"],
   "role-cashier": ["recordTransaction", "transactions", "products"],
 };
 
@@ -41,7 +41,11 @@ export function getScopedUnits(member: TeamMember): BusinessUnit[] {
 export function getScopedTransactions(member: TeamMember): TransactionRecord[] {
   const scopedUnits = getScopedUnits(member);
   const scopedUnitIds = new Set(scopedUnits.map((unit) => unit.id));
-  const transactions = workspace.transactions.filter((transaction) => scopedUnitIds.has(transaction.businessUnitId));
+  const transactions = workspace.transactions.filter(
+    (transaction) =>
+      transaction.businessUnitId === undefined ||
+      scopedUnitIds.has(transaction.businessUnitId),
+  );
 
   if (member.roleId === "role-cashier") {
     return transactions.filter((transaction) => transaction.recordedBy === member.fullName);

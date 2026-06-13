@@ -29,6 +29,17 @@
   text-align: center;
 }
 
+<<<<<<< HEAD
+.business-management-card {
+  cursor: default;
+}
+
+.business-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+=======
 .selected-business-panel {
   display: grid;
   gap: 18px;
@@ -38,10 +49,28 @@
 .selected-business-header {
   justify-content: space-between;
   align-items: flex-start;
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 }
 
 .business-unit-form {
   display: grid;
+<<<<<<< HEAD
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.business-unit-form .full {
+  grid-column: 1 / -1;
+}
+
+.business-unit-form button {
+  justify-self: start;
+=======
   gap: 16px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
@@ -66,6 +95,7 @@
 
 .business-unit-list {
   margin-top: 16px;
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 }
 
 @media (max-width: 720px) {
@@ -79,9 +109,18 @@
     grid-column: 1;
   }
 
+<<<<<<< HEAD
+  .business-unit-form {
+    grid-template-columns: 1fr;
+  }
+
+  .business-unit-form .full {
+    grid-column: 1;
+=======
   .business-heading-actions,
   .selected-business-header {
     align-items: stretch;
     flex-direction: column;
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
   }
 }

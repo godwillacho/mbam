@@ -65,11 +65,13 @@ fn build_router(state: AppState) -> Router {
         .allow_credentials(true)
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
         .allow_headers([header::ACCEPT, header::AUTHORIZATION, header::CONTENT_TYPE]);
+    let business_router = modules::businesses::routes::router()
+        .merge(modules::business_units::routes::router());
 
     Router::new()
         .merge(routes::router())
         .nest("/api/v1/auth", modules::auth::routes::router())
-        .nest("/api/v1/businesses", modules::businesses::routes::router())
+        .nest("/api/v1/businesses", business_router)
         .nest("/api/v1/products", modules::products::routes::router())
         .nest("/api/v1/team-members", modules::team::routes::team_router())
         .nest(
@@ -77,6 +79,10 @@ fn build_router(state: AppState) -> Router {
             modules::team::routes::invitation_router(),
         )
         .nest("/api/v1/sync", modules::sync::routes::router())
+        .nest(
+            "/api/v1/transactions",
+            modules::transactions::routes::router(),
+        )
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)

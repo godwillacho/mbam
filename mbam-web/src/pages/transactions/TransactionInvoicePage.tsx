@@ -5,6 +5,7 @@ import { productSales } from "../../data/mockProductSales";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember, getScopedTransactions } from "../../security/accessControl";
 import { getLocalTransactionInvoice } from "../../services/transactions/transactionLocalRepository";
+import { getCloudTransaction } from "../../services/transactionService";
 import type { PaymentMethod, TransactionStatus } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import "./TransactionsPage.css";
@@ -21,7 +22,7 @@ interface InvoiceLineView {
 interface InvoiceView {
   reference: string;
   businessId: string;
-  businessUnitId: string;
+  businessUnitId?: string;
   customerName: string;
   paymentMethod: PaymentMethod;
   status: TransactionStatus;
@@ -109,7 +110,30 @@ export default function TransactionInvoicePage() {
           })),
         });
       } else {
-        setInvoice(getMockInvoice(transactionId));
+        try {
+          const cloudInvoice = await getCloudTransaction(transactionId);
+          setInvoice({
+            reference: cloudInvoice.id.slice(0, 8).toUpperCase(),
+            businessId: cloudInvoice.businessId,
+            businessUnitId: cloudInvoice.businessUnitId,
+            customerName: cloudInvoice.customerName,
+            paymentMethod: cloudInvoice.paymentMethod,
+            status: cloudInvoice.status,
+            createdAt: cloudInvoice.createdAt,
+            recordedBy: cloudInvoice.recordedBy,
+            total: cloudInvoice.totalAmount,
+            lines: cloudInvoice.lines.map((line) => ({
+              id: line.id,
+              name: line.productNameSnapshot,
+              sku: line.skuSnapshot,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              lineTotal: line.lineTotal,
+            })),
+          });
+        } catch {
+          setInvoice(getMockInvoice(transactionId));
+        }
       }
 
       setIsLoading(false);

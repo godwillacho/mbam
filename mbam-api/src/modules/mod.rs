@@ -9,4 +9,5 @@ pub mod products;
 pub mod roles;
 pub mod sync;
 pub mod team;
+pub mod transactions;
 pub mod users;

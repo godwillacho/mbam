@@ -62,7 +62,7 @@ export interface LocalTransactionRecord {
   serverId?: string;
   reference: string;
   businessId: string;
-  businessUnitId: string;
+  businessUnitId?: string;
   customerId?: string;
   customerName: string;
   customerContact?: string;
@@ -338,7 +338,8 @@ export async function reconcileRoleScopedLocalData(scope: {
       (rule) =>
         rule.permissions.includes("sale.view") &&
         rule.businessIds.includes(record.businessId) &&
-        rule.businessUnitIds.includes(record.businessUnitId) &&
+        (record.businessUnitId === undefined ||
+          rule.businessUnitIds.includes(record.businessUnitId)) &&
         (!rule.restrictToOwnRecords || record.recordedByUserId === scope.userId),
     );
     if (!allowed) {

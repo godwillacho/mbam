@@ -5,6 +5,7 @@ import { getProductSearchText } from "../../utils/productDisplay";
 import type { LocalTransactionLineRecord, LocalTransactionRecord } from "../localSync/localSyncStore";
 import { isOfflineVaultUnlocked } from "../offlineVaultService";
 import { getLocalTransactionLines, listLocalTransactions } from "./transactionLocalRepository";
+import { listCloudTransactions, type CloudTransaction } from "../transactionService";
 
 export interface TransactionBrowserRow extends TransactionRecord {
   customerContact?: string;
@@ -94,7 +95,47 @@ function localTransactionToRow(transaction: LocalTransactionRecord, lines: Local
   };
 }
 
+function cloudTransactionToRow(transaction: CloudTransaction): TransactionBrowserRow {
+  return {
+    id: transaction.id,
+    serverId: transaction.id,
+    reference: transaction.id.slice(0, 8).toUpperCase(),
+    businessId: transaction.businessId,
+    businessUnitId: transaction.businessUnitId,
+    customerName: transaction.customerName,
+    customerContact: transaction.customerContact,
+    itemCount: transaction.lines.reduce((sum, line) => sum + line.quantity, 0),
+    amount: transaction.totalAmount,
+    paymentMethod: transaction.paymentMethod,
+    status: transaction.status,
+    createdAt: transaction.createdAt,
+    recordedBy: transaction.recordedBy,
+    productsLabel: transaction.lines.map((line) => line.productNameSnapshot).join(", "),
+    productSearchText: transaction.lines
+      .map((line) => [line.productNameSnapshot, line.skuSnapshot].filter(Boolean).join(" "))
+      .join(" "),
+    source: "local",
+    syncStatus: "synced",
+  };
+}
+
 export async function listBrowserDbTransactions(currentMember: TeamMember, workspaceTransactions: TransactionRecord[]): Promise<TransactionBrowserRow[]> {
+  try {
+    const cloudRows = (await listCloudTransactions()).map(cloudTransactionToRow);
+    if (!isOfflineVaultUnlocked()) return cloudRows;
+    const localRecords = await listLocalTransactions(getScopedLocalFilters(currentMember));
+    const localRows = await Promise.all(localRecords.map(async (transaction) => {
+      const lines = await getLocalTransactionLines(transaction.localId);
+      return localTransactionToRow(transaction, lines);
+    }));
+    const cloudIds = new Set(cloudRows.map((transaction) => transaction.id));
+    return [
+      ...localRows.filter((transaction) => !transaction.serverId || !cloudIds.has(transaction.serverId)),
+      ...cloudRows,
+    ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch {
+    // Fall back to the encrypted local catalogue or development workspace.
+  }
   if (!isOfflineVaultUnlocked()) {
     return workspaceTransactions
       .map(workspaceTransactionToRow)

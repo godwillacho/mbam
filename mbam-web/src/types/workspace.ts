@@ -79,7 +79,7 @@ export interface TransactionRecord {
   id: string;
   reference: string;
   businessId: string;
-  businessUnitId: string;
+  businessUnitId?: string;
   customerName: string;
   itemCount: number;
   amount: number;

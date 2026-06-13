@@ -23,3 +23,11 @@ pub struct CreateBusinessUnitRequest {
     pub unit_type: Option<String>,
     pub location: Option<String>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateBusinessUnitRequest {
+    pub name: String,
+    pub unit_type: Option<String>,
+    pub location: Option<String>,
+    pub status: Option<String>,
+}

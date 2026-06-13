@@ -93,7 +93,7 @@ async function localTransactionCustomerInputs(member: TeamMember): Promise<Creat
     name: transaction.customerName,
     contact: transaction.customerContact,
     businessId: transaction.businessId,
-    businessUnitIds: [transaction.businessUnitId],
+    businessUnitIds: transaction.businessUnitId ? [transaction.businessUnitId] : [],
     attendedByNames: [transaction.recordedBy],
     attendedByUserIds: transaction.recordedByUserId ? [transaction.recordedByUserId] : [],
     lastPurchaseAt: transaction.createdAt,
@@ -152,7 +152,7 @@ export async function upsertBrowserDbCustomerFromTransaction(input: {
   name: string;
   contact?: string;
   businessId: string;
-  businessUnitId: string;
+  businessUnitId?: string;
   member: TeamMember;
 }): Promise<CustomerProfile> {
   const customer = await upsertLocalCustomer({
@@ -161,7 +161,7 @@ export async function upsertBrowserDbCustomerFromTransaction(input: {
     name: input.name,
     contact: input.contact,
     businessId: input.businessId,
-    businessUnitIds: [input.businessUnitId],
+    businessUnitIds: input.businessUnitId ? [input.businessUnitId] : [],
     attendedByNames: [input.member.fullName],
     attendedByUserIds: [input.member.id],
     lastPurchaseAt: new Date().toISOString(),

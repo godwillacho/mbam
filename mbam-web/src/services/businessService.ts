@@ -1,5 +1,5 @@
 import type { Business, BusinessUnit, UnitType } from "../types/workspace";
-import { getJson, postJson } from "./apiClient";
+import { getJson, patchJson, postJson } from "./apiClient";
 
 interface ApiBusiness {
   id: string;
@@ -26,10 +26,11 @@ export interface CreateBusinessPayload {
   currency: string;
 }
 
-export interface CreateBusinessUnitPayload {
+export interface BusinessUnitPayload {
   name: string;
   unitType: UnitType;
   location?: string;
+  status?: "active" | "disabled";
 }
 
 function toBusiness(business: ApiBusiness): Business {
@@ -88,7 +89,7 @@ export async function listBusinessUnits(businessId: string): Promise<BusinessUni
 
 export async function createBusinessUnit(
   businessId: string,
-  payload: CreateBusinessUnitPayload,
+  payload: BusinessUnitPayload,
 ): Promise<BusinessUnit> {
   const unit = await postJson<ApiBusinessUnit, {
     name: string;
@@ -98,6 +99,25 @@ export async function createBusinessUnit(
     name: payload.name,
     unit_type: payload.unitType,
     location: payload.location || undefined,
+  });
+  return toBusinessUnit(unit);
+}
+
+export async function updateBusinessUnit(
+  businessId: string,
+  unitId: string,
+  payload: BusinessUnitPayload,
+): Promise<BusinessUnit> {
+  const unit = await patchJson<ApiBusinessUnit, {
+    name: string;
+    unit_type: UnitType;
+    location?: string;
+    status?: "active" | "disabled";
+  }>(`/api/v1/businesses/${businessId}/units/${unitId}`, {
+    name: payload.name,
+    unit_type: payload.unitType,
+    location: payload.location || undefined,
+    status: payload.status,
   });
   return toBusinessUnit(unit);
 }
