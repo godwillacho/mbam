@@ -203,6 +203,58 @@ export async function deleteEncryptedEntity(id: string): Promise<void> {
   await (await getOfflineDatabase()).delete("entities", id);
 }
 
+export async function reconcileCloudEntities(
+  allowedEntityKeys: string[],
+): Promise<void> {
+  const database = await getOfflineDatabase();
+  const allowed = new Set(allowedEntityKeys);
+  const records = await database.getAll("entities");
+  const transaction = database.transaction("entities", "readwrite");
+  await Promise.all(
+    records
+      .filter((record) => record.ownerId === "cloud" && !allowed.has(record.id))
+      .map((record) => transaction.store.delete(record.id)),
+  );
+  await transaction.done;
+}
+
+export async function reconcileOfflineOutbox(
+  authorizationScopes: Array<{
+    businessIds: string[];
+    businessUnitIds: string[];
+    permissions: string[];
+  }>,
+  authorizationVersion: number,
+): Promise<void> {
+  const database = await getOfflineDatabase();
+  const records = await database.getAll("outbox");
+  const previousVersion = await database.get("metadata", "authorization-version");
+  const transaction = database.transaction(
+    ["outbox", "conflicts", "metadata"],
+    "readwrite",
+  );
+  for (const record of records) {
+    const allowed = authorizationScopes.some(
+      (scope) =>
+        scope.permissions.includes("sync.push") &&
+        scope.businessIds.includes(record.businessId) &&
+        (record.businessUnitId === undefined ||
+          scope.businessUnitIds.includes(record.businessUnitId)),
+    );
+    if (!allowed) {
+      await transaction.objectStore("outbox").delete(record.operationId);
+    }
+  }
+  if (previousVersion?.value !== String(authorizationVersion)) {
+    await transaction.objectStore("conflicts").clear();
+  }
+  await transaction.objectStore("metadata").put({
+    key: "authorization-version",
+    value: String(authorizationVersion),
+  });
+  await transaction.done;
+}
+
 export async function putOutboxRecord(
   record: EncryptedOutboxRecord,
 ): Promise<void> {

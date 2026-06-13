@@ -78,6 +78,22 @@ export async function patchJson<TResponse, TPayload>(
   return sendJson<TResponse, TPayload>("PATCH", path, payload);
 }
 
+export async function deleteJson<TResponse>(path: string): Promise<TResponse> {
+  if (!isApiConfigured()) {
+    throw new ApiClientError("API base URL is not configured", 0);
+  }
+  const accessToken = getAccessToken();
+  const response = await fetch(buildApiUrl(path), {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    credentials: "include",
+  });
+  return parseJsonResponse<TResponse>(response);
+}
+
 async function sendJson<TResponse, TPayload>(
   method: "POST" | "PATCH",
   path: string,

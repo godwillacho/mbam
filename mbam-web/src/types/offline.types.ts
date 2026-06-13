@@ -3,7 +3,8 @@ export type OfflineEntityType =
   | "product"
   | "customer"
   | "business"
-  | "business_unit";
+  | "business_unit"
+  | "employee";
 
 export type OfflineOperationAction = "create" | "update" | "delete";
 export type OfflineOperationStatus =
@@ -95,5 +96,21 @@ export interface CloudChange<T = unknown> {
 
 export interface SyncPullResult {
   cursor: string;
+  userId: string;
+  authorizationVersion: number;
+  allowedBusinessIds: string[];
+  allowedBusinessUnitIds: string[];
+  permissions: string[];
+  restrictToOwnRecords: boolean;
+  authorizationScopes: SyncAuthorizationScope[];
+  allowedEntityKeys: string[];
   changes: CloudChange[];
+  syncRunId: string;
+}
+
+export interface SyncAuthorizationScope {
+  businessIds: string[];
+  businessUnitIds: string[];
+  permissions: string[];
+  restrictToOwnRecords: boolean;
 }

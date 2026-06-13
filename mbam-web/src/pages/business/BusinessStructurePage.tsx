@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { ApiClientError } from "../../services/apiClient";
 import { createBusiness, listBusinesses } from "../../services/businessService";
+import { loadTeamWorkspace, type TeamWorkspace } from "../../services/teamService";
 import type { Business } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
 import "./BusinessStructurePage.css";
@@ -19,6 +20,7 @@ export default function BusinessStructurePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [teamWorkspace, setTeamWorkspace] = useState<TeamWorkspace | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,9 +30,12 @@ export default function BusinessStructurePage() {
   useEffect(() => {
     let active = true;
 
-    listBusinesses()
-      .then((loadedBusinesses) => {
-        if (active) setBusinesses(loadedBusinesses);
+    Promise.all([listBusinesses(), loadTeamWorkspace()])
+      .then(([loadedBusinesses, loadedTeam]) => {
+        if (active) {
+          setBusinesses(loadedBusinesses);
+          setTeamWorkspace(loadedTeam);
+        }
       })
       .catch((requestError: unknown) => {
         if (active) setError(apiErrorMessage(requestError, t("businesses.loadError")));
@@ -169,7 +174,17 @@ export default function BusinessStructurePage() {
         {businesses.map((business) => {
           const units = workspace.businessUnits.filter((unit) => unit.businessId === business.id);
           const revenue = units.reduce((sum, unit) => sum + unit.todayRevenue, 0);
-          const businessTeam = workspace.teamMembers.filter((member) => member.businessId === business.id || units.some((unit) => unit.id === member.businessUnitId));
+          const scopedUnitIds = new Set(
+            teamWorkspace?.business_units
+              .filter((unit) => unit.business_id === business.id)
+              .map((unit) => unit.id) ?? [],
+          );
+          const businessTeam =
+            teamWorkspace?.members.filter(
+              (member) =>
+                member.business_id === business.id ||
+                (member.business_unit_id && scopedUnitIds.has(member.business_unit_id)),
+            ) ?? [];
 
           return (
             <article

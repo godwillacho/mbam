@@ -307,3 +307,80 @@ export async function getSyncMeta(key: string): Promise<string | undefined> {
   const db = await getLocalSyncDb();
   return (await db.get("meta", key))?.value;
 }
+
+export async function reconcileRoleScopedLocalData(scope: {
+  userId: string;
+  authorizationScopes: Array<{
+    businessIds: string[];
+    businessUnitIds: string[];
+    permissions: string[];
+    restrictToOwnRecords: boolean;
+  }>;
+  authorizationVersion: number;
+}): Promise<void> {
+  const db = await getLocalSyncDb();
+  const previousVersion = await getSyncMeta("rolePolicyVersion");
+  const authorizationChanged =
+    previousVersion !== String(scope.authorizationVersion);
+  const transactionRecords = await db.getAll("transactions");
+  const customerRecords = await db.getAll("customers");
+  const transaction = db.transaction(
+    ["readCache", "writeQueue", "transactions", "transactionLines", "customers", "meta"],
+    "readwrite",
+  );
+
+  if (authorizationChanged) {
+    await transaction.objectStore("readCache").clear();
+    await transaction.objectStore("writeQueue").clear();
+  }
+  for (const record of transactionRecords) {
+    const allowed = scope.authorizationScopes.some(
+      (rule) =>
+        rule.permissions.includes("sale.view") &&
+        rule.businessIds.includes(record.businessId) &&
+        rule.businessUnitIds.includes(record.businessUnitId) &&
+        (!rule.restrictToOwnRecords || record.recordedByUserId === scope.userId),
+    );
+    if (!allowed) {
+      await transaction.objectStore("transactions").delete(record.localId);
+      const lines = await transaction
+        .objectStore("transactionLines")
+        .index("by-transaction-local-id")
+        .getAllKeys(record.localId);
+      await Promise.all(
+        lines.map((lineId) =>
+          transaction.objectStore("transactionLines").delete(lineId),
+        ),
+      );
+    }
+  }
+
+  for (const customer of customerRecords) {
+    const allowed = scope.authorizationScopes.some(
+      (rule) =>
+        customer.businessId !== undefined &&
+        rule.businessIds.includes(customer.businessId) &&
+        (customer.businessUnitIds.length === 0 ||
+          customer.businessUnitIds.some((unitId) =>
+            rule.businessUnitIds.includes(unitId),
+          )) &&
+        (!rule.restrictToOwnRecords ||
+          customer.attendedByUserIds.includes(scope.userId)),
+    );
+    if (!allowed) {
+      await transaction.objectStore("customers").delete(customer.localId);
+    }
+  }
+
+  await transaction.objectStore("meta").put({
+    key: "rolePolicyVersion",
+    value: String(scope.authorizationVersion),
+    updatedAt: new Date().toISOString(),
+  });
+  await transaction.objectStore("meta").put({
+    key: "rolePolicyRefreshRequired",
+    value: "false",
+    updatedAt: new Date().toISOString(),
+  });
+  await transaction.done;
+}

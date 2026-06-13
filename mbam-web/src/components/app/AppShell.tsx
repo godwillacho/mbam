@@ -3,6 +3,12 @@ import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentSession } from "../../services/authService";
+import { getAccessToken } from "../../services/authSessionStore";
+import {
+  createApiSyncTransport,
+  synchronizeOfflineChanges,
+} from "../../services/offlineSyncService";
+import { isOfflineVaultUnlocked } from "../../services/offlineVaultService";
 import {
   canAccessRoute,
   CURRENT_MEMBER_CHANGE_EVENT,
@@ -35,6 +41,17 @@ export default function AppShell() {
     return () => {
       window.removeEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
     };
+  }, []);
+
+  useEffect(() => {
+    const synchronize = () => {
+      if (navigator.onLine && getAccessToken() && isOfflineVaultUnlocked()) {
+        void synchronizeOfflineChanges(createApiSyncTransport()).catch(() => undefined);
+      }
+    };
+    synchronize();
+    window.addEventListener("online", synchronize);
+    return () => window.removeEventListener("online", synchronize);
   }, []);
 
   if (!getCurrentSession()) {
