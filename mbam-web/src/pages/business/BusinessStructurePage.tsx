@@ -1,4 +1,4 @@
-import { type FormEvent, type MouseEvent, useEffect, useState } from "react";
+import { type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { workspace } from "../../data/mockWorkspace";
@@ -21,15 +21,9 @@ const initialBusinessForm = {
   currency: workspace.masterAccount.currency,
 };
 
-<<<<<<< HEAD
-const initialUnitForm = {
-  name: "",
-  unitType: "shop" as UnitType,
-=======
 const initialUnitForm: { name: string; unitType: UnitType; location: string } = {
   name: "",
   unitType: "shop",
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
   location: "",
 };
 
@@ -39,16 +33,10 @@ export default function BusinessStructurePage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [teamWorkspace, setTeamWorkspace] = useState<TeamWorkspace | null>(null);
-<<<<<<< HEAD
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [form, setForm] = useState(initialForm);
-  const [unitBusinessId, setUnitBusinessId] = useState("");
-=======
   const [selectedBusinessId, setSelectedBusinessId] = useState("");
   const [isBusinessFormOpen, setIsBusinessFormOpen] = useState(false);
   const [isUnitFormOpen, setIsUnitFormOpen] = useState(false);
   const [businessForm, setBusinessForm] = useState(initialBusinessForm);
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
   const [unitForm, setUnitForm] = useState(initialUnitForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -57,13 +45,6 @@ export default function BusinessStructurePage() {
   useEffect(() => {
     let active = true;
 
-<<<<<<< HEAD
-    Promise.all([listBusinesses(), loadTeamWorkspace()])
-      .then(async ([loadedBusinesses, loadedTeam]) => {
-        const loadedUnits = (
-          await Promise.all(loadedBusinesses.map((business) => listBusinessUnits(business.id)))
-        ).flat();
-=======
     async function loadPage() {
       try {
         const [loadedBusinesses, loadedTeam] = await Promise.all([
@@ -74,7 +55,6 @@ export default function BusinessStructurePage() {
           await Promise.all(loadedBusinesses.map((business) => listBusinessUnits(business.id)))
         ).flat();
 
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
         if (active) {
           setBusinesses(loadedBusinesses);
           setBusinessUnits(loadedUnits);
@@ -123,21 +103,6 @@ export default function BusinessStructurePage() {
     }
   };
 
-<<<<<<< HEAD
-  const submitBusinessUnit = async (
-    event: FormEvent<HTMLFormElement>,
-    businessId: string,
-  ) => {
-    event.preventDefault();
-    setError("");
-    if (unitForm.name.trim().length < 2) {
-      setError(t("businesses.unitNameRequired"));
-      return;
-    }
-    setIsSaving(true);
-    try {
-      const unit = await createBusinessUnit(businessId, {
-=======
   const submitUnit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedBusiness) return;
@@ -150,32 +115,11 @@ export default function BusinessStructurePage() {
     setIsSaving(true);
     try {
       const unit = await createBusinessUnit(selectedBusiness.id, {
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
         name: unitForm.name.trim(),
         unitType: unitForm.unitType,
         location: unitForm.location.trim(),
       });
       setBusinessUnits((current) => [...current, unit]);
-<<<<<<< HEAD
-      setTeamWorkspace((current) =>
-        current
-          ? {
-              ...current,
-              business_units: [
-                ...current.business_units,
-                { id: unit.id, business_id: unit.businessId, name: unit.name },
-              ],
-            }
-          : current,
-      );
-      setUnitForm(initialUnitForm);
-      setUnitBusinessId("");
-    } catch (requestError) {
-      setError(apiErrorMessage(requestError, t("businesses.unitCreateError")));
-    } finally {
-      setIsSaving(false);
-    }
-=======
       setTeamWorkspace((current) => current ? {
         ...current,
         business_units: [...current.business_units, { id: unit.id, business_id: unit.businessId, name: unit.name }],
@@ -199,7 +143,6 @@ export default function BusinessStructurePage() {
     const query = new URLSearchParams({ invite: "1" });
     if (businessId) query.set("business", businessId);
     navigate(`/team?${query.toString()}`);
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
   };
 
   const openMember = (event: MouseEvent<HTMLButtonElement>, memberId: string) => {
@@ -207,20 +150,12 @@ export default function BusinessStructurePage() {
     navigate(`/team?member=${memberId}`);
   };
 
-<<<<<<< HEAD
-  const openBusinessEmployees = (businessId: string, invite = false) =>
-    navigate(`/team?business=${businessId}${invite ? "&invite=1" : ""}`);
-
-  const recordBusinessSale = (businessId: string) =>
-    navigate(`/transactions/new?business=${businessId}`);
-=======
   const handleBusinessKeyDown = (event: KeyboardEvent<HTMLElement>, businessId: string) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       selectBusiness(businessId);
     }
   };
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 
   return (
     <section className="page-grid">
@@ -332,9 +267,6 @@ export default function BusinessStructurePage() {
           const businessTeam = teamWorkspace?.members.filter((member) => member.business_id === business.id || Boolean(member.business_unit_id && scopedUnitIds.has(member.business_unit_id))) ?? [];
 
           return (
-<<<<<<< HEAD
-            <article className="card business-management-card" key={business.id}>
-=======
             <article
               aria-pressed={selectedBusinessId === business.id}
               className={selectedBusinessId === business.id ? "card clickable-business-card selected" : "card clickable-business-card"}
@@ -344,78 +276,15 @@ export default function BusinessStructurePage() {
               onClick={() => selectBusiness(business.id)}
               onKeyDown={(event) => handleBusinessKeyDown(event, business.id)}
             >
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
               <header>
                 <div>
                   <h3>{business.name}</h3>
                   <p className="card-muted">{[business.type, business.country, business.currency].filter(Boolean).join(" · ")}</p>
                 </div>
-<<<<<<< HEAD
-                <span className="badge">{units.length} {t("businesses.units")}</span>
-              </header>
-
-              <div className="business-card-actions">
-                <button className="primary-btn" type="button" onClick={() => recordBusinessSale(business.id)}>
-                  {t("businesses.recordSale")}
-                </button>
-                <button className="secondary-btn" type="button" onClick={() => {
-                  setUnitBusinessId((current) => current === business.id ? "" : business.id);
-                  setUnitForm(initialUnitForm);
-                }}>
-                  {t("businesses.addUnit")}
-                </button>
-                <button className="secondary-btn" type="button" onClick={() => openBusinessEmployees(business.id, true)}>
-                  {t("businesses.addEmployee")}
-                </button>
-                <button className="text-button" type="button" onClick={() => openBusinessEmployees(business.id)}>
-                  {t("businesses.manageEmployees")}
-                </button>
-              </div>
-
-              {unitBusinessId === business.id && (
-                <form className="business-unit-form" onSubmit={(event) => submitBusinessUnit(event, business.id)}>
-                  <div className="form-field">
-                    <label htmlFor={`unit-name-${business.id}`}>{t("businesses.unitName")}</label>
-                    <input
-                      id={`unit-name-${business.id}`}
-                      required
-                      value={unitForm.name}
-                      onChange={(event) => setUnitForm((current) => ({ ...current, name: event.target.value }))}
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor={`unit-type-${business.id}`}>{t("businesses.unitType")}</label>
-                    <select
-                      id={`unit-type-${business.id}`}
-                      value={unitForm.unitType}
-                      onChange={(event) => setUnitForm((current) => ({ ...current, unitType: event.target.value as UnitType }))}
-                    >
-                      <option value="shop">{t("unitTypes.shop")}</option>
-                      <option value="warehouse">{t("unitTypes.warehouse")}</option>
-                      <option value="sales_desk">{t("unitTypes.sales_desk")}</option>
-                    </select>
-                  </div>
-                  <div className="form-field full">
-                    <label htmlFor={`unit-location-${business.id}`}>{t("businesses.unitLocation")}</label>
-                    <input
-                      id={`unit-location-${business.id}`}
-                      value={unitForm.location}
-                      onChange={(event) => setUnitForm((current) => ({ ...current, location: event.target.value }))}
-                    />
-                  </div>
-                  <button className="primary-btn" disabled={isSaving} type="submit">
-                    {t("businesses.createUnit")}
-                  </button>
-                </form>
-              )}
-
-              <p className="card-muted" style={{ marginTop: 8 }}>
-=======
                 {selectedBusinessId === business.id && <span className="badge">{t("businesses.selected", { defaultValue: "Selected" })}</span>}
               </header>
 
               <p className="card-muted business-summary">
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
                 {t("businesses.totalToday")}: {formatMoney(revenue, business.currency)} · {t("businesses.employeeCount", { count: businessTeam.length })}
               </p>
 
@@ -423,10 +292,6 @@ export default function BusinessStructurePage() {
                 {units.length === 0 && <small className="card-muted">{t("businesses.noUnits")}</small>}
                 {units.map((unit) => {
                   const unitTeam = teamWorkspace?.members.filter((member) => member.business_unit_id === unit.id) ?? [];
-<<<<<<< HEAD
-
-=======
->>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
                   return (
                     <div className="list-item nested-business-unit" key={unit.id}>
                       <div>
