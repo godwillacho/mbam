@@ -3,6 +3,7 @@ name = "mbam-api"
 version = "0.1.0"
 edition = "2021"
 description = "Rust API for Mbam, the offline-first sales recording platform."
+default-run = "mbam-api"
 
 [dependencies]
 argon2 = "0.5"
