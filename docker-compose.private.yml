@@ -1,7 +1,7 @@
 # Private testing stack for Mbam.
 #
 # This compose file runs the web app, Rust API, and PostgreSQL on one machine.
-# The web service binds to 127.0.0.1:8080 so it is not exposed publicly by default.
+# The web service and database bind to localhost so they are not publicly exposed.
 # Put Tailscale Serve, Cloudflare Tunnel, or another private access layer in front of it.
 
 services:
@@ -10,13 +10,15 @@ services:
     container_name: mbam-private-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: mbam
-      POSTGRES_USER: mbam
-      POSTGRES_PASSWORD: mbam_private_password_change_me
+      POSTGRES_DB: ${POSTGRES_DB:-mbam}
+      POSTGRES_USER: ${POSTGRES_USER:-mbam}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mbam_private_password_change_me}
     volumes:
       - mbam_private_pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mbam -d mbam"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mbam} -d ${POSTGRES_DB:-mbam}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,15 +29,21 @@ services:
     container_name: mbam-private-api
     restart: unless-stopped
     environment:
-      APP_ENV: private-test
+      APP_ENV: development
       API_HOST: 0.0.0.0
       API_PORT: 8080
-      DATABASE_URL: postgres://mbam:mbam_private_password_change_me@db:5432/mbam
-      JWT_ACCESS_SECRET: replace_this_access_secret_before_real_testing
-      JWT_REFRESH_SECRET: replace_this_refresh_secret_before_real_testing
+      DATABASE_URL: postgres://${POSTGRES_USER:-mbam}:${POSTGRES_PASSWORD:-mbam_private_password_change_me}@db:5432/${POSTGRES_DB:-mbam}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-replace_this_access_secret_before_real_testing}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-replace_this_refresh_secret_before_real_testing}
       ACCESS_TOKEN_MINUTES: 15
       REFRESH_TOKEN_DAYS: 30
       WEB_ORIGIN: http://localhost:8080
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Mbam}
     depends_on:
       db:
         condition: service_healthy

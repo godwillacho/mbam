@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 use super::model::BusinessUnit;
 
+<<<<<<< HEAD
 pub struct UpdateUnitParams<'a> {
     pub actor_id: Uuid,
     pub account_id: Uuid,
@@ -42,6 +43,8 @@ pub async fn list_for_business(
     .await
 }
 
+=======
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 pub async fn permitted_account_id(
     db: &PgPool,
     user_id: Uuid,
@@ -50,6 +53,7 @@ pub async fn permitted_account_id(
 ) -> Result<Option<Uuid>, sqlx::Error> {
     sqlx::query_scalar(
         r#"
+<<<<<<< HEAD
         select membership.business_account_id
         from memberships membership
         join businesses business
@@ -62,6 +66,21 @@ pub async fn permitted_account_id(
           and (membership.business_id is null or membership.business_id = $2)
           and membership.business_unit_id is null
           and granted.code = $3
+=======
+        select m.business_account_id
+        from memberships m
+        join businesses b
+          on b.id = $2
+         and b.business_account_id = m.business_account_id
+         and b.status = 'active'
+        join role_permissions rp on rp.role_id = m.role_id
+        join permissions p on p.id = rp.permission_id and p.code = $3
+        where m.user_id = $1
+          and m.status = 'active'
+          and (m.business_id is null or m.business_id = $2)
+          and m.business_unit_id is null
+        order by (m.business_id is null) desc
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
         limit 1
         "#,
     )
@@ -72,23 +91,65 @@ pub async fn permitted_account_id(
     .await
 }
 
+<<<<<<< HEAD
 pub async fn name_exists(
     db: &PgPool,
     business_id: Uuid,
     unit_id: Option<Uuid>,
+=======
+pub async fn list_for_business(
+    db: &PgPool,
+    user_id: Uuid,
+    business_id: Uuid,
+) -> Result<Vec<BusinessUnit>, sqlx::Error> {
+    sqlx::query_as(
+        r#"
+        select distinct
+          bu.id, bu.business_account_id, bu.business_id, bu.name, bu.unit_type,
+          bu.location, bu.status, bu.created_at, bu.updated_at
+        from business_units bu
+        join memberships m on m.business_account_id = bu.business_account_id
+        join role_permissions rp on rp.role_id = m.role_id
+        join permissions p on p.id = rp.permission_id and p.code = 'unit.view'
+        where m.user_id = $1
+          and m.status = 'active'
+          and bu.business_id = $2
+          and bu.status = 'active'
+          and (m.business_id is null or m.business_id = bu.business_id)
+          and (m.business_unit_id is null or m.business_unit_id = bu.id)
+        order by bu.name
+        "#,
+    )
+    .bind(user_id)
+    .bind(business_id)
+    .fetch_all(db)
+    .await
+}
+
+pub async fn name_exists(
+    db: &PgPool,
+    business_id: Uuid,
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
     name: &str,
 ) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar(
         r#"
         select exists(
           select 1 from business_units
+<<<<<<< HEAD
           where business_id = $1 and lower(name) = lower($3)
             and ($2::uuid is null or id <> $2)
+=======
+          where business_id = $1 and lower(name) = lower($2) and status = 'active'
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
         )
         "#,
     )
     .bind(business_id)
+<<<<<<< HEAD
     .bind(unit_id)
+=======
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
     .bind(name)
     .fetch_one(db)
     .await
@@ -96,8 +157,13 @@ pub async fn name_exists(
 
 pub async fn create(
     db: &PgPool,
+<<<<<<< HEAD
     actor_id: Uuid,
     account_id: Uuid,
+=======
+    actor_user_id: Uuid,
+    business_account_id: Uuid,
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
     business_id: Uuid,
     name: &str,
     unit_type: &str,
@@ -107,18 +173,29 @@ pub async fn create(
     let unit = sqlx::query_as::<_, BusinessUnit>(
         r#"
         insert into business_units (
+<<<<<<< HEAD
           business_account_id, business_id, name, unit_type, location
         ) values ($1, $2, $3, $4, $5)
         returning *
         "#,
     )
     .bind(account_id)
+=======
+          business_account_id, business_id, name, unit_type, location, status
+        ) values ($1, $2, $3, $4, $5, 'active')
+        returning id, business_account_id, business_id, name, unit_type,
+          location, status, created_at, updated_at
+        "#,
+    )
+    .bind(business_account_id)
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
     .bind(business_id)
     .bind(name)
     .bind(unit_type)
     .bind(location)
     .fetch_one(&mut *tx)
     .await?;
+<<<<<<< HEAD
     audit(
         &mut tx,
         actor_id,
@@ -177,11 +254,15 @@ async fn audit(
     unit_id: Uuid,
     action: &str,
 ) -> Result<(), sqlx::Error> {
+=======
+
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
     sqlx::query(
         r#"
         insert into audit_logs (
           actor_user_id, business_account_id, business_id, business_unit_id,
           action, resource_type, resource_id
+<<<<<<< HEAD
         ) values ($1, $2, $3, $4, $5, 'business_unit', $4)
         "#,
     )
@@ -193,4 +274,18 @@ async fn audit(
     .execute(&mut **tx)
     .await?;
     Ok(())
+=======
+        ) values ($1, $2, $3, $4, 'unit.create', 'business_unit', $4)
+        "#,
+    )
+    .bind(actor_user_id)
+    .bind(business_account_id)
+    .bind(business_id)
+    .bind(unit.id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(unit)
+>>>>>>> ab1765f5535985b619b85e038b1e04dd0c97fce4
 }
