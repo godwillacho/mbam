@@ -51,21 +51,143 @@
   padding: 0;
 }
 
-.clickable-business-card {
+.business-tree-card {
+  overflow: hidden;
+}
+
+.business-tree-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.business-tree-card > header h3 {
+  margin: 3px 0 0;
+}
+
+.business-tree-scroll {
+  overflow-x: auto;
+}
+
+.business-tree-table {
+  min-width: 920px;
+}
+
+.business-tree-table th:first-child,
+.business-tree-table td:first-child {
+  min-width: 260px;
+}
+
+.business-tree-table th:last-child,
+.business-tree-table td:last-child {
+  min-width: 170px;
+}
+
+.tree-row {
+  transition: background 0.15s ease;
+}
+
+.tree-row:hover {
+  background: #faf7f0;
+}
+
+.business-tree-row {
+  background: #f4f8f5;
+}
+
+.business-tree-row.selected {
+  box-shadow: inset 4px 0 0 var(--forest-mid);
+  background: var(--forest-soft);
+}
+
+.business-tree-row td {
+  border-top: 2px solid var(--border);
+}
+
+.unit-tree-row {
+  background: #fffefb;
+}
+
+.employee-tree-row {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tree-name-cell,
+.tree-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-level-2 {
+  padding-left: 28px;
+}
+
+.tree-level-3 {
+  padding-left: 62px;
+}
+
+.tree-toggle {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 26px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--forest);
+  font: inherit;
+  font-weight: 900;
   cursor: pointer;
 }
 
-.clickable-business-card.selected {
+.tree-toggle:hover:not(:disabled) {
   border-color: var(--forest-mid);
-  box-shadow: 0 10px 24px rgba(27, 67, 50, 0.12);
+  background: var(--forest-soft);
 }
 
-.business-summary {
-  margin-top: 8px;
+.tree-toggle:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
-.business-unit-list {
-  margin-top: 16px;
+.tree-primary-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tree-primary-link:hover,
+.tree-actions .text-button:hover {
+  color: var(--forest-mid);
+  text-decoration: underline;
+}
+
+.tree-leaf {
+  color: var(--border-strong);
+  font-weight: 800;
+}
+
+.tree-actions {
+  flex-wrap: wrap;
+}
+
+.tree-actions .text-button {
+  white-space: nowrap;
+}
+
+.tree-empty-row td {
+  color: var(--muted);
+  font-size: 13px;
+  background: #fffefb;
 }
 
 @media (max-width: 720px) {
