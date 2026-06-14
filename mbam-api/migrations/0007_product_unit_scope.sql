@@ -28,7 +28,10 @@ insert into business_units (business_account_id, business_id, name, unit_type, l
 select business.business_account_id, business.id, 'Default shop', 'shop', 'Created during product unit migration', 'active'
 from businesses business
 where not exists (
-  select 1 from business_units unit where unit.business_id = business.id
+  select 1
+  from business_units unit
+  where unit.business_id = business.id
+    and unit.status = 'active'
 );
 
 alter table products add column business_unit_id uuid references business_units(id) on delete restrict;
