@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { isDemoWorkspace, workspace } from "../../data/mockWorkspace";
-import { getCurrentMember } from "../../security/accessControl";
+import { canManageProducts, getCurrentMember } from "../../security/accessControl";
 import { listBusinesses } from "../../services/businessService";
 import {
   createProducts,
@@ -259,6 +259,7 @@ export default function ProductRevenuePage() {
   const [selectedBusinessId, setSelectedBusinessId] = useState(member.businessId ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const canManage = canManageProducts(member);
 
   useEffect(() => {
     let ignore = false;
@@ -426,6 +427,18 @@ export default function ProductRevenuePage() {
           <h2>{t("productRevenue.title")}</h2>
           <DevOnly><p>{t("productRevenue.description")}</p></DevOnly>
         </div>
+        {canManage && (
+          <div className="dashboard-heading-action">
+            <button
+              className="primary-btn"
+              type="button"
+              disabled={isAddingProducts || isSaving}
+              onClick={openAddProducts}
+            >
+              {t("productRevenue.addProduct")}
+            </button>
+          </div>
+        )}
       </div>
 
       {isDevEnvironment && isDemoWorkspace() && source === "mock" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.mockSourceNote")}</div>}
@@ -527,12 +540,13 @@ export default function ProductRevenuePage() {
               <h3>{t("productRevenue.productTable")}</h3>
               <small>{t("transactions.filteredRecords", { count: filteredRows.length })}</small>
             </div>
-            <div className="dashboard-heading-action">
-              <button className="secondary-btn" type="button" onClick={openAddProducts}>{t("productRevenue.addProduct")}</button>
-              <button className={isEditingProducts ? "primary-btn" : "secondary-btn"} type="button" disabled={isAddingProducts || isSaving} onClick={toggleProductEditing}>
-                {isEditingProducts ? t("productRevenue.doneEditing") : t("productRevenue.editProducts")}
-              </button>
-            </div>
+            {canManage && (
+              <div className="dashboard-heading-action">
+                <button className={isEditingProducts ? "primary-btn" : "secondary-btn"} type="button" disabled={isAddingProducts || isSaving} onClick={toggleProductEditing}>
+                  {isEditingProducts ? t("productRevenue.doneEditing") : t("productRevenue.editProducts")}
+                </button>
+              </div>
+            )}
           </header>
 
           <table className="data-table product-management-table">

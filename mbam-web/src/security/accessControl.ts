@@ -13,6 +13,12 @@ const routeAccessByRole: Record<string, AppRouteKey[]> = {
   "role-cashier": ["recordTransaction", "transactions", "products"],
 };
 
+const productManagementRoles = new Set([
+  "role-master-owner",
+  "role-business-admin",
+  "role-shop-manager",
+]);
+
 export function getCurrentMember(): TeamMember {
   return workspace.teamMembers.find((member) => member.id === currentMemberId) ?? workspace.teamMembers[0];
 }
@@ -25,6 +31,10 @@ export function setCurrentMemberId(memberId: string): void {
 
 export function canAccessRoute(member: TeamMember, routeKey: AppRouteKey): boolean {
   return (routeAccessByRole[member.roleId] ?? []).includes(routeKey);
+}
+
+export function canManageProducts(member: TeamMember): boolean {
+  return productManagementRoles.has(member.roleId);
 }
 
 export function getScopedUnits(member: TeamMember): BusinessUnit[] {
