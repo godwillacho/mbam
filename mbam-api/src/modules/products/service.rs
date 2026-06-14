@@ -18,10 +18,15 @@ pub async fn create(
     mut payload: ProductWriteRequest,
 ) -> Result<Product, ApiError> {
     normalize_and_validate(&mut payload)?;
-    let account_id =
-        repository::permitted_account_id(db, user_id, payload.business_id, "product.create")
-            .await?
-            .ok_or(ApiError::Forbidden)?;
+    let account_id = repository::permitted_scope(
+        db,
+        user_id,
+        payload.business_id,
+        payload.business_unit_id,
+        "product.create",
+    )
+    .await?
+    .ok_or(ApiError::Forbidden)?;
     ensure_unique(db, None, &payload).await?;
     Ok(repository::create(db, user_id, account_id, &payload).await?)
 }
@@ -58,10 +63,15 @@ pub async fn update(
             "a product cannot be moved to another business".to_string(),
         ));
     }
-    let account_id =
-        repository::permitted_account_id(db, user_id, payload.business_id, "product.update")
-            .await?
-            .ok_or(ApiError::Forbidden)?;
+    let account_id = repository::permitted_scope(
+        db,
+        user_id,
+        payload.business_id,
+        payload.business_unit_id,
+        "product.update",
+    )
+    .await?
+    .ok_or(ApiError::Forbidden)?;
     ensure_unique(db, Some(product_id), &payload).await?;
     repository::update(db, user_id, account_id, product_id, &payload)
         .await?
@@ -72,10 +82,15 @@ pub async fn disable(db: &PgPool, user_id: Uuid, product_id: Uuid) -> Result<Pro
     let existing = repository::find_visible(db, user_id, product_id)
         .await?
         .ok_or(ApiError::NotFound)?;
-    let account_id =
-        repository::permitted_account_id(db, user_id, existing.business_id, "product.update")
-            .await?
-            .ok_or(ApiError::Forbidden)?;
+    let account_id = repository::permitted_scope(
+        db,
+        user_id,
+        existing.business_id,
+        existing.business_unit_id,
+        "product.update",
+    )
+    .await?
+    .ok_or(ApiError::Forbidden)?;
     repository::disable(db, user_id, account_id, product_id)
         .await?
         .ok_or(ApiError::NotFound)
@@ -88,7 +103,7 @@ async fn ensure_unique(
 ) -> Result<(), ApiError> {
     if repository::duplicate_exists(
         db,
-        payload.business_id,
+        payload.business_unit_id,
         product_id,
         payload.sku.as_deref(),
         payload.barcode.as_deref(),
@@ -96,7 +111,7 @@ async fn ensure_unique(
     .await?
     {
         return Err(ApiError::BadRequest(
-            "another active product uses this SKU or barcode".to_string(),
+            "another active product uses this SKU or barcode in this shop".to_string(),
         ));
     }
     Ok(())
@@ -151,6 +166,7 @@ mod tests {
         ProductWriteRequest {
             id: None,
             business_id: Uuid::new_v4(),
+            business_unit_id: Uuid::new_v4(),
             name: name.to_string(),
             sku: None,
             category: None,
