@@ -1,7 +1,9 @@
-import { getAccessToken } from "./authSessionStore";
+import { clearActiveSession, getAccessToken } from "./authSessionStore";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+
+export const API_AUTH_LOCK_EVENT = "mbam-api-auth-lock";
 
 export class ApiClientError extends Error {
   constructor(
@@ -22,12 +24,21 @@ function isErrorResponse(value: unknown): value is { error: string } {
   );
 }
 
+function lockOutOnAuthFailure(status: number): void {
+  if (status !== 401 && status !== 403) return;
+  clearActiveSession();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(API_AUTH_LOCK_EVENT));
+  }
+}
+
 async function parseJsonResponse<TResponse>(
   response: Response,
 ): Promise<TResponse> {
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
+    lockOutOnAuthFailure(response.status);
     const message = isErrorResponse(body) ? body.error : "Request failed";
     throw new ApiClientError(message, response.status);
   }
