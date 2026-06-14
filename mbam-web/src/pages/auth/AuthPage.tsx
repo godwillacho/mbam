@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import LoginForm from "../../components/auth/LoginForm";
 import SignupForm from "../../components/auth/SignupForm";
@@ -32,20 +32,43 @@ export default function AuthPage() {
   const [oauthCompletionFailed, setOauthCompletionFailed] = useState(false);
   const oauthComplete = searchParams.get("oauth") === "complete";
   const oauthError = searchParams.has("oauth_error") || oauthCompletionFailed;
-  const nextPath =
+  const [switchingAccount] = useState(() => searchParams.get("switch") === "1");
+  const requestedNextPath =
     searchParams.get("next") ??
-    (typeof window === "undefined" ? null : sessionStorage.getItem("mbam-auth-next"));
+    (typeof window === "undefined"
+      ? null
+      : sessionStorage.getItem("mbam-auth-next"));
+  const nextPath =
+    requestedNextPath?.startsWith("/") && !requestedNextPath.startsWith("/auth")
+      ? requestedNextPath
+      : null;
+
+  const completeSignIn = (authenticatedSession: AuthSession) => {
+    setSession(authenticatedSession);
+    if (switchingAccount) {
+      const destination = nextPath ?? "/dashboard";
+      sessionStorage.setItem("mbam-auth-next", destination);
+      window.location.assign(destination);
+    }
+  };
 
   useEffect(() => {
     void offlineAccessIsConfigured().then(setOfflineConfigured);
-    if (navigator.onLine) {
+    if (navigator.onLine && !switchingAccount) {
       void refreshCloudSession()
         .then(setSession)
         .catch(() => {
           if (oauthComplete) setOauthCompletionFailed(true);
         });
     }
-  }, [oauthComplete]);
+  }, [oauthComplete, switchingAccount]);
+
+  useEffect(() => {
+    if (session && nextPath) {
+      sessionStorage.removeItem("mbam-auth-next");
+      navigate(nextPath, { replace: true });
+    }
+  }, [navigate, nextPath, session]);
 
   const unlockOffline = async () => {
     setOfflineBusy(true);
@@ -74,6 +97,10 @@ export default function AuthPage() {
       setOfflineBusy(false);
     }
   };
+
+  if (session && !session.offlineGrant) {
+    return <Navigate to={nextPath ?? "/dashboard"} replace />;
+  }
 
   if (session) {
     return (
@@ -113,13 +140,9 @@ export default function AuthPage() {
           ) : (
             <p className="verify-body">{t("auth.offlineUnavailable")}</p>
           )}
-          <button
-            type="button"
-            className="forgot-link"
-            onClick={() => navigate(nextPath ?? "/dashboard", { replace: true })}
-          >
+          <Link className="forgot-link" replace to={nextPath ?? "/dashboard"}>
             {t("auth.continueOnline")}
-          </button>
+          </Link>
         </div>
       </AuthLayout>
     );
@@ -132,7 +155,7 @@ export default function AuthPage() {
           {t("auth.socialError")}
         </div>
       )}
-      <SSOButtons mode={mode} onSuccess={setSession} />
+      <SSOButtons mode={mode} onSuccess={completeSignIn} />
 
       <div className="divider">
         <span>{t("auth.continueEmail")}</span>
@@ -142,7 +165,7 @@ export default function AuthPage() {
         <>
           <LoginForm
             onSwitch={() => setMode("signup")}
-            onSuccess={setSession}
+            onSuccess={completeSignIn}
           />
           {offlineConfigured && (
             <div className="field-group">

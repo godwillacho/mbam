@@ -130,7 +130,11 @@ export default function AppShell() {
                 isActive ? "nav-link active" : "nav-link"
               }
             >
-              {t(item.labelKey)}
+              {item.to === "/dashboard"
+                ? currentMember.roleId.startsWith("role-custom-member-")
+                  ? currentMember.roleName
+                  : t(`roleDashboard.roleNames.${currentMember.roleId}`)
+                : t(item.labelKey)}
             </NavLink>
           ))}
         </nav>

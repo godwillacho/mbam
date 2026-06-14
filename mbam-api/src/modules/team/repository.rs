@@ -204,14 +204,21 @@ pub async fn list_members(
           target.business_account_id, target.business_id, target.business_unit_id,
           target.status, target.updated_at
         from memberships actor
-        join role_permissions arp on arp.role_id = actor.role_id
-        join permissions ap on ap.id = arp.permission_id and ap.code = 'worker.view'
         join memberships target on target.business_account_id = actor.business_account_id
           and (actor.business_id is null or target.business_id = actor.business_id)
           and (actor.business_unit_id is null or target.business_unit_id = actor.business_unit_id)
         join users u on u.id = target.user_id
         join roles r on r.id = target.role_id
         where actor.user_id = $1 and actor.status = 'active'
+          and (
+            target.user_id = actor.user_id
+            or exists(
+              select 1
+              from role_permissions arp
+              join permissions ap on ap.id = arp.permission_id
+              where arp.role_id = actor.role_id and ap.code = 'worker.view'
+            )
+          )
         order by u.full_name, u.email
         "#,
     )
