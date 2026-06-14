@@ -9,10 +9,6 @@
   cursor: pointer;
 }
 
-.selected-row {
-  background: var(--forest-soft);
-}
-
 .permission-editor-card {
   display: grid;
   gap: 18px;
@@ -43,11 +39,14 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background: #FAF7F0;
+  background: #faf7f0;
   color: var(--ink);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
+  transition:
+    border-color 0.16s,
+    box-shadow 0.16s,
+    transform 0.16s;
 }
 
 .permission-profile-card:hover,
@@ -76,7 +75,7 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 14px;
-  background: #FAF7F0;
+  background: #faf7f0;
   cursor: pointer;
 }
 
@@ -142,6 +141,12 @@
 
 .danger-text {
   color: #9c2f2f;
+}
+
+.team-empty-state {
+  display: grid;
+  gap: 6px;
+  text-align: center;
 }
 
 @media (max-width: 1100px) {
