@@ -2,6 +2,7 @@ import {
   updateCloudWorkspace,
   workspace,
 } from "../data/mockWorkspace";
+import { setCurrentMemberId } from "../security/accessControl";
 import type {
   PaymentMethod,
   ScopeLevel,
@@ -71,7 +72,11 @@ export async function hydrateCloudWorkspace(): Promise<void> {
   ]);
 
   const teamMembers = team.members.map(toTeamMember);
-  if (!teamMembers.some((member) => member.email === session.user.email)) {
+  const sessionMember = teamMembers.find(
+    (member) => member.email.toLowerCase() === session.user.email.toLowerCase(),
+  );
+
+  if (!sessionMember && !teamMembers.some((member) => member.email === session.user.email)) {
     teamMembers.unshift(workspace.teamMembers[0]);
   }
 
@@ -108,4 +113,8 @@ export async function hydrateCloudWorkspace(): Promise<void> {
     customers: [],
     pendingPayments: [],
   });
+
+  if (sessionMember) {
+    setCurrentMemberId(sessionMember.id);
+  }
 }
