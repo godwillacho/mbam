@@ -208,7 +208,7 @@ export function isDemoWorkspace(): boolean {
 export function activateCloudWorkspace(user: AuthUser): void {
   workspace.masterAccount = {
     id: user.id,
-    name: `${user.fullName}'s workspace`,
+    name: "",
     ownerName: user.fullName,
     currency: "XAF",
   };

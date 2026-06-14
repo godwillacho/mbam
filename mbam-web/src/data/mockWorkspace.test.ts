@@ -16,6 +16,7 @@ describe("cloud workspace activation", () => {
     });
 
     expect(isDemoWorkspace()).toBe(false);
+    expect(workspace.masterAccount.name).toBe("");
     expect(workspace.masterAccount.ownerName).toBe("Real User");
     expect(workspace.businesses).toEqual([]);
     expect(workspace.businessUnits).toEqual([]);

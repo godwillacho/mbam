@@ -40,6 +40,7 @@ export default function AppShell() {
   const [currentMember, setCurrentMember] = useState(() => getCurrentMember());
   const [, setWorkspaceVersion] = useState(0);
   const visibleNavItems = navItems.filter((item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey));
+  const workspaceName = workspace.masterAccount.name || t("app.defaultWorkspaceName");
 
   useEffect(() => {
     const syncCurrentMember = () => setCurrentMember(getCurrentMember());
@@ -83,7 +84,7 @@ export default function AppShell() {
           <span className="brand-symbol">M</span>
           <div>
             <strong>Mbam</strong>
-            <small>{workspace.masterAccount.name}</small>
+            <small>{workspaceName}</small>
           </div>
         </div>
 
@@ -101,8 +102,8 @@ export default function AppShell() {
 
         <div className="sidebar-card">
           <span>{t("app.ownerLabel")}</span>
-          <strong>{currentMember.fullName}</strong>
-          <small>{t(`roles.${currentMember.roleId}`)}</small>
+          <strong>{t(`roles.${currentMember.roleId}`)}</strong>
+          <small>{workspaceName}</small>
         </div>
       </aside>
 
@@ -110,7 +111,7 @@ export default function AppShell() {
         <header className="topbar">
           <div>
             <span className="eyebrow">{t("app.workspaceLabel")}</span>
-            <h1>{workspace.masterAccount.name}</h1>
+            <h1>{workspaceName}</h1>
           </div>
           <div className="topbar-actions">
             {isDevEnvironment && isDemoWorkspace() && (

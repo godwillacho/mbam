@@ -158,6 +158,7 @@ export default function TransactionInvoicePage() {
   const business = workspace.businesses.find((item) => item.id === invoice.businessId);
   const unit = workspace.businessUnits.find((item) => item.id === invoice.businessUnitId);
   const currency = business?.currency ?? workspace.masterAccount.currency;
+  const workspaceName = workspace.masterAccount.name || t("app.defaultWorkspaceName");
 
   return (
     <section className="page-grid invoice-page">
@@ -177,8 +178,8 @@ export default function TransactionInvoicePage() {
         <header className="invoice-header">
           <div>
             <span className="eyebrow">Mbam</span>
-            <h3>{business?.name ?? workspace.masterAccount.name}</h3>
-            <p className="card-muted">{unit?.name ?? workspace.masterAccount.name}</p>
+            <h3>{business?.name ?? workspaceName}</h3>
+            <p className="card-muted">{unit?.name ?? workspaceName}</p>
           </div>
           <div className="invoice-meta">
             <strong>{invoice.reference}</strong>

@@ -81,9 +81,7 @@ export default function AuthPage() {
         <div className="verify-screen" role="status">
           <div className="verify-icon">✓</div>
           <h2 className="verify-title">{t("auth.signedInTitle")}</h2>
-          <p className="verify-body">
-            {t("auth.signedInBody", { name: session.user.fullName })}
-          </p>
+          <p className="verify-body">{t("auth.signedInBody")}</p>
           {session.offlineGrant ? (
             <>
               <label className="field">

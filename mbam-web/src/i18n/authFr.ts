@@ -6,7 +6,7 @@ export const authFr = {
   signInSubheading: "Connectez-vous à votre compte Mbam",
   signupSubheading: "Commencez à enregistrer vos ventes gratuitement",
   signedInTitle: "Connexion réussie",
-  signedInBody: "Bienvenue, {{name}}. Votre session sécurisée Mbam est prête.",
+  signedInBody: "Votre session sécurisée Mbam est prête.",
   offlinePassphrase: "Phrase secrète de déverrouillage hors ligne",
   preparingOffline: "Sécurisation de l’accès hors ligne…",
   enableOffline: "Activer l’accès hors ligne chiffré",

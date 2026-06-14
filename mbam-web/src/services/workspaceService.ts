@@ -80,7 +80,7 @@ export async function hydrateCloudWorkspace(): Promise<void> {
       name:
         businesses.length === 1
           ? businesses[0].name
-          : `${session.user.fullName}'s workspace`,
+          : "",
       currency: businesses[0]?.currency ?? workspace.masterAccount.currency,
     },
     businesses,
