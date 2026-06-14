@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { isDemoWorkspace, workspace } from "../../data/mockWorkspace";
-import { canManageProducts, getCurrentMember } from "../../security/accessControl";
+import { canManageProducts, getCurrentMember, getScopedUnits } from "../../security/accessControl";
 import { listBusinesses } from "../../services/businessService";
 import {
   createProducts,
@@ -29,6 +29,7 @@ interface ProductDraft {
   availableQuantity: string;
   expiryDate: string;
   costPrice: string;
+  businessUnitId?: string;
 }
 
 const productDraftFields: Array<keyof ProductDraft> = ["name", "sku", "brand", "category", "availableQuantity", "expiryDate", "costPrice"];
@@ -42,11 +43,12 @@ function createEmptyProductDraft(): ProductDraft {
     availableQuantity: "",
     expiryDate: "",
     costPrice: "",
+    businessUnitId: "",
   };
 }
 
 function hasProductDraftContent(draft: ProductDraft): boolean {
-  return Object.values(draft).some((value) => value.trim().length > 0);
+  return productDraftFields.some((field) => String(draft[field] ?? "").trim().length > 0);
 }
 
 function normalizeText(value: string): string {
@@ -88,6 +90,11 @@ function searchTextForRow(row: ProductRevenueRow, product?: ProductProfile): str
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
+function rowBusinessUnitId(row: ProductRevenueRow): string {
+  const withUnit = row as ProductRevenueRow & { businessUnitId?: string };
+  return withUnit.businessUnitId ?? workspace.products.find((product) => product.id === row.productId)?.businessUnitId ?? "";
+}
+
 function toDraft(product: ProductProfile | undefined, row: ProductRevenueRow): ProductDraft {
   const availableQuantity = product?.availableQuantity ?? row.availableQuantity;
   const costPrice = product?.costPrice ?? row.costPrice;
@@ -99,6 +106,7 @@ function toDraft(product: ProductProfile | undefined, row: ProductRevenueRow): P
     availableQuantity: typeof availableQuantity === "number" ? String(availableQuantity) : "",
     expiryDate: product?.expiryDate ?? row.expiryDate ?? "",
     costPrice: typeof costPrice === "number" ? String(costPrice) : "",
+    businessUnitId: product?.businessUnitId ?? rowBusinessUnitId(row),
   };
 }
 
@@ -108,9 +116,10 @@ function optionalNumber(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function draftPayload(draft: ProductDraft, businessId: string): ProductWritePayload {
+function draftPayload(draft: ProductDraft, businessId: string, businessUnitId: string): ProductWritePayload {
   return {
     businessId,
+    businessUnitId,
     name: draft.name.trim(),
     sku: draft.sku.trim() || undefined,
     brand: draft.brand.trim() || undefined,
@@ -126,6 +135,7 @@ function rowProfile(row: ProductRevenueRow, draft: ProductDraft): ProductProfile
   return {
     id: row.productId,
     businessId: row.businessId,
+    businessUnitId: draft.businessUnitId || rowBusinessUnitId(row),
     name: draft.name,
     sku: draft.sku || undefined,
     category: draft.category,
@@ -144,7 +154,7 @@ function rowProfile(row: ProductRevenueRow, draft: ProductDraft): ProductProfile
 
 function rowPayload(row: ProductRevenueRow, draft: ProductDraft): ProductWritePayload {
   return {
-    ...draftPayload(draft, row.businessId ?? ""),
+    ...draftPayload(draft, row.businessId ?? "", draft.businessUnitId || rowBusinessUnitId(row)),
     manufacturer: row.manufacturer,
     variant: row.variant,
     packageSize: row.packageSize,
@@ -237,6 +247,7 @@ function mapCsvRowsToDrafts(csvRows: string[][]): ProductDraft[] {
       availableQuantity: getCsvValue(record, ["availablequantity", "quantity", "qty", "stock", "stockquantity"]),
       expiryDate: getCsvValue(record, ["expirydate", "expirationdate", "expiry", "expires"]),
       costPrice: getCsvValue(record, ["costprice", "cost", "unitcost", "purchaseprice"]),
+      businessUnitId: getCsvValue(record, ["businessunitid", "unitid", "shopid"]),
     };
   }).filter(hasProductDraftContent);
 }
@@ -244,6 +255,7 @@ function mapCsvRowsToDrafts(csvRows: string[][]): ProductDraft[] {
 export default function ProductRevenuePage() {
   const { t } = useTranslation();
   const member = useMemo(() => getCurrentMember(), []);
+  const scopedUnits = useMemo(() => getScopedUnits(member), [member]);
   const [rows, setRows] = useState<ProductRevenueRow[]>([]);
   const [source, setSource] = useState<ProductRevenueReport["source"]>("mock");
   const [isLoading, setIsLoading] = useState(true);
@@ -256,7 +268,9 @@ export default function ProductRevenuePage() {
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
   const [newProductDrafts, setNewProductDrafts] = useState<ProductDraft[]>(() => [createEmptyProductDraft()]);
   const [businessOptions, setBusinessOptions] = useState<Array<{ id: string; name: string }>>([]);
-  const [selectedBusinessId, setSelectedBusinessId] = useState(member.businessId ?? "");
+  const [unitOptions, setUnitOptions] = useState(scopedUnits);
+  const [selectedBusinessId, setSelectedBusinessId] = useState(member.businessId ?? scopedUnits[0]?.businessId ?? "");
+  const [selectedBusinessUnitId, setSelectedBusinessUnitId] = useState(member.businessUnitId ?? scopedUnits[0]?.id ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const canManage = canManageProducts(member);
@@ -296,17 +310,32 @@ export default function ProductRevenuePage() {
   }, [member, refreshVersion, t]);
 
   useEffect(() => {
+    const fallbackBusinesses = workspace.businesses.map(({ id, name }) => ({ id, name }));
+    setUnitOptions(getScopedUnits(member));
     listBusinesses()
       .then((businesses) => {
-        setBusinessOptions(businesses);
-        setSelectedBusinessId((current) => current || member.businessId || businesses[0]?.id || "");
+        const scopedBusinessIds = new Set(getScopedUnits(member).map((unit) => unit.businessId));
+        const visibleBusinesses = businesses.filter((business) => scopedBusinessIds.has(business.id));
+        const nextBusinesses = visibleBusinesses.length > 0 ? visibleBusinesses : fallbackBusinesses;
+        setBusinessOptions(nextBusinesses);
+        setSelectedBusinessId((current) => current || member.businessId || nextBusinesses[0]?.id || "");
       })
       .catch(() => {
-        const businesses = workspace.businesses.map(({ id, name }) => ({ id, name }));
-        setBusinessOptions(businesses);
-        setSelectedBusinessId((current) => current || member.businessId || businesses[0]?.id || "");
+        setBusinessOptions(fallbackBusinesses);
+        setSelectedBusinessId((current) => current || member.businessId || fallbackBusinesses[0]?.id || "");
       });
-  }, [member.businessId]);
+  }, [member, member.businessId]);
+
+  const selectedUnitOptions = useMemo(
+    () => unitOptions.filter((unit) => unit.businessId === selectedBusinessId && unit.status === "active"),
+    [selectedBusinessId, unitOptions],
+  );
+
+  useEffect(() => {
+    if (selectedUnitOptions.length > 0 && !selectedUnitOptions.some((unit) => unit.id === selectedBusinessUnitId)) {
+      setSelectedBusinessUnitId(selectedUnitOptions[0].id);
+    }
+  }, [selectedBusinessUnitId, selectedUnitOptions]);
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -337,15 +366,16 @@ export default function ProductRevenuePage() {
     setIsEditingProducts(false);
     setIsAddingProducts(true);
     setCsvImportMessage("");
+    setSelectedBusinessUnitId((current) => current || selectedUnitOptions[0]?.id || "");
   };
 
   const saveNewProducts = async () => {
     const drafts = newProductDrafts.filter((draft) => draft.name.trim().length > 0);
-    if (!selectedBusinessId || drafts.length === 0) return;
+    if (!selectedBusinessId || !selectedBusinessUnitId || drafts.length === 0) return;
     setIsSaving(true);
     setError(null);
     try {
-      await createProducts(drafts.map((draft) => draftPayload(draft, selectedBusinessId)));
+      await createProducts(drafts.map((draft) => draftPayload(draft, selectedBusinessId, draft.businessUnitId || selectedBusinessUnitId)));
       setNewProductDrafts([createEmptyProductDraft()]);
       setIsAddingProducts(false);
       setRefreshVersion((current) => current + 1);
@@ -366,8 +396,9 @@ export default function ProductRevenuePage() {
     try {
       await Promise.all(rows.map((row) => {
         const draft = productDrafts[row.productId];
-        if (!draft || !row.businessId) return Promise.resolve();
-        return updateProduct(rowProfile(row, draft), rowPayload(row, draft));
+        const profile = draft ? rowProfile(row, draft) : undefined;
+        if (!draft || !row.businessId || !profile?.businessUnitId) return Promise.resolve();
+        return updateProduct(row.productId, rowPayload(row, draft), profile.serverVersion);
       }));
       setIsEditingProducts(false);
       setRefreshVersion((current) => current + 1);
@@ -474,10 +505,22 @@ export default function ProductRevenuePage() {
               <select
                 aria-label="Business"
                 value={selectedBusinessId}
-                onChange={(event) => setSelectedBusinessId(event.target.value)}
+                onChange={(event) => {
+                  setSelectedBusinessId(event.target.value);
+                  setSelectedBusinessUnitId("");
+                }}
               >
                 {businessOptions.map((business) => (
                   <option key={business.id} value={business.id}>{business.name}</option>
+                ))}
+              </select>
+              <select
+                aria-label="Shop or unit"
+                value={selectedBusinessUnitId}
+                onChange={(event) => setSelectedBusinessUnitId(event.target.value)}
+              >
+                {selectedUnitOptions.map((unit) => (
+                  <option key={unit.id} value={unit.id}>{unit.name}</option>
                 ))}
               </select>
               <label className="secondary-btn file-import-button">
@@ -485,7 +528,7 @@ export default function ProductRevenuePage() {
                 <input type="file" accept=".csv,text/csv" onChange={importCsvProducts} />
               </label>
               <button className="secondary-btn" type="button" onClick={() => setIsAddingProducts(false)}>{t("productRevenue.cancelAddProducts")}</button>
-              <button className="primary-btn" type="button" disabled={isSaving || !selectedBusinessId} onClick={saveNewProducts}>{t("productRevenue.saveNewProducts")}</button>
+              <button className="primary-btn" type="button" disabled={isSaving || !selectedBusinessId || !selectedBusinessUnitId} onClick={saveNewProducts}>{t("productRevenue.saveNewProducts")}</button>
             </div>
           </header>
 
@@ -516,7 +559,7 @@ export default function ProductRevenuePage() {
                         <input
                           type={field === "availableQuantity" || field === "costPrice" ? "number" : field === "expiryDate" ? "date" : "text"}
                           min={field === "availableQuantity" || field === "costPrice" ? "0" : undefined}
-                          value={draft[field]}
+                          value={String(draft[field] ?? "")}
                           placeholder={t(`productRevenue.fields.${field}`)}
                           onChange={(event) => updateNewProductDraft(index, field, event.target.value)}
                         />
@@ -553,6 +596,7 @@ export default function ProductRevenuePage() {
             <thead>
               <tr>
                 <th>{t("productRevenue.product")}</th>
+                <th>{t("transactionRecord.unit")}</th>
                 <th>{t("productRevenue.sku")}</th>
                 <th>{t("productRevenue.brand")}</th>
                 <th>{t("productRevenue.category")}</th>
@@ -567,6 +611,8 @@ export default function ProductRevenuePage() {
               {filteredRows.map((row) => {
                 const product = workspace.products.find((item) => item.id === row.productId);
                 const draft = productDrafts[row.productId] ?? toDraft(product, row);
+                const rowUnitOptions = unitOptions.filter((unit) => unit.businessId === row.businessId && unit.status === "active");
+                const selectedUnitName = unitOptions.find((unit) => unit.id === (draft.businessUnitId || rowBusinessUnitId(row)))?.name ?? "—";
                 const inventory = product
                   ? getProductInventorySnapshot(product)
                   : typeof row.availableQuantity === "number"
@@ -577,6 +623,11 @@ export default function ProductRevenuePage() {
                 return (
                   <tr key={row.productId}>
                     <td>{isEditingProducts ? <input value={draft.name} onChange={(event) => updateDraft(row.productId, "name", event.target.value)} /> : <strong>{draft.name}</strong>}</td>
+                    <td>{isEditingProducts ? (
+                      <select value={draft.businessUnitId || rowBusinessUnitId(row)} onChange={(event) => updateDraft(row.productId, "businessUnitId", event.target.value)}>
+                        {rowUnitOptions.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+                      </select>
+                    ) : selectedUnitName}</td>
                     <td>{isEditingProducts ? <input value={draft.sku} onChange={(event) => updateDraft(row.productId, "sku", event.target.value)} /> : draft.sku}</td>
                     <td>{isEditingProducts ? <input value={draft.brand} onChange={(event) => updateDraft(row.productId, "brand", event.target.value)} /> : draft.brand || "—"}</td>
                     <td>{isEditingProducts ? <input value={draft.category} onChange={(event) => updateDraft(row.productId, "category", event.target.value)} /> : t(`categories.${draft.category}`)}</td>
