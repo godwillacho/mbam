@@ -55,6 +55,7 @@ export interface ProductProfile {
   sku?: string;
   category: string;
   businessId?: string;
+  businessUnitId?: string;
   manufacturer?: string;
   brand?: string;
   variant?: string;
