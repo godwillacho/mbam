@@ -366,6 +366,9 @@ const resources = {
         resetDefaults: "Reset defaults",
         permissionEnabled: "Enabled for this user",
         permissionDisabled: "Disabled for this user",
+        selectEmployee: "Employee",
+        noEmployees: "No employees available",
+        noEmployeesHint: "Invite an employee to configure their access.",
       },
       reports: {
         eyebrow: "Reports",
@@ -577,6 +580,9 @@ const resources = {
         resetDefaults: "Réinitialiser par défaut",
         permissionEnabled: "Activé pour cet utilisateur",
         permissionDisabled: "Désactivé pour cet utilisateur",
+        selectEmployee: "Employé",
+        noEmployees: "Aucun employé disponible",
+        noEmployeesHint: "Invitez un employé pour configurer son accès.",
       },
       reports: {
         eyebrow: "Rapports",
