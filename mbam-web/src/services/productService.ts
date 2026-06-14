@@ -22,6 +22,7 @@ import {
 export interface ProductWritePayload {
   id?: string;
   businessId: string;
+  businessUnitId?: string;
   name: string;
   sku?: string;
   category?: string;
@@ -40,6 +41,7 @@ export interface ProductWritePayload {
 
 interface ApiProduct extends ProductWritePayload {
   id: string;
+  businessUnitId: string;
   category: string;
   defaultPrice: number;
   status: "active" | "disabled";
@@ -76,6 +78,7 @@ function toApiProduct(profile: ProductProfile): ApiProduct {
   return {
     id: profile.id,
     businessId: profile.businessId ?? "",
+    businessUnitId: profile.businessUnitId ?? "",
     name: profile.name,
     sku: profile.sku,
     category: profile.category,
@@ -94,6 +97,13 @@ function toApiProduct(profile: ProductProfile): ApiProduct {
     createdAt: profile.createdAt ?? now,
     updatedAt: profile.updatedAt ?? now,
   };
+}
+
+function requireProductUnit(payload: ProductWritePayload): ProductWritePayload {
+  if (!payload.businessUnitId) {
+    throw new Error("product_business_unit_required");
+  }
+  return payload;
 }
 
 async function saveOffline(product: ApiProduct, ownerId: string): Promise<void> {
@@ -185,7 +195,7 @@ export async function createProducts(
   payloads: ProductWritePayload[],
 ): Promise<ProductProfile[]> {
   if (payloads.length === 0) return [];
-  const identifiedPayloads = payloads.map((payload) => ({
+  const identifiedPayloads = payloads.map((payload) => requireProductUnit({
     ...payload,
     id: payload.id ?? crypto.randomUUID(),
   }));
@@ -199,66 +209,67 @@ export async function createProducts(
       return products.map(toProfile);
     } catch (error) {
       if (!canQueueAfter(error)) throw error;
-      // Preserve the batch in the encrypted product outbox below.
     }
   }
   const now = new Date().toISOString();
   return Promise.all(
-    identifiedPayloads.map((payload) =>
-      queueProductWrite("create", {
-        ...payload,
-        id: payload.id,
-        category: payload.category ?? "other",
-        defaultPrice: payload.defaultPrice ?? 0,
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      }),
-    ),
+    identifiedPayloads.map((payload) => queueProductWrite("create", {
+      ...payload,
+      id: payload.id ?? crypto.randomUUID(),
+      businessUnitId: payload.businessUnitId ?? "",
+      category: payload.category ?? "other",
+      defaultPrice: payload.defaultPrice ?? 0,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    })),
   );
 }
 
 export async function updateProduct(
-  profile: ProductProfile,
+  id: string,
   payload: ProductWritePayload,
+  baseVersion?: number,
 ): Promise<ProductProfile> {
+  const scopedPayload = requireProductUnit(payload);
   if (isApiConfigured() && isOnline()) {
     try {
       const product = await patchJson<ApiProduct, ProductWritePayload>(
-        `/api/v1/products/${profile.id}`,
-        payload,
+        `/api/v1/products/${id}`,
+        scopedPayload,
       );
       await saveOffline(product, "cloud");
       return toProfile(product);
     } catch (error) {
       if (!canQueueAfter(error)) throw error;
-      // Queue the edit with its cloud version for conflict detection.
     }
   }
-  const product = toApiProduct({
-    ...profile,
-    ...payload,
-    id: profile.id,
-    updatedAt: new Date().toISOString(),
-  });
-  return queueProductWrite("update", product, profile.serverVersion);
+  const now = new Date().toISOString();
+  return queueProductWrite("update", {
+    ...scopedPayload,
+    id,
+    businessUnitId: scopedPayload.businessUnitId ?? "",
+    category: scopedPayload.category ?? "other",
+    defaultPrice: scopedPayload.defaultPrice ?? 0,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  }, baseVersion);
 }
 
-export async function disableProduct(
-  profile: ProductProfile,
-): Promise<void> {
+export async function deleteProduct(product: ProductProfile): Promise<ProductProfile> {
   if (isApiConfigured() && isOnline()) {
     try {
-      await deleteJson<ApiProduct>(`/api/v1/products/${profile.id}`);
-      return;
+      const deleted = await deleteJson<ApiProduct>(`/api/v1/products/${product.id}`);
+      await saveOffline(deleted, "cloud");
+      return toProfile(deleted);
     } catch (error) {
       if (!canQueueAfter(error)) throw error;
-      // Queue the disable below.
     }
   }
-  await queueProductWrite(
-    "delete",
-    { ...toApiProduct(profile), status: "disabled", updatedAt: new Date().toISOString() },
-    profile.serverVersion,
-  );
+  return queueProductWrite("delete", {
+    ...toApiProduct(product),
+    status: "disabled",
+    updatedAt: new Date().toISOString(),
+  }, product.serverVersion);
 }
