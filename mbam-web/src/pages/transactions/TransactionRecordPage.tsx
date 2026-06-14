@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
-import { getCurrentMember } from "../../security/accessControl";
+import { getCurrentMember, getScopedUnits } from "../../security/accessControl";
 import { listBusinesses, listBusinessUnits } from "../../services/businessService";
 import { getCurrentSession } from "../../services/authService";
 import { listBrowserDbCustomers, upsertBrowserDbCustomerFromTransaction } from "../../services/customers/customerBrowserDbService";
@@ -77,11 +77,22 @@ export default function TransactionRecordPage() {
   const [searchParams] = useSearchParams();
   const currentMember = useMemo(() => getCurrentMember(), []);
   const session = getCurrentSession();
+  const memberUnits = useMemo(
+    () => getScopedUnits(currentMember),
+    [currentMember.businessId, currentMember.businessUnitId, currentMember.id, currentMember.scopeLevel],
+  );
+  const memberUnitIds = useMemo(() => new Set(memberUnits.map((unit) => unit.id)), [memberUnits]);
+  const memberBusinessIds = useMemo(() => new Set(memberUnits.map((unit) => unit.businessId)), [memberUnits]);
+  const initialBusinessId = currentMember.scopeLevel === "unit"
+    ? memberUnits[0]?.businessId ?? ""
+    : currentMember.businessId ?? searchParams.get("business") ?? workspace.businesses[0]?.id ?? "";
+  const initialUnitId = currentMember.scopeLevel === "unit" ? memberUnits[0]?.id ?? "" : "";
+
   const [businessOptions, setBusinessOptions] = useState(workspace.businesses);
   const [unitOptions, setUnitOptions] = useState(workspace.businessUnits);
   const [productOptions, setProductOptions] = useState(workspace.products);
-  const [businessId, setBusinessId] = useState(searchParams.get("business") ?? workspace.businesses[0]?.id ?? "");
-  const [unitId, setUnitId] = useState("");
+  const [businessId, setBusinessId] = useState(initialBusinessId);
+  const [unitId, setUnitId] = useState(initialUnitId);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [totalAmount, setTotalAmount] = useState("");
@@ -99,6 +110,48 @@ export default function TransactionRecordPage() {
 
   const isPendingPayment = paymentStatus === "pending";
   const customerQuery = customerName.trim().toLowerCase();
+
+  const scopedBusinessOptions = useMemo(() => businessOptions.filter((business) => {
+    if (currentMember.scopeLevel === "master") return true;
+    if (currentMember.scopeLevel === "business") return business.id === currentMember.businessId;
+    return memberBusinessIds.has(business.id);
+  }), [businessOptions, currentMember.businessId, currentMember.scopeLevel, memberBusinessIds]);
+
+  const selectedBusinessUnits = useMemo(
+    () => unitOptions.filter((unit) => {
+      if (unit.businessId !== businessId || unit.status !== "active") return false;
+      if (currentMember.scopeLevel === "master" || currentMember.scopeLevel === "business") return true;
+      return memberUnitIds.has(unit.id);
+    }),
+    [businessId, currentMember.scopeLevel, memberUnitIds, unitOptions],
+  );
+
+  const selectedBusiness = scopedBusinessOptions.find((business) => business.id === businessId);
+  const selectedUnit = selectedBusinessUnits.find((unit) => unit.id === unitId);
+  const canChooseBusiness = currentMember.scopeLevel === "master";
+  const canChooseUnit = selectedBusinessUnits.length > 1 && (currentMember.scopeLevel === "master" || currentMember.scopeLevel === "business");
+  const scopedProductOptions = useMemo(
+    () => productOptions.filter((product) => !product.businessId || product.businessId === businessId),
+    [businessId, productOptions],
+  );
+
+  useEffect(() => {
+    if (currentMember.scopeLevel === "unit" && memberUnits[0]) {
+      setBusinessId(memberUnits[0].businessId);
+      setUnitId(memberUnits[0].id);
+      return;
+    }
+
+    if (currentMember.scopeLevel === "business" && currentMember.businessId) {
+      setBusinessId(currentMember.businessId);
+    }
+  }, [currentMember.businessId, currentMember.scopeLevel, memberUnits]);
+
+  useEffect(() => {
+    if (selectedBusinessUnits.length > 0 && !selectedBusinessUnits.some((unit) => unit.id === unitId)) {
+      setUnitId(selectedBusinessUnits[0].id);
+    }
+  }, [selectedBusinessUnits, unitId]);
 
   useEffect(() => {
     let ignore = false;
@@ -124,13 +177,13 @@ export default function TransactionRecordPage() {
         setBusinessOptions(businesses);
         setUnitOptions(units);
         setProductOptions(catalogue.products);
-        setBusinessId((current) => current || businesses[0]?.id || "");
+        setBusinessId((current) => current || initialBusinessId || businesses[0]?.id || "");
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialBusinessId]);
 
   useEffect(() => {
     if (!draftId) return;
@@ -138,8 +191,10 @@ export default function TransactionRecordPage() {
     getTransactionDraft(draftId)
       .then((draft) => {
         if (!active) return;
-        setBusinessId(draft.businessId ?? "");
-        setUnitId(draft.businessUnitId ?? "");
+        if (currentMember.scopeLevel === "master" || currentMember.scopeLevel === "business") {
+          setBusinessId(draft.businessId ?? "");
+          setUnitId(draft.businessUnitId ?? "");
+        }
         setCustomerName(draft.customerName ?? "");
         setCustomerContact(draft.customerContact ?? "");
         setPaymentMethod(draft.paymentMethod ?? "cash");
@@ -164,12 +219,7 @@ export default function TransactionRecordPage() {
     return () => {
       active = false;
     };
-  }, [draftId, t]);
-
-  const selectedBusinessUnits = useMemo(
-    () => unitOptions.filter((unit) => unit.businessId === businessId && unit.status === "active"),
-    [businessId, unitOptions],
-  );
+  }, [currentMember.scopeLevel, draftId, t]);
 
   const customerSuggestions = useMemo(() => {
     if (customerQuery.length < 2 || selectedCustomer?.name.toLowerCase() === customerQuery) {
@@ -197,8 +247,6 @@ export default function TransactionRecordPage() {
 
   const validateForm = (): FormErrors => {
     const nextErrors: FormErrors = {};
-    const selectedBusiness = businessOptions.find((business) => business.id === businessId);
-    const selectedUnit = unitOptions.find((unit) => unit.id === unitId);
     const normalizedCustomerName = sanitizeText(customerName, 80);
     const normalizedCustomerContact = sanitizeText(customerContact, 24);
     const normalizedNote = sanitizeText(note, 240);
@@ -206,10 +254,7 @@ export default function TransactionRecordPage() {
     const parsedAmountPaid = amountPaid.trim() === "" ? null : Number(amountPaid);
 
     if (!selectedBusiness) nextErrors.business = t("transactionRecord.validation.businessRequired");
-    if (
-      currentMember.scopeLevel === "unit" &&
-      (!selectedUnit || selectedUnit.businessId !== businessId)
-    ) {
+    if (!selectedUnit || selectedUnit.businessId !== businessId) {
       nextErrors.unit = t("transactionRecord.validation.unitRequired");
     }
     if (!validateSafeText(normalizedCustomerName, 80)) nextErrors.customerName = t("transactionRecord.validation.customerNameRequired");
@@ -249,7 +294,7 @@ export default function TransactionRecordPage() {
 
   const transactionLines = () => useItemizedDetails
     ? lineItems.map((item) => {
-        const product = item.productId ? productOptions.find((candidate) => candidate.id === item.productId) : undefined;
+        const product = item.productId ? scopedProductOptions.find((candidate) => candidate.id === item.productId) : undefined;
         return {
           productId: item.productId,
           productName: sanitizeText(item.itemName, 100),
@@ -294,6 +339,8 @@ export default function TransactionRecordPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const shouldPrintReceipt = submitter?.dataset.intent === "print";
     const nextErrors = validateForm();
     setErrors(nextErrors);
 
@@ -311,7 +358,7 @@ export default function TransactionRecordPage() {
       try {
         const saved = await createCloudTransaction({
           businessId,
-          businessUnitId: unitId || undefined,
+          businessUnitId: unitId,
           customerName: sanitizeText(customerName, 80),
           customerContact: sanitizeText(customerContact, 24) || undefined,
           paymentMethod,
@@ -322,7 +369,7 @@ export default function TransactionRecordPage() {
         });
         if (draftId) await deleteTransactionDraft(draftId).catch(() => undefined);
         setFormStatus("validated");
-        navigate(`/transactions/${saved.id}/invoice`);
+        navigate(`/transactions/${saved.id}/invoice${shouldPrintReceipt ? "?print=1" : ""}`);
       } catch (cloudError) {
         if (
           cloudError instanceof ApiClientError &&
@@ -339,12 +386,12 @@ export default function TransactionRecordPage() {
           name: sanitizeText(customerName, 80),
           contact: sanitizeText(customerContact, 24),
           businessId,
-          businessUnitId: unitId || undefined,
+          businessUnitId: unitId,
           member: currentMember,
         });
         const saved = await createLocalTransaction({
           businessId,
-          businessUnitId: unitId || undefined,
+          businessUnitId: unitId,
           customerId: savedCustomer.id,
           customerName: savedCustomer.name,
           customerContact: savedCustomer.contact,
@@ -359,7 +406,7 @@ export default function TransactionRecordPage() {
         });
         if (draftId) await deleteTransactionDraft(draftId).catch(() => undefined);
         setFormStatus("validated");
-        navigate(`/transactions/${saved.transaction.localId}/invoice`);
+        navigate(`/transactions/${saved.transaction.localId}/invoice${shouldPrintReceipt ? "?print=1" : ""}`);
       }
     } catch (saveError) {
       setFormStatus("idle");
@@ -421,7 +468,7 @@ export default function TransactionRecordPage() {
       return [];
     }
 
-    return productOptions
+    return scopedProductOptions
       .filter((product) => getProductSearchText(product).includes(query))
       .slice(0, 6);
   };
@@ -470,27 +517,38 @@ export default function TransactionRecordPage() {
         )}
 
         <div className="form-grid">
-          <div className="form-field">
-            <label htmlFor="business">{t("transactionRecord.business")}</label>
-            <select id="business" value={businessId} onChange={(event) => {
-              setBusinessId(event.target.value);
-              setUnitId("");
-            }}>
-              {businessOptions.map((business) => (
-                <option key={business.id} value={business.id}>{business.name}</option>
-              ))}
-            </select>
-            {errors.business && <span className="field-error">{errors.business}</span>}
-          </div>
+          {canChooseBusiness ? (
+            <div className="form-field">
+              <label htmlFor="business">{t("transactionRecord.business")}</label>
+              <select id="business" value={businessId} onChange={(event) => {
+                setBusinessId(event.target.value);
+                setUnitId("");
+              }}>
+                {scopedBusinessOptions.map((business) => (
+                  <option key={business.id} value={business.id}>{business.name}</option>
+                ))}
+              </select>
+              {errors.business && <span className="field-error">{errors.business}</span>}
+            </div>
+          ) : (
+            <div className="form-field">
+              <label htmlFor="business">{t("transactionRecord.business")}</label>
+              <input id="business" value={selectedBusiness?.name ?? ""} readOnly />
+              {errors.business && <span className="field-error">{errors.business}</span>}
+            </div>
+          )}
 
           <div className="form-field">
             <label htmlFor="unit">{t("transactionRecord.unit")}</label>
-            <select id="unit" value={unitId} onChange={(event) => setUnitId(event.target.value)}>
-              <option value="">{t("transactionRecord.directBusinessSale")}</option>
-              {selectedBusinessUnits.map((unit) => (
-                <option key={unit.id} value={unit.id}>{unit.name}</option>
-              ))}
-            </select>
+            {canChooseUnit ? (
+              <select id="unit" value={unitId} onChange={(event) => setUnitId(event.target.value)}>
+                {selectedBusinessUnits.map((unit) => (
+                  <option key={unit.id} value={unit.id}>{unit.name}</option>
+                ))}
+              </select>
+            ) : (
+              <input id="unit" value={selectedUnit?.name ?? ""} readOnly />
+            )}
             {errors.unit && <span className="field-error">{errors.unit}</span>}
           </div>
 
@@ -507,7 +565,7 @@ export default function TransactionRecordPage() {
                       <strong>{customer.name}</strong>
                       <small>{customer.contact ?? t("transactionRecord.noContactSaved")}</small>
                     </span>
-                    {customer.pendingBalance > 0 && <em>{formatMoney(customer.pendingBalance, workspace.masterAccount.currency)} {t("common.pending")}</em>}
+                    {customer.pendingBalance > 0 && <em>{formatMoney(customer.pendingBalance, selectedBusiness?.currency ?? workspace.masterAccount.currency)} {t("common.pending")}</em>}
                   </button>
                 ))}
               </div>
@@ -524,9 +582,9 @@ export default function TransactionRecordPage() {
             <div className={selectedCustomer.pendingBalance > 0 ? "customer-alert warning" : "customer-alert"}>
               <div>
                 <strong>{selectedCustomer.name}</strong>
-                <small>{t("transactionRecord.lastPurchase")} {selectedCustomer.lastPurchaseAt ? formatDateTime(selectedCustomer.lastPurchaseAt) : t("transactionRecord.notRecorded")} · {t("transactionRecord.totalSpent")} {formatMoney(selectedCustomer.totalSpent, workspace.masterAccount.currency)}</small>
+                <small>{t("transactionRecord.lastPurchase")} {selectedCustomer.lastPurchaseAt ? formatDateTime(selectedCustomer.lastPurchaseAt) : t("transactionRecord.notRecorded")} · {t("transactionRecord.totalSpent")} {formatMoney(selectedCustomer.totalSpent, selectedBusiness?.currency ?? workspace.masterAccount.currency)}</small>
               </div>
-              {selectedCustomer.pendingBalance > 0 ? <span>{formatMoney(selectedCustomer.pendingBalance, workspace.masterAccount.currency)} {t("common.pending")}</span> : <span>{t("transactionRecord.noPendingBalance")}</span>}
+              {selectedCustomer.pendingBalance > 0 ? <span>{formatMoney(selectedCustomer.pendingBalance, selectedBusiness?.currency ?? workspace.masterAccount.currency)} {t("common.pending")}</span> : <span>{t("transactionRecord.noPendingBalance")}</span>}
             </div>
           )}
 
@@ -564,7 +622,7 @@ export default function TransactionRecordPage() {
                   <strong>{t("transactionRecord.itemizedTitle")}</strong>
                   <DevOnly><small>{t("transactionRecord.itemizedSubtitle")}</small></DevOnly>
                 </div>
-                <span>{formatMoney(itemizedTotal, workspace.masterAccount.currency)}</span>
+                <span>{formatMoney(itemizedTotal, selectedBusiness?.currency ?? workspace.masterAccount.currency)}</span>
               </div>
 
               <div className="itemized-table">
@@ -597,7 +655,7 @@ export default function TransactionRecordPage() {
                                     <small>{descriptor || t(`categories.${product.category}`)}</small>
                                     <small>{product.sku ?? t("common.noSku")} · {t(`categories.${product.category}`)}</small>
                                   </span>
-                                  <em>{formatMoney(resolvedPrice.price, workspace.masterAccount.currency)}{resolvedPrice.source === "customer" ? ` ${t("transactionRecord.customerPrice")}` : ""}</em>
+                                  <em>{formatMoney(resolvedPrice.price, selectedBusiness?.currency ?? workspace.masterAccount.currency)}{resolvedPrice.source === "customer" ? ` ${t("transactionRecord.customerPrice")}` : ""}</em>
                                 </button>
                               );
                             })}
@@ -609,7 +667,7 @@ export default function TransactionRecordPage() {
                       </div>
                       <input aria-label={t("transactionRecord.quantity")} type="number" min="0.001" max="10000" placeholder="1" value={item.quantity} onChange={(event) => updateLineItem(item.id, "quantity", event.target.value)} />
                       <input aria-label={t("transactionRecord.fixedPrice")} type="number" min="0" max="100000000" placeholder="0" value={item.fixedPrice} onChange={(event) => updateLineItem(item.id, "fixedPrice", event.target.value)} />
-                      <output>{formatMoney(amount, workspace.masterAccount.currency)}</output>
+                      <output>{formatMoney(amount, selectedBusiness?.currency ?? workspace.masterAccount.currency)}</output>
                       <button type="button" className="line-remove-btn" disabled={lineItems.length === 1} onClick={() => removeLineItem(item.id)}>{t("common.remove")}</button>
                     </div>
                   );
@@ -648,7 +706,7 @@ export default function TransactionRecordPage() {
               </div>
               <div className="calculated-pending-amount">
                 <span>{t("transactionRecord.pendingAmount")}</span>
-                <strong>{formatMoney(pendingAmount, workspace.masterAccount.currency)}</strong>
+                <strong>{formatMoney(pendingAmount, selectedBusiness?.currency ?? workspace.masterAccount.currency)}</strong>
               </div>
             </div>
           )}
@@ -663,6 +721,7 @@ export default function TransactionRecordPage() {
         <div className="form-actions">
           <button className="secondary-btn" type="button" disabled={formStatus === "saving"} onClick={() => void handleSaveDraft()}>{t("transactionRecord.saveDraft")}</button>
           <button className="primary-btn record-sale-btn" type="submit" disabled={formStatus === "saving" || !canRecord}>{t("transactionRecord.recordSale")}</button>
+          <button className="primary-btn" type="submit" data-intent="print" disabled={formStatus === "saving" || !canRecord}>{t("invoice.printInvoice")}</button>
         </div>
       </form>
     </section>
