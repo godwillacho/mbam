@@ -34,15 +34,14 @@ where not exists (
 alter table products add column business_unit_id uuid references business_units(id) on delete restrict;
 
 update products product
-set business_unit_id = selected_unit.id
-from lateral (
+set business_unit_id = (
   select unit.id
   from business_units unit
   where unit.business_id = product.business_id
     and unit.status = 'active'
   order by unit.created_at, unit.id
   limit 1
-) selected_unit;
+);
 
 alter table products alter column business_unit_id set not null;
 
