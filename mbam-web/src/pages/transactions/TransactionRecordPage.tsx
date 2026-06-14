@@ -131,8 +131,11 @@ export default function TransactionRecordPage() {
   const canChooseBusiness = currentMember.scopeLevel === "master";
   const canChooseUnit = selectedBusinessUnits.length > 1 && (currentMember.scopeLevel === "master" || currentMember.scopeLevel === "business");
   const scopedProductOptions = useMemo(
-    () => productOptions.filter((product) => !product.businessId || product.businessId === businessId),
-    [businessId, productOptions],
+    () => productOptions.filter((product) => {
+      if (product.businessUnitId) return product.businessUnitId === unitId;
+      return !product.businessId || product.businessId === businessId;
+    }),
+    [businessId, productOptions, unitId],
   );
 
   useEffect(() => {
