@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { productSales } from "../../data/mockProductSales";
@@ -74,6 +74,7 @@ function getMockInvoice(transactionId: string | undefined): InvoiceView | undefi
 
 export default function TransactionInvoicePage() {
   const { transactionId } = useParams();
+  const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const [invoice, setInvoice] = useState<InvoiceView | undefined>();
   const [isLoading, setIsLoading] = useState(true);
@@ -146,6 +147,12 @@ export default function TransactionInvoicePage() {
       ignore = true;
     };
   }, [transactionId]);
+
+  useEffect(() => {
+    if (!invoice || searchParams.get("print") !== "1") return;
+    const printHandle = window.setTimeout(() => window.print(), 250);
+    return () => window.clearTimeout(printHandle);
+  }, [invoice, searchParams]);
 
   if (isLoading) {
     return <p className="card-muted">{t("productRevenue.loading")}</p>;
