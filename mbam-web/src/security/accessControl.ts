@@ -1,16 +1,16 @@
 import { workspace } from "../data/mockWorkspace";
 import type { BusinessUnit, PendingPaymentRecord, TeamMember, TransactionRecord } from "../types/workspace";
 
-export type AppRouteKey = "recordTransaction" | "transactions" | "businesses" | "team" | "reports" | "products";
+export type AppRouteKey = "recordTransaction" | "transactionDrafts" | "transactions" | "businesses" | "team" | "reports" | "products";
 
 export const CURRENT_MEMBER_CHANGE_EVENT = "mbam-current-member-change";
 let currentMemberId = workspace.teamMembers[0]?.id;
 
 const routeAccessByRole: Record<string, AppRouteKey[]> = {
-  "role-master-owner": ["recordTransaction", "transactions", "businesses", "team", "reports", "products"],
-  "role-business-admin": ["recordTransaction", "transactions", "businesses", "team", "reports", "products"],
-  "role-shop-manager": ["recordTransaction", "transactions", "reports", "products"],
-  "role-cashier": ["recordTransaction", "transactions", "products"],
+  "role-master-owner": ["recordTransaction", "transactionDrafts", "transactions", "businesses", "team", "reports", "products"],
+  "role-business-admin": ["recordTransaction", "transactionDrafts", "transactions", "businesses", "team", "reports", "products"],
+  "role-shop-manager": ["recordTransaction", "transactionDrafts", "transactions", "reports", "products"],
+  "role-cashier": ["recordTransaction", "transactionDrafts", "transactions", "products"],
 };
 
 const productManagementRoles = new Set([

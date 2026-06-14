@@ -1,8 +1,10 @@
-use sqlx::PgPool;
+use chrono::{DateTime, Utc};
+use sqlx::{types::Json, PgPool};
 use uuid::Uuid;
 
 use super::model::{
-    CreateTransactionRequest, TransactionLine, TransactionRecord, TransactionResponse,
+    CreateTransactionRequest, TransactionDraftPayload, TransactionDraftResponse, TransactionLine,
+    TransactionRecord, TransactionResponse,
 };
 
 const TRANSACTION_COLUMNS: &str = r#"
@@ -55,6 +57,170 @@ pub async fn permitted_account_id(
     .bind(permission)
     .fetch_optional(db)
     .await
+}
+
+pub async fn user_account_id(db: &PgPool, user_id: Uuid) -> Result<Option<Uuid>, sqlx::Error> {
+    sqlx::query_scalar(
+        "select business_account_id from memberships where user_id = $1 and status = 'active' limit 1",
+    )
+    .bind(user_id)
+    .fetch_optional(db)
+    .await
+}
+
+pub async fn create_draft(
+    db: &PgPool,
+    user_id: Uuid,
+    account_id: Uuid,
+    payload: &TransactionDraftPayload,
+) -> Result<TransactionDraftResponse, sqlx::Error> {
+    let (id, payload, created_at, updated_at) = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Json<TransactionDraftPayload>,
+            DateTime<Utc>,
+            DateTime<Utc>,
+        ),
+    >(
+        r#"
+            insert into transaction_drafts (business_account_id, recorded_by_user_id, payload)
+            values ($1, $2, $3)
+            returning id, payload, created_at, updated_at
+            "#,
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .bind(Json(payload.clone()))
+    .fetch_one(db)
+    .await?;
+    Ok(TransactionDraftResponse {
+        id,
+        payload: payload.0,
+        created_at,
+        updated_at,
+    })
+}
+
+pub async fn list_drafts(
+    db: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<TransactionDraftResponse>, sqlx::Error> {
+    let rows = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Json<TransactionDraftPayload>,
+            DateTime<Utc>,
+            DateTime<Utc>,
+        ),
+    >(
+        r#"
+            select id, payload, created_at, updated_at
+            from transaction_drafts
+            where recorded_by_user_id = $1
+            order by updated_at desc
+            "#,
+    )
+    .bind(user_id)
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, payload, created_at, updated_at)| TransactionDraftResponse {
+                id,
+                payload: payload.0,
+                created_at,
+                updated_at,
+            },
+        )
+        .collect())
+}
+
+pub async fn find_draft(
+    db: &PgPool,
+    user_id: Uuid,
+    draft_id: Uuid,
+) -> Result<Option<TransactionDraftResponse>, sqlx::Error> {
+    let row = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Json<TransactionDraftPayload>,
+            DateTime<Utc>,
+            DateTime<Utc>,
+        ),
+    >(
+        r#"
+            select id, payload, created_at, updated_at
+            from transaction_drafts
+            where id = $1 and recorded_by_user_id = $2
+            "#,
+    )
+    .bind(draft_id)
+    .bind(user_id)
+    .fetch_optional(db)
+    .await?;
+    Ok(row.map(
+        |(id, payload, created_at, updated_at)| TransactionDraftResponse {
+            id,
+            payload: payload.0,
+            created_at,
+            updated_at,
+        },
+    ))
+}
+
+pub async fn update_draft(
+    db: &PgPool,
+    user_id: Uuid,
+    draft_id: Uuid,
+    account_id: Uuid,
+    payload: &TransactionDraftPayload,
+) -> Result<Option<TransactionDraftResponse>, sqlx::Error> {
+    let row = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Json<TransactionDraftPayload>,
+            DateTime<Utc>,
+            DateTime<Utc>,
+        ),
+    >(
+        r#"
+            update transaction_drafts
+            set business_account_id = $3, payload = $4, updated_at = now()
+            where id = $1 and recorded_by_user_id = $2
+            returning id, payload, created_at, updated_at
+            "#,
+    )
+    .bind(draft_id)
+    .bind(user_id)
+    .bind(account_id)
+    .bind(Json(payload.clone()))
+    .fetch_optional(db)
+    .await?;
+    Ok(row.map(
+        |(id, payload, created_at, updated_at)| TransactionDraftResponse {
+            id,
+            payload: payload.0,
+            created_at,
+            updated_at,
+        },
+    ))
+}
+
+pub async fn delete_draft(db: &PgPool, user_id: Uuid, draft_id: Uuid) -> Result<bool, sqlx::Error> {
+    Ok(
+        sqlx::query("delete from transaction_drafts where id = $1 and recorded_by_user_id = $2")
+            .bind(draft_id)
+            .bind(user_id)
+            .execute(db)
+            .await?
+            .rows_affected()
+            > 0,
+    )
 }
 
 pub async fn create(

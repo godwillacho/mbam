@@ -8,12 +8,89 @@ use uuid::Uuid;
 
 use crate::{error::ApiError, security::tokens, state::AppState};
 
-use super::{model::CreateTransactionRequest, service};
+use super::{
+    model::{CreateTransactionRequest, TransactionDraftPayload},
+    service,
+};
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
+        .route("/drafts", get(list_drafts).post(create_draft))
+        .route(
+            "/drafts/:draft_id",
+            get(find_draft).patch(update_draft).delete(delete_draft),
+        )
         .route("/:transaction_id", get(find))
+}
+
+async fn create_draft(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<TransactionDraftPayload>,
+) -> Result<(StatusCode, Json<super::model::TransactionDraftResponse>), ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(
+            service::create_draft(&state.db, authenticated_user_id(&headers, &state)?, payload)
+                .await?,
+        ),
+    ))
+}
+
+async fn list_drafts(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<super::model::TransactionDraftResponse>>, ApiError> {
+    Ok(Json(
+        service::list_drafts(&state.db, authenticated_user_id(&headers, &state)?).await?,
+    ))
+}
+
+async fn find_draft(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(draft_id): Path<Uuid>,
+) -> Result<Json<super::model::TransactionDraftResponse>, ApiError> {
+    Ok(Json(
+        service::find_draft(
+            &state.db,
+            authenticated_user_id(&headers, &state)?,
+            draft_id,
+        )
+        .await?,
+    ))
+}
+
+async fn update_draft(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(draft_id): Path<Uuid>,
+    Json(payload): Json<TransactionDraftPayload>,
+) -> Result<Json<super::model::TransactionDraftResponse>, ApiError> {
+    Ok(Json(
+        service::update_draft(
+            &state.db,
+            authenticated_user_id(&headers, &state)?,
+            draft_id,
+            payload,
+        )
+        .await?,
+    ))
+}
+
+async fn delete_draft(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(draft_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    service::delete_draft(
+        &state.db,
+        authenticated_user_id(&headers, &state)?,
+        draft_id,
+    )
+    .await?;
+    Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
 async fn create(

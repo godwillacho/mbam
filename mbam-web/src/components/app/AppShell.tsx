@@ -27,6 +27,7 @@ import "./AppShell.css";
 const navItems: Array<{ to: string; labelKey: string; routeKey?: AppRouteKey }> = [
   { to: "/dashboard", labelKey: "app.nav.dashboard" },
   { to: "/transactions/new", labelKey: "app.nav.recordTransaction", routeKey: "recordTransaction" },
+  { to: "/transactions/drafts", labelKey: "app.nav.drafts", routeKey: "transactionDrafts" },
   { to: "/transactions", labelKey: "app.nav.transactions", routeKey: "transactions" },
   { to: "/businesses", labelKey: "app.nav.businesses", routeKey: "businesses" },
   { to: "/products", labelKey: "app.nav.products", routeKey: "products" },
