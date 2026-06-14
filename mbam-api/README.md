@@ -43,7 +43,7 @@ cp .env.example .env
 cargo run
 ```
 
-The host API must use `127.0.0.1:5432` because Docker publishes PostgreSQL to the Mac. An API running inside Compose must use `db:5432`; `db` is only resolvable on the Compose network.
+The host API must use `127.0.0.1:${POSTGRES_HOST_PORT}` because Docker publishes PostgreSQL to the Mac. The default host port is `5432`; set `POSTGRES_HOST_PORT=5433` in the root `.env` when another local PostgreSQL service already owns `5432`. An API running inside Compose must use `db:5432`; `db` is only resolvable on the Compose network.
 
 The database name, user, and password in `mbam-api/.env` must match `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` in the root `.env`.
 
