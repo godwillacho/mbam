@@ -76,14 +76,14 @@ export interface InvitationDetails {
 }
 
 export async function loadTeamWorkspace(): Promise<TeamWorkspace> {
-  return getJson<TeamWorkspace>("/api/v1/team-members/");
+  return getJson<TeamWorkspace>("/api/v1/team-members");
 }
 
 export async function inviteEmployee(payload: InviteEmployeeInput): Promise<{
   invitation: TeamInvitation;
   invite_url: string;
 }> {
-  return postJson("/api/v1/invites/", payload);
+  return postJson("/api/v1/invites", payload);
 }
 
 export async function updateEmployee(

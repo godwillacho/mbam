@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { workspace } from "../../data/mockWorkspace";
+import {
+  isDemoWorkspace,
+  WORKSPACE_CHANGE_EVENT,
+  workspace,
+} from "../../data/mockWorkspace";
 import { getCurrentSession } from "../../services/authService";
 import { getAccessToken } from "../../services/authSessionStore";
 import {
@@ -9,6 +13,7 @@ import {
   synchronizeOfflineChanges,
 } from "../../services/offlineSyncService";
 import { isOfflineVaultUnlocked } from "../../services/offlineVaultService";
+import { hydrateCloudWorkspace } from "../../services/workspaceService";
 import {
   canAccessRoute,
   CURRENT_MEMBER_CHANGE_EVENT,
@@ -33,6 +38,7 @@ const isDevEnvironment = import.meta.env.DEV;
 export default function AppShell() {
   const { t } = useTranslation();
   const [currentMember, setCurrentMember] = useState(() => getCurrentMember());
+  const [, setWorkspaceVersion] = useState(0);
   const visibleNavItems = navItems.filter((item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey));
 
   useEffect(() => {
@@ -40,6 +46,18 @@ export default function AppShell() {
     window.addEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
     return () => {
       window.removeEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshWorkspace = () => {
+      setCurrentMember(getCurrentMember());
+      setWorkspaceVersion((version) => version + 1);
+    };
+    window.addEventListener(WORKSPACE_CHANGE_EVENT, refreshWorkspace);
+    void hydrateCloudWorkspace().catch(() => undefined);
+    return () => {
+      window.removeEventListener(WORKSPACE_CHANGE_EVENT, refreshWorkspace);
     };
   }, []);
 
@@ -95,7 +113,7 @@ export default function AppShell() {
             <h1>{workspace.masterAccount.name}</h1>
           </div>
           <div className="topbar-actions">
-            {isDevEnvironment && (
+            {isDevEnvironment && isDemoWorkspace() && (
               <label className="dev-account-switcher">
                 <span>{t("app.devAccount")}</span>
                 <select

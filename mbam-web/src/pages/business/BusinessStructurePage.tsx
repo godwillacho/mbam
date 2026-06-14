@@ -1,9 +1,10 @@
-import { type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useState } from "react";
+import { type FormEvent, type KeyboardEvent, type MouseEvent, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { workspace } from "../../data/mockWorkspace";
+import { updateCloudWorkspace, workspace } from "../../data/mockWorkspace";
 import { ApiClientError } from "../../services/apiClient";
 import {
+  BUSINESS_WORKSPACE_CHANGE_EVENT,
   createBusiness,
   createBusinessUnit,
   listBusinesses,
@@ -42,36 +43,47 @@ export default function BusinessStructurePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadPage() {
-      try {
-        const [loadedBusinesses, loadedTeam] = await Promise.all([
-          listBusinesses(),
-          loadTeamWorkspace(),
-        ]);
-        const loadedUnits = (
-          await Promise.all(loadedBusinesses.map((business) => listBusinessUnits(business.id)))
-        ).flat();
-
-        if (active) {
-          setBusinesses(loadedBusinesses);
-          setBusinessUnits(loadedUnits);
-          setTeamWorkspace(loadedTeam);
-        }
-      } catch (requestError) {
-        if (active) setError(apiErrorMessage(requestError, t("businesses.loadError")));
-      } finally {
-        if (active) setIsLoading(false);
-      }
+  const loadPage = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const loadedBusinesses = await listBusinesses();
+      const loadedUnits = (
+        await Promise.all(
+          loadedBusinesses.map((business) => listBusinessUnits(business.id)),
+        )
+      ).flat();
+      setBusinesses(loadedBusinesses);
+      setBusinessUnits(loadedUnits);
+      updateCloudWorkspace({
+        businesses: loadedBusinesses,
+        businessUnits: loadedUnits,
+      });
+      setSelectedBusinessId((current) =>
+        loadedBusinesses.some((business) => business.id === current)
+          ? current
+          : "",
+      );
+      loadTeamWorkspace()
+        .then(setTeamWorkspace)
+        .catch(() => setTeamWorkspace(null));
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, t("businesses.loadError")));
+    } finally {
+      setIsLoading(false);
     }
-
-    void loadPage();
-    return () => {
-      active = false;
-    };
   }, [t]);
+
+  useEffect(() => {
+    const refresh = () => void loadPage();
+    void loadPage();
+    window.addEventListener(BUSINESS_WORKSPACE_CHANGE_EVENT, refresh);
+    window.addEventListener("online", refresh);
+    return () => {
+      window.removeEventListener(BUSINESS_WORKSPACE_CHANGE_EVENT, refresh);
+      window.removeEventListener("online", refresh);
+    };
+  }, [loadPage]);
 
   const selectedBusiness = businesses.find((business) => business.id === selectedBusinessId);
 

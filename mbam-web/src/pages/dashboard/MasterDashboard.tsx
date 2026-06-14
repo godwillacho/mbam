@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { workspace } from "../../data/mockWorkspace";
+import {
+  isDemoWorkspace,
+  WORKSPACE_CHANGE_EVENT,
+  workspace,
+} from "../../data/mockWorkspace";
 import { CURRENT_MEMBER_CHANGE_EVENT, getCurrentMember, getScopedPendingPayments } from "../../security/accessControl";
 import type { Business, BusinessUnit, ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
@@ -111,8 +115,10 @@ export default function MasterDashboard() {
       setSelectedMetric(null);
     };
     window.addEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
+    window.addEventListener(WORKSPACE_CHANGE_EVENT, syncCurrentMember);
     return () => {
       window.removeEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
+      window.removeEventListener(WORKSPACE_CHANGE_EVENT, syncCurrentMember);
     };
   }, []);
 
@@ -362,7 +368,7 @@ export default function MasterDashboard() {
             {selectedRole ? t(`roleDashboard.roleNames.${selectedRole.id}`) : ""} · {t("roleDashboard.scope")}: {getMemberScopeLabel(selectedMember)}
           </p>
         </div>
-        {isDevEnvironment && <span className="badge">{t("app.devAccount")}</span>}
+        {isDevEnvironment && isDemoWorkspace() && <span className="badge">{t("app.devAccount")}</span>}
       </article>
 
       <div className="metrics-grid clean-metrics-grid dashboard-options-grid">

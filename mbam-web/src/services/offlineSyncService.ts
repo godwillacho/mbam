@@ -25,6 +25,7 @@ import {
 import { requireOfflineDataKey } from "./offlineVaultService";
 import { getJson, postJson } from "./apiClient";
 import { reconcileRoleScopedLocalData } from "./localSync/localSyncStore";
+import { BUSINESS_WORKSPACE_CHANGE_EVENT } from "./businessService";
 
 export interface QueueOperationInput<T> {
   deviceId: string;
@@ -252,4 +253,14 @@ export async function synchronizeOfflineChanges(
     await applyCloudChange(change);
   }
   await setSyncCursor(pullResult.cursor);
+  if (
+    typeof window !== "undefined" &&
+    pullResult.changes.some(
+      (change) =>
+        change.entityType === "business" ||
+        change.entityType === "business_unit",
+    )
+  ) {
+    window.dispatchEvent(new Event(BUSINESS_WORKSPACE_CHANGE_EVENT));
+  }
 }

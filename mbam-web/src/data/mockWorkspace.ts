@@ -1,6 +1,7 @@
 import type { WorkspaceData } from "../types/workspace";
+import type { AuthUser } from "../types/auth";
 
-export const workspace: WorkspaceData = {
+const demoWorkspace: WorkspaceData = {
   masterAccount: {
     id: "master-001",
     name: "Mbam Central Trading",
@@ -187,3 +188,77 @@ export const workspace: WorkspaceData = {
     { id: "member-clarisse", fullName: "Clarisse Mballa", email: "clarisse@example.com", roleId: "role-cashier", scopeLevel: "unit", businessId: "business-grocery", businessUnitId: "unit-yaounde-shop", status: "invited" },
   ],
 };
+
+export const WORKSPACE_CHANGE_EVENT = "mbam-workspace-change";
+
+export const workspace: WorkspaceData = JSON.parse(
+  JSON.stringify(demoWorkspace),
+) as WorkspaceData;
+
+let demoMode = true;
+
+function notifyWorkspaceChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(WORKSPACE_CHANGE_EVENT));
+  }
+}
+
+export function isDemoWorkspace(): boolean {
+  return demoMode;
+}
+
+export function activateCloudWorkspace(user: AuthUser): void {
+  demoMode = false;
+  workspace.masterAccount = {
+    id: user.id,
+    name: `${user.fullName}'s workspace`,
+    ownerName: user.fullName,
+    currency: "XAF",
+  };
+  workspace.businesses = [];
+  workspace.businessUnits = [];
+  workspace.customers = [];
+  workspace.products = [];
+  workspace.transactions = [];
+  workspace.pendingPayments = [];
+  workspace.roles = [
+    {
+      id: "role-master-owner",
+      name: "Master Owner",
+      permissions: ["All businesses", "All shops", "Roles", "Reports", "Settings"],
+    },
+  ];
+  workspace.teamMembers = [
+    {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      roleId: "role-master-owner",
+      scopeLevel: "master",
+      status: "active",
+    },
+  ];
+  notifyWorkspaceChanged();
+}
+
+export function updateCloudWorkspace(
+  updates: Partial<Omit<WorkspaceData, "masterAccount">> & {
+    masterAccount?: Partial<WorkspaceData["masterAccount"]>;
+  },
+): void {
+  if (updates.masterAccount) {
+    workspace.masterAccount = {
+      ...workspace.masterAccount,
+      ...updates.masterAccount,
+    };
+  }
+  if (updates.businesses) workspace.businesses = updates.businesses;
+  if (updates.businessUnits) workspace.businessUnits = updates.businessUnits;
+  if (updates.customers) workspace.customers = updates.customers;
+  if (updates.products) workspace.products = updates.products;
+  if (updates.transactions) workspace.transactions = updates.transactions;
+  if (updates.pendingPayments) workspace.pendingPayments = updates.pendingPayments;
+  if (updates.roles) workspace.roles = updates.roles;
+  if (updates.teamMembers) workspace.teamMembers = updates.teamMembers;
+  notifyWorkspaceChanged();
+}
