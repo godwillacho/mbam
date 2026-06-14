@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateTransactionLineRequest {
     pub product_id: Option<Uuid>,
@@ -10,6 +10,33 @@ pub struct CreateTransactionLineRequest {
     pub sku: Option<String>,
     pub quantity: f64,
     pub unit_price: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionDraftPayload {
+    pub business_id: Option<Uuid>,
+    pub business_unit_id: Option<Uuid>,
+    pub customer_name: Option<String>,
+    pub customer_contact: Option<String>,
+    pub payment_method: Option<String>,
+    pub payment_status: Option<String>,
+    pub total_amount: Option<f64>,
+    pub amount_paid: Option<f64>,
+    pub note: Option<String>,
+    pub use_itemized_details: Option<bool>,
+    #[serde(default)]
+    pub lines: Vec<CreateTransactionLineRequest>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionDraftResponse {
+    pub id: Uuid,
+    #[serde(flatten)]
+    pub payload: TransactionDraftPayload,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

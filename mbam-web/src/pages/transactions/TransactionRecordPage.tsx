@@ -8,13 +8,21 @@ import { listBusinesses, listBusinessUnits } from "../../services/businessServic
 import { getCurrentSession } from "../../services/authService";
 import { listBrowserDbCustomers, upsertBrowserDbCustomerFromTransaction } from "../../services/customers/customerBrowserDbService";
 import { listProducts } from "../../services/productService";
-import { createCloudTransaction } from "../../services/transactionService";
+import {
+  createCloudTransaction,
+  createTransactionDraft,
+  deleteTransactionDraft,
+  getTransactionDraft,
+  updateTransactionDraft,
+  type TransactionDraftInput,
+} from "../../services/transactionService";
 import { ApiClientError } from "../../services/apiClient";
 import { isOfflineVaultUnlocked } from "../../services/offlineVaultService";
 import { createLocalTransaction } from "../../services/transactions/transactionLocalRepository";
 import type { CustomerProfile, PaymentMethod, ProductProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import { getProductDescriptor, getProductSearchText } from "../../utils/productDisplay";
+import { calculatePendingAmount } from "../../utils/payment";
 import { parsePositiveMoney, sanitizeText, validatePhone, validateSafeText, validateSaleLineInput } from "../../utils/validation";
 import "./TransactionRecordPage.css";
 
@@ -77,7 +85,7 @@ export default function TransactionRecordPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [totalAmount, setTotalAmount] = useState("");
-  const [outstandingAmount, setOutstandingAmount] = useState("");
+  const [amountPaid, setAmountPaid] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerContact, setCustomerContact] = useState("");
   const [note, setNote] = useState("");
@@ -87,6 +95,7 @@ export default function TransactionRecordPage() {
   const [lineItems, setLineItems] = useState<SaleLineItem[]>(() => [createLineItem()]);
   const [errors, setErrors] = useState<FormErrors>({});
   const [formStatus, setFormStatus] = useState<"idle" | "saving" | "validated">("idle");
+  const draftId = searchParams.get("draft");
 
   const isPendingPayment = paymentStatus === "pending";
   const customerQuery = customerName.trim().toLowerCase();
@@ -122,6 +131,40 @@ export default function TransactionRecordPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!draftId) return;
+    let active = true;
+    getTransactionDraft(draftId)
+      .then((draft) => {
+        if (!active) return;
+        setBusinessId(draft.businessId ?? "");
+        setUnitId(draft.businessUnitId ?? "");
+        setCustomerName(draft.customerName ?? "");
+        setCustomerContact(draft.customerContact ?? "");
+        setPaymentMethod(draft.paymentMethod ?? "cash");
+        setPaymentStatus(draft.paymentStatus ?? "paid");
+        setTotalAmount(draft.totalAmount ? String(draft.totalAmount) : "");
+        setAmountPaid(draft.amountPaid !== undefined ? String(draft.amountPaid) : "");
+        setNote(draft.note ?? "");
+        setUseItemizedDetails(Boolean(draft.useItemizedDetails));
+        if (draft.lines.length > 0) {
+          setLineItems(draft.lines.map((line) => ({
+            id: createLineItem().id,
+            productId: line.productId,
+            itemName: line.productName,
+            quantity: String(line.quantity),
+            fixedPrice: String(line.unitPrice),
+          })));
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (active) setErrors({ submit: loadError instanceof Error ? loadError.message : t("drafts.loadError") });
+      });
+    return () => {
+      active = false;
+    };
+  }, [draftId, t]);
 
   const selectedBusinessUnits = useMemo(
     () => unitOptions.filter((unit) => unit.businessId === businessId && unit.status === "active"),
@@ -160,7 +203,7 @@ export default function TransactionRecordPage() {
     const normalizedCustomerContact = sanitizeText(customerContact, 24);
     const normalizedNote = sanitizeText(note, 240);
     const parsedTotal = parsePositiveMoney(totalAmount);
-    const parsedOutstanding = isPendingPayment ? parsePositiveMoney(outstandingAmount) : 0;
+    const parsedAmountPaid = amountPaid.trim() === "" ? null : Number(amountPaid);
 
     if (!selectedBusiness) nextErrors.business = t("transactionRecord.validation.businessRequired");
     if (
@@ -176,10 +219,10 @@ export default function TransactionRecordPage() {
     if (normalizedNote.length > 240) nextErrors.note = t("transactionRecord.validation.noteTooLong");
 
     if (isPendingPayment) {
-      if (parsedOutstanding === null || parsedOutstanding <= 0) {
-        nextErrors.outstandingAmount = t("transactionRecord.validation.outstandingAmountInvalid");
-      } else if (parsedTotal !== null && parsedOutstanding > parsedTotal) {
-        nextErrors.outstandingAmount = t("transactionRecord.validation.outstandingAmountTooHigh");
+      if (parsedAmountPaid === null || !Number.isFinite(parsedAmountPaid) || parsedAmountPaid < 0) {
+        nextErrors.amountPaid = t("transactionRecord.validation.amountPaidInvalid");
+      } else if (parsedTotal !== null && parsedAmountPaid >= parsedTotal) {
+        nextErrors.amountPaid = t("transactionRecord.validation.amountPaidTooHigh");
       }
     }
 
@@ -195,6 +238,60 @@ export default function TransactionRecordPage() {
     return nextErrors;
   };
 
+  const parsedTotalAmount = parsePositiveMoney(totalAmount) ?? 0;
+  const parsedAmountPaid = isPendingPayment
+    ? amountPaid.trim() === "" ? 0 : Number(amountPaid)
+    : parsedTotalAmount;
+  const pendingAmount = isPendingPayment
+    ? calculatePendingAmount(parsedTotalAmount, parsedAmountPaid)
+    : 0;
+  const canRecord = Object.keys(validateForm()).length === 0;
+
+  const transactionLines = () => useItemizedDetails
+    ? lineItems.map((item) => {
+        const product = item.productId ? productOptions.find((candidate) => candidate.id === item.productId) : undefined;
+        return {
+          productId: item.productId,
+          productName: sanitizeText(item.itemName, 100),
+          sku: product?.sku,
+          quantity: toNumber(item.quantity),
+          unitPrice: toNumber(item.fixedPrice),
+        };
+      })
+    : parsedTotalAmount > 0
+      ? [{ productName: t("invoice.transactionTotal"), quantity: 1, unitPrice: parsedTotalAmount }]
+      : [];
+
+  const draftPayload = (): TransactionDraftInput => ({
+    businessId: businessId || undefined,
+    businessUnitId: unitId || undefined,
+    customerName: sanitizeText(customerName, 80) || undefined,
+    customerContact: sanitizeText(customerContact, 24) || undefined,
+    paymentMethod,
+    paymentStatus,
+    totalAmount: parsedTotalAmount || undefined,
+    amountPaid: isPendingPayment && amountPaid.trim() !== "" ? Number(amountPaid) : undefined,
+    note: sanitizeText(note, 240) || undefined,
+    useItemizedDetails,
+    lines: transactionLines(),
+  });
+
+  const handleSaveDraft = async () => {
+    setFormStatus("saving");
+    setErrors({});
+    try {
+      if (draftId) {
+        await updateTransactionDraft(draftId, draftPayload());
+      } else {
+        await createTransactionDraft(draftPayload());
+      }
+      navigate("/transactions/drafts");
+    } catch (saveError) {
+      setFormStatus("idle");
+      setErrors({ submit: saveError instanceof Error ? saveError.message : t("drafts.loadError") });
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors = validateForm();
@@ -208,20 +305,7 @@ export default function TransactionRecordPage() {
     setFormStatus("saving");
 
     try {
-      const parsedTotal = parsePositiveMoney(totalAmount) ?? 0;
-      const parsedOutstanding = isPendingPayment ? parsePositiveMoney(outstandingAmount) ?? 0 : 0;
-      const lines = useItemizedDetails
-        ? lineItems.map((item) => {
-            const product = item.productId ? productOptions.find((candidate) => candidate.id === item.productId) : undefined;
-            return {
-              productId: item.productId,
-              productName: sanitizeText(item.itemName, 100),
-              sku: product?.sku,
-              quantity: toNumber(item.quantity),
-              unitPrice: toNumber(item.fixedPrice),
-            };
-          })
-        : [{ productName: t("invoice.transactionTotal"), quantity: 1, unitPrice: parsedTotal }];
+      const lines = transactionLines();
 
       const idempotencyKey = crypto.randomUUID();
       try {
@@ -232,10 +316,11 @@ export default function TransactionRecordPage() {
           customerContact: sanitizeText(customerContact, 24) || undefined,
           paymentMethod,
           paymentStatus,
-          outstandingAmount: parsedOutstanding,
+          outstandingAmount: pendingAmount,
           idempotencyKey,
           lines,
         });
+        if (draftId) await deleteTransactionDraft(draftId).catch(() => undefined);
         setFormStatus("validated");
         navigate(`/transactions/${saved.id}/invoice`);
       } catch (cloudError) {
@@ -265,13 +350,14 @@ export default function TransactionRecordPage() {
           customerContact: savedCustomer.contact,
           paymentMethod,
           paymentStatus,
-          outstandingAmount: parsedOutstanding,
+          outstandingAmount: pendingAmount,
           recordedBy: session?.user.fullName ?? currentMember.fullName,
           recordedByUserId: session?.user.id ?? currentMember.id,
           status: "queued",
           syncStatus: "queued",
           lines,
         });
+        if (draftId) await deleteTransactionDraft(draftId).catch(() => undefined);
         setFormStatus("validated");
         navigate(`/transactions/${saved.transaction.localId}/invoice`);
       }
@@ -537,26 +623,33 @@ export default function TransactionRecordPage() {
             </section>
           )}
 
-          <fieldset className="form-field full payment-status-field">
-            <legend>{t("transactionRecord.paymentStatus")}</legend>
-            <div className="payment-status-options">
-              <label className={paymentStatus === "paid" ? "payment-option active" : "payment-option"}>
-                <input type="radio" name="payment-status" value="paid" checked={paymentStatus === "paid"} onChange={() => { setPaymentStatus("paid"); setOutstandingAmount(""); }} />
-                <span><strong>{t("transactionRecord.paid")}</strong><DevOnly><small>{t("transactionRecord.paidHint")}</small></DevOnly></span>
-              </label>
-
-              <label className={paymentStatus === "pending" ? "payment-option active warning" : "payment-option"}>
-                <input type="radio" name="payment-status" value="pending" checked={paymentStatus === "pending"} onChange={() => setPaymentStatus("pending")} />
-                <span><strong>{t("transactionRecord.pendingPayment")}</strong><DevOnly><small>{t("transactionRecord.pendingHint")}</small></DevOnly></span>
-              </label>
-            </div>
-          </fieldset>
+          <div className="form-field full payment-status-field">
+            <label htmlFor="payment-status">{t("transactionRecord.paymentStatus")}</label>
+            <select
+              id="payment-status"
+              value={paymentStatus}
+              onChange={(event) => {
+                const status = event.target.value as PaymentStatus;
+                setPaymentStatus(status);
+                if (status === "paid") setAmountPaid("");
+              }}
+            >
+              <option value="paid">{t("transactionRecord.paid")}</option>
+              <option value="pending">{t("transactionRecord.pendingPayment")}</option>
+            </select>
+          </div>
 
           {isPendingPayment && (
-            <div className="form-field full pending-payment-panel">
-              <label htmlFor="outstanding-amount">{t("transactionRecord.outstandingAmount")}</label>
-              <input id="outstanding-amount" type="number" min="0" max={totalAmount || undefined} placeholder={t("transactionRecord.outstandingPlaceholder")} value={outstandingAmount} onChange={(event) => setOutstandingAmount(event.target.value)} />
-              {errors.outstandingAmount ? <span className="field-error">{errors.outstandingAmount}</span> : <DevOnly><span className="form-hint">{t("transactionRecord.outstandingHint")}</span></DevOnly>}
+            <div className="form-field full pending-payment-panel pending-payment-grid">
+              <div>
+                <label htmlFor="amount-paid">{t("transactionRecord.amountPaid")}</label>
+                <input id="amount-paid" type="number" min="0" max={totalAmount || undefined} placeholder={t("transactionRecord.amountPaidPlaceholder")} value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} />
+                {errors.amountPaid && <span className="field-error">{errors.amountPaid}</span>}
+              </div>
+              <div className="calculated-pending-amount">
+                <span>{t("transactionRecord.pendingAmount")}</span>
+                <strong>{formatMoney(pendingAmount, workspace.masterAccount.currency)}</strong>
+              </div>
             </div>
           )}
 
@@ -568,8 +661,8 @@ export default function TransactionRecordPage() {
         </div>
 
         <div className="form-actions">
-          <button className="secondary-btn" type="submit" disabled={formStatus === "saving"}>{t("transactionRecord.saveDraft")}</button>
-          <button className="primary-btn" type="submit" disabled={formStatus === "saving"}>{t("transactionRecord.recordSale")}</button>
+          <button className="secondary-btn" type="button" disabled={formStatus === "saving"} onClick={() => void handleSaveDraft()}>{t("transactionRecord.saveDraft")}</button>
+          <button className="primary-btn record-sale-btn" type="submit" disabled={formStatus === "saving" || !canRecord}>{t("transactionRecord.recordSale")}</button>
         </div>
       </form>
     </section>

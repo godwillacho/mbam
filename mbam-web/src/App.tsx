@@ -12,6 +12,7 @@ import ProductRevenuePage from "./pages/products/ProductRevenuePage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import TeamAccessPage from "./pages/team/TeamAccessPage";
 import TransactionInvoicePage from "./pages/transactions/TransactionInvoicePage";
+import TransactionDraftsPage from "./pages/transactions/TransactionDraftsPage";
 import TransactionRecordPage from "./pages/transactions/TransactionRecordPage";
 import TransactionsPage from "./pages/transactions/TransactionsPage";
 
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/pending-payments" element={<PendingPaymentsPage />} />
           <Route path="/products" element={<ProtectedRoute routeKey="products"><ProductRevenuePage /></ProtectedRoute>} />
           <Route path="/transactions/new" element={<ProtectedRoute routeKey="recordTransaction"><TransactionRecordPage /></ProtectedRoute>} />
+          <Route path="/transactions/drafts" element={<ProtectedRoute routeKey="transactionDrafts"><TransactionDraftsPage /></ProtectedRoute>} />
           <Route path="/transactions/:transactionId/invoice" element={<ProtectedRoute routeKey="transactions"><TransactionInvoicePage /></ProtectedRoute>} />
           <Route path="/transactions" element={<ProtectedRoute routeKey="transactions"><TransactionsPage /></ProtectedRoute>} />
           <Route path="/businesses" element={<ProtectedRoute routeKey="businesses"><BusinessStructurePage /></ProtectedRoute>} />

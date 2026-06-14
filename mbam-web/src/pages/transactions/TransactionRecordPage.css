@@ -5,6 +5,49 @@
   font-size: 13px;
 }
 
+.pending-payment-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.5fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.calculated-pending-amount {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid #F59E0B;
+  border-radius: 12px;
+  background: #FFFBEB;
+}
+
+.calculated-pending-amount span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.calculated-pending-amount strong {
+  color: #92400E;
+}
+
+.record-sale-btn {
+  background: #15803D;
+  border-color: #15803D;
+  color: #fff;
+}
+
+.record-sale-btn:hover:not(:disabled) {
+  background: #166534;
+  border-color: #166534;
+}
+
+.record-sale-btn:disabled {
+  background: #A7F3D0;
+  border-color: #A7F3D0;
+  color: #52645A;
+}
+
 .validation-summary {
   border: 1px solid #FCA5A5;
   background: #FEF2F2;
@@ -228,6 +271,10 @@
 }
 
 @media (max-width: 980px) {
+  .pending-payment-grid {
+    grid-template-columns: 1fr;
+  }
+
   .itemized-header,
   .itemized-actions {
     flex-direction: column;

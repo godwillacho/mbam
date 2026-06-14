@@ -4,7 +4,10 @@ use uuid::Uuid;
 use crate::error::ApiError;
 
 use super::{
-    model::{CreateTransactionRequest, TransactionResponse},
+    model::{
+        CreateTransactionRequest, TransactionDraftPayload, TransactionDraftResponse,
+        TransactionResponse,
+    },
     repository,
 };
 
@@ -73,6 +76,110 @@ pub async fn create(
     .await?
     .ok_or(ApiError::Forbidden)?;
     Ok(repository::create(db, user_id, account_id, &payload, total).await?)
+}
+
+fn normalize_draft(
+    mut payload: TransactionDraftPayload,
+) -> Result<TransactionDraftPayload, ApiError> {
+    payload.customer_name = payload.customer_name.map(|value| value.trim().to_string());
+    payload.customer_contact = payload
+        .customer_contact
+        .map(|value| value.trim().to_string());
+    payload.note = payload.note.map(|value| value.trim().to_string());
+    if payload
+        .customer_name
+        .as_ref()
+        .is_some_and(|value| value.len() > 80)
+        || payload
+            .customer_contact
+            .as_ref()
+            .is_some_and(|value| value.len() > 24)
+        || payload.note.as_ref().is_some_and(|value| value.len() > 240)
+        || payload.lines.len() > 100
+    {
+        return Err(ApiError::BadRequest(
+            "draft fields exceed their limits".to_string(),
+        ));
+    }
+    if payload
+        .total_amount
+        .is_some_and(|value| !value.is_finite() || value < 0.0)
+        || payload
+            .amount_paid
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
+    {
+        return Err(ApiError::BadRequest("amount paid is invalid".to_string()));
+    }
+    Ok(payload)
+}
+
+async fn draft_account_id(
+    db: &PgPool,
+    user_id: Uuid,
+    payload: &TransactionDraftPayload,
+) -> Result<Uuid, ApiError> {
+    if let Some(business_id) = payload.business_id {
+        return repository::permitted_account_id(
+            db,
+            user_id,
+            business_id,
+            payload.business_unit_id,
+            "sale.create",
+        )
+        .await?
+        .ok_or(ApiError::Forbidden);
+    }
+    repository::user_account_id(db, user_id)
+        .await?
+        .ok_or(ApiError::Forbidden)
+}
+
+pub async fn create_draft(
+    db: &PgPool,
+    user_id: Uuid,
+    payload: TransactionDraftPayload,
+) -> Result<TransactionDraftResponse, ApiError> {
+    let payload = normalize_draft(payload)?;
+    let account_id = draft_account_id(db, user_id, &payload).await?;
+    Ok(repository::create_draft(db, user_id, account_id, &payload).await?)
+}
+
+pub async fn list_drafts(
+    db: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<TransactionDraftResponse>, ApiError> {
+    Ok(repository::list_drafts(db, user_id).await?)
+}
+
+pub async fn find_draft(
+    db: &PgPool,
+    user_id: Uuid,
+    draft_id: Uuid,
+) -> Result<TransactionDraftResponse, ApiError> {
+    repository::find_draft(db, user_id, draft_id)
+        .await?
+        .ok_or(ApiError::NotFound)
+}
+
+pub async fn update_draft(
+    db: &PgPool,
+    user_id: Uuid,
+    draft_id: Uuid,
+    payload: TransactionDraftPayload,
+) -> Result<TransactionDraftResponse, ApiError> {
+    let payload = normalize_draft(payload)?;
+    let account_id = draft_account_id(db, user_id, &payload).await?;
+    repository::update_draft(db, user_id, draft_id, account_id, &payload)
+        .await?
+        .ok_or(ApiError::NotFound)
+}
+
+pub async fn delete_draft(db: &PgPool, user_id: Uuid, draft_id: Uuid) -> Result<(), ApiError> {
+    if repository::delete_draft(db, user_id, draft_id).await? {
+        Ok(())
+    } else {
+        Err(ApiError::NotFound)
+    }
 }
 
 pub async fn list(db: &PgPool, user_id: Uuid) -> Result<Vec<TransactionResponse>, ApiError> {
