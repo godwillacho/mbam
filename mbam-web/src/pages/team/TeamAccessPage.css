@@ -14,6 +14,17 @@
   gap: 18px;
 }
 
+.custom-screen-access {
+  display: grid;
+  gap: 14px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.custom-screen-access h4 {
+  margin: 4px 0;
+}
+
 .permission-editor-header {
   display: flex;
   align-items: flex-start;

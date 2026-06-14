@@ -195,7 +195,13 @@ pub async fn update_member(
     }
     let business_id = payload.business_id.unwrap_or(current.business_id);
     let unit_id = payload.business_unit_id.unwrap_or(current.business_unit_id);
-    let role_id = payload.role_id.unwrap_or(current.role_id);
+    let role_was_selected = payload.role_id.is_some();
+    if role_was_selected && payload.custom_permissions.is_some() {
+        return Err(ApiError::BadRequest(
+            "choose a standard role or custom permissions, not both".to_string(),
+        ));
+    }
+    let mut role_id = payload.role_id.unwrap_or(current.role_id);
     let status = payload.status.as_deref().unwrap_or(&current.status);
     if !matches!(status, "active" | "disabled") {
         return Err(ApiError::BadRequest(
@@ -220,10 +226,34 @@ pub async fn update_member(
         repository::permitted_scope(db, actor_id, permission, business_id, unit_id)
             .await?
             .ok_or(ApiError::Forbidden)?;
-    if account_id != current.business_account_id
-        || target_account_id != current.business_account_id
-        || !repository::validate_role_scope(db, account_id, role_id, business_id, unit_id).await?
+    if account_id != current.business_account_id || target_account_id != current.business_account_id
     {
+        return Err(ApiError::Forbidden);
+    }
+    if let Some(custom_permissions) = payload.custom_permissions {
+        if custom_permissions.is_empty() {
+            return Err(ApiError::BadRequest(
+                "select at least one screen for a custom role".to_string(),
+            ));
+        }
+        let mut permissions = custom_permissions;
+        permissions.sort();
+        permissions.dedup();
+        if !repository::can_assign_permissions(db, actor_id, account_id, &permissions).await? {
+            return Err(ApiError::Forbidden);
+        }
+        role_id = repository::upsert_custom_role(
+            db,
+            account_id,
+            membership_id,
+            &current.full_name,
+            &permissions,
+        )
+        .await?;
+    } else if role_was_selected && !repository::role_is_assignable(db, account_id, role_id).await? {
+        return Err(ApiError::Forbidden);
+    }
+    if !repository::validate_role_scope(db, account_id, role_id, business_id, unit_id).await? {
         return Err(ApiError::Forbidden);
     }
     repository::update_member(
@@ -250,6 +280,7 @@ pub async fn delete_member(
         membership_id,
         UpdateTeamMemberRequest {
             role_id: None,
+            custom_permissions: None,
             business_id: None,
             business_unit_id: None,
             status: Some("disabled".to_string()),

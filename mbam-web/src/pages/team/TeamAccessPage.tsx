@@ -23,6 +23,86 @@ import { markRolePolicyChanged } from "../../services/localSync/localSyncClient"
 import "./TeamAccessPage.css";
 
 const emptyInvite = { email: "", roleId: "", businessId: "", unitId: "" };
+const customRoleValue = "__custom__";
+const customRolePrefix = "custom_member_";
+
+const screenAccessOptions = [
+  {
+    id: "recordTransaction",
+    permission: "screen.record_transaction",
+    grants: [
+      "screen.record_transaction",
+      "sale.create",
+      "product.view",
+      "business.view",
+      "unit.view",
+      "sync.pull",
+      "sync.push",
+    ],
+  },
+  {
+    id: "transactionDrafts",
+    permission: "screen.transaction_drafts",
+    grants: [
+      "screen.transaction_drafts",
+      "sale.create",
+      "product.view",
+      "business.view",
+      "unit.view",
+      "sync.pull",
+      "sync.push",
+    ],
+  },
+  {
+    id: "transactions",
+    permission: "screen.transactions",
+    grants: [
+      "screen.transactions",
+      "sale.view",
+      "business.view",
+      "unit.view",
+      "sync.pull",
+    ],
+  },
+  {
+    id: "businesses",
+    permission: "screen.businesses",
+    grants: ["screen.businesses", "business.view", "unit.view", "sync.pull"],
+  },
+  {
+    id: "team",
+    permission: "screen.team",
+    grants: [
+      "screen.team",
+      "worker.view",
+      "business.view",
+      "unit.view",
+      "sync.pull",
+    ],
+  },
+  {
+    id: "products",
+    permission: "screen.products",
+    grants: [
+      "screen.products",
+      "product.view",
+      "business.view",
+      "unit.view",
+      "sync.pull",
+    ],
+  },
+  {
+    id: "reports",
+    permission: "screen.reports",
+    grants: [
+      "screen.reports",
+      "report.view",
+      "business.view",
+      "unit.view",
+      "sync.pull",
+    ],
+  },
+] as const;
 
 export default function TeamAccessPage() {
   const { t } = useTranslation();
@@ -43,6 +123,8 @@ export default function TeamAccessPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [roleSelection, setRoleSelection] = useState("");
+  const [customScreens, setCustomScreens] = useState<Set<string>>(new Set());
 
   const reload = useCallback(async () => {
     const data = await loadTeamWorkspace();
@@ -97,6 +179,23 @@ export default function TeamAccessPage() {
     (member) => member.id === selectedId,
   );
 
+  useEffect(() => {
+    if (!selected || !workspace) return;
+    const role = workspace.roles.find((item) => item.id === selected.role_id);
+    setRoleSelection(
+      selected.role_code.startsWith(customRolePrefix)
+        ? customRoleValue
+        : selected.role_id,
+    );
+    setCustomScreens(
+      new Set(
+        screenAccessOptions
+          .filter((option) => role?.permissions.includes(option.permission))
+          .map((option) => option.id),
+      ),
+    );
+  }, [selected, workspace]);
+
   const submitInvite = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
@@ -127,22 +226,15 @@ export default function TeamAccessPage() {
     setSaving(true);
     setError("");
     try {
-      const updated = await updateEmployee(selected.id, {
-        role_id: String(form.get("roleId")),
+      await updateEmployee(selected.id, {
+        ...(roleSelection === customRoleValue
+          ? { custom_permissions: customPermissions(customScreens) }
+          : { role_id: roleSelection }),
         business_id: String(form.get("businessId")) || null,
         business_unit_id: String(form.get("unitId")) || null,
         status: String(form.get("status")) as "active" | "disabled",
       });
-      setWorkspace((current) =>
-        current
-          ? {
-              ...current,
-              members: current.members.map((member) =>
-                member.id === updated.id ? updated : member,
-              ),
-            }
-          : current,
-      );
+      await reload();
       await markRolePolicyChanged(String(Date.now()));
       setMessage(t("team.employeeSaved"));
     } catch (requestError) {
@@ -304,14 +396,17 @@ export default function TeamAccessPage() {
               <label htmlFor="employee-role">{t("team.role")}</label>
               <select
                 id="employee-role"
-                name="roleId"
-                defaultValue={selected.role_id}
+                value={roleSelection}
+                onChange={(event) => setRoleSelection(event.target.value)}
               >
-                {workspace.roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                  </option>
-                ))}
+                {workspace.roles
+                  .filter((role) => !role.code.startsWith(customRolePrefix))
+                  .map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                <option value={customRoleValue}>{t("team.customRole")}</option>
               </select>
             </div>
             <div className="form-field">
@@ -356,7 +451,62 @@ export default function TeamAccessPage() {
               </select>
             </div>
           </div>
-          <button className="primary-btn" disabled={saving} type="submit">
+
+          {roleSelection === customRoleValue && (
+            <div className="custom-screen-access">
+              <div>
+                <span className="eyebrow">{t("team.customPermissions")}</span>
+                <h4>{t("team.customScreenTitle")}</h4>
+                <p className="card-muted">{t("team.customScreenHint")}</p>
+              </div>
+              <div className="permission-toggle-grid">
+                {screenAccessOptions.map((option) => {
+                  const enabled = customScreens.has(option.id);
+                  return (
+                    <label
+                      className={
+                        enabled
+                          ? "permission-toggle enabled"
+                          : "permission-toggle"
+                      }
+                      key={option.id}
+                    >
+                      <input
+                        checked={enabled}
+                        type="checkbox"
+                        onChange={() =>
+                          setCustomScreens((current) => {
+                            const next = new Set(current);
+                            if (next.has(option.id)) next.delete(option.id);
+                            else next.add(option.id);
+                            return next;
+                          })
+                        }
+                      />
+                      <span>
+                        <strong>{t(`team.screens.${option.id}`)}</strong>
+                        <small>
+                          {enabled
+                            ? t("team.permissionEnabled")
+                            : t("team.permissionDisabled")}
+                        </small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <button
+            className="primary-btn"
+            disabled={
+              saving ||
+              !roleSelection ||
+              (roleSelection === customRoleValue && customScreens.size === 0)
+            }
+            type="submit"
+          >
             {t("team.saveEmployee")}
           </button>
         </form>
@@ -369,6 +519,16 @@ export default function TeamAccessPage() {
         </div>
       )}
     </section>
+  );
+}
+
+function customPermissions(screenIds: Set<string>): string[] {
+  return Array.from(
+    new Set(
+      screenAccessOptions
+        .filter((option) => screenIds.has(option.id))
+        .flatMap((option) => option.grants),
+    ),
   );
 }
 
@@ -402,11 +562,13 @@ function ScopeFields({
           }
         >
           <option value="">{t("team.selectRole")}</option>
-          {workspace.roles.map((role) => (
-            <option key={role.id} value={role.id}>
-              {role.name}
-            </option>
-          ))}
+          {workspace.roles
+            .filter((role) => !role.code.startsWith(customRolePrefix))
+            .map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
         </select>
       </div>
       <div className="form-field">

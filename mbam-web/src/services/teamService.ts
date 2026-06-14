@@ -90,6 +90,7 @@ export async function updateEmployee(
   membershipId: string,
   payload: {
     role_id?: string;
+    custom_permissions?: string[];
     business_id?: string | null;
     business_unit_id?: string | null;
     status?: "active" | "disabled";
@@ -98,7 +99,9 @@ export async function updateEmployee(
   return patchJson(`/api/v1/team-members/${membershipId}`, payload);
 }
 
-export async function disableEmployee(membershipId: string): Promise<TeamEmployee> {
+export async function disableEmployee(
+  membershipId: string,
+): Promise<TeamEmployee> {
   return deleteJson(`/api/v1/team-members/${membershipId}`);
 }
 
@@ -106,7 +109,9 @@ export async function cancelInvitation(invitationId: string): Promise<void> {
   await deleteJson(`/api/v1/invites/${invitationId}`);
 }
 
-export async function getInvitationDetails(token: string): Promise<InvitationDetails> {
+export async function getInvitationDetails(
+  token: string,
+): Promise<InvitationDetails> {
   return postJson("/api/v1/invites/details", { token });
 }
 

@@ -118,6 +118,8 @@ export interface TeamMember {
   fullName: string;
   email: string;
   roleId: string;
+  roleName?: string;
+  permissions?: string[];
   scopeLevel: ScopeLevel;
   businessId?: string;
   businessUnitId?: string;

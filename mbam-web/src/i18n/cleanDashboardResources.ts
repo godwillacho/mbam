@@ -10,8 +10,10 @@ const en = {
     filteredRecords: "{{count}} records shown",
     products: "Products",
     searchLabel: "Search transactions",
-    searchPlaceholder: "Search by customer, phone, product, reference, worker, date, or payment method",
-    searchHint: "Use this for dispute checks, customer history, product lookup, and future printable reports.",
+    searchPlaceholder:
+      "Search by customer, phone, product, reference, worker, date, or payment method",
+    searchHint:
+      "Use this for dispute checks, customer history, product lookup, and future printable reports.",
     searchModeLabel: "Search by",
     searchModes: {
       customer: "Customer",
@@ -69,7 +71,8 @@ const en = {
     loading: "Loading employees…",
     loadError: "Could not load employees.",
     inviteTitle: "Invite an employee",
-    inviteHint: "Choose the exact role and business or unit the employee may access.",
+    inviteHint:
+      "Choose the exact role and business or unit the employee may access.",
     inviteCreated: "Invitation created. The link is ready to share.",
     inviteError: "Could not create the invitation.",
     createInvite: "Create invitation",
@@ -93,15 +96,30 @@ const en = {
     hideEmployeeAccess: "Hide employee access",
     customizable: "Custom",
     customizableHint: "Open full permission options",
+    customRole: "Custom role",
+    customScreenTitle: "Dashboard screen access",
+    customScreenHint:
+      "Choose the screens this employee can open. Required read and sync permissions are added automatically.",
+    screens: {
+      recordTransaction: "Record transaction",
+      transactionDrafts: "Transaction drafts",
+      transactions: "Transactions",
+      businesses: "Businesses and shops",
+      team: "Team access",
+      products: "Products",
+      reports: "Reports",
+    },
     roleRecommendations: {
       "role-cashier": "Recommended for sales entry and own transaction review.",
       "role-shop-manager": "Recommended for shop-level operations and reports.",
-      "role-business-admin": "Recommended for business-level staff and reporting control.",
+      "role-business-admin":
+        "Recommended for business-level staff and reporting control.",
     },
     savePermissions: "Save permissions",
     permissionsSaved: "Permissions saved for {{name}}.",
     performance: "Employee performance",
-    performanceHint: "Sales and transaction activity for the selected employee.",
+    performanceHint:
+      "Sales and transaction activity for the selected employee.",
     revenueHandled: "Revenue handled",
     transactionsHandled: "Transactions handled",
     productsSold: "Products sold",
@@ -115,7 +133,8 @@ const en = {
     masterAccount: "the master account",
     accept: "Sign in and accept invitation",
     accepting: "Accepting invitation…",
-    newAccountHint: "No Mbam session was found. Create an employee account tied directly to this invitation.",
+    newAccountHint:
+      "No Mbam session was found. Create an employee account tied directly to this invitation.",
     fullName: "Full name",
     password: "Password",
     createAccount: "Create employee account",
@@ -134,8 +153,10 @@ const fr = {
     filteredRecords: "{{count}} enregistrements affichés",
     products: "Produits",
     searchLabel: "Rechercher des transactions",
-    searchPlaceholder: "Rechercher par client, téléphone, produit, référence, employé, date ou mode de paiement",
-    searchHint: "Utilisez cette recherche pour les litiges, l’historique client, la recherche produit et les futurs rapports imprimables.",
+    searchPlaceholder:
+      "Rechercher par client, téléphone, produit, référence, employé, date ou mode de paiement",
+    searchHint:
+      "Utilisez cette recherche pour les litiges, l’historique client, la recherche produit et les futurs rapports imprimables.",
     searchModeLabel: "Rechercher par",
     searchModes: {
       customer: "Client",
@@ -161,7 +182,8 @@ const fr = {
   },
   invoice: {
     eyebrow: "Facture",
-    description: "Facture de transaction avec les articles exacts et les totaux.",
+    description:
+      "Facture de transaction avec les articles exacts et les totaux.",
     backToTransactions: "Retour aux transactions",
     printInvoice: "Imprimer la facture",
     customer: "Client",
@@ -193,7 +215,8 @@ const fr = {
     loading: "Chargement des employés…",
     loadError: "Impossible de charger les employés.",
     inviteTitle: "Inviter un employé",
-    inviteHint: "Choisissez le rôle exact et l’entreprise ou l’unité accessible.",
+    inviteHint:
+      "Choisissez le rôle exact et l’entreprise ou l’unité accessible.",
     inviteCreated: "Invitation créée. Le lien est prêt à être partagé.",
     inviteError: "Impossible de créer l’invitation.",
     createInvite: "Créer l’invitation",
@@ -217,10 +240,26 @@ const fr = {
     hideEmployeeAccess: "Masquer l’accès employé",
     customizable: "Personnalisé",
     customizableHint: "Ouvrir toutes les options de permission",
+    customRole: "Rôle personnalisé",
+    customScreenTitle: "Accès aux écrans du tableau de bord",
+    customScreenHint:
+      "Choisissez les écrans accessibles. Les permissions de lecture et de synchronisation requises sont ajoutées automatiquement.",
+    screens: {
+      recordTransaction: "Enregistrer une transaction",
+      transactionDrafts: "Brouillons de transactions",
+      transactions: "Transactions",
+      businesses: "Entreprises et boutiques",
+      team: "Accès équipe",
+      products: "Produits",
+      reports: "Rapports",
+    },
     roleRecommendations: {
-      "role-cashier": "Recommandé pour la saisie des ventes et la consultation de ses transactions.",
-      "role-shop-manager": "Recommandé pour les opérations et rapports d’une boutique.",
-      "role-business-admin": "Recommandé pour la gestion du personnel et des rapports d’une activité.",
+      "role-cashier":
+        "Recommandé pour la saisie des ventes et la consultation de ses transactions.",
+      "role-shop-manager":
+        "Recommandé pour les opérations et rapports d’une boutique.",
+      "role-business-admin":
+        "Recommandé pour la gestion du personnel et des rapports d’une activité.",
     },
     savePermissions: "Enregistrer les permissions",
     permissionsSaved: "Permissions enregistrées pour {{name}}.",
@@ -229,7 +268,8 @@ const fr = {
     revenueHandled: "Revenu géré",
     transactionsHandled: "Transactions gérées",
     productsSold: "Produits vendus",
-    noPerformance: "Aucune activité de vente trouvée pour cet employé pour le moment.",
+    noPerformance:
+      "Aucune activité de vente trouvée pour cet employé pour le moment.",
   },
   invite: {
     title: "Invitation professionnelle",
@@ -239,7 +279,8 @@ const fr = {
     masterAccount: "le compte principal",
     accept: "Se connecter et accepter",
     accepting: "Acceptation…",
-    newAccountHint: "Aucune session Mbam trouvée. Créez un compte employé lié directement à cette invitation.",
+    newAccountHint:
+      "Aucune session Mbam trouvée. Créez un compte employé lié directement à cette invitation.",
     fullName: "Nom complet",
     password: "Mot de passe",
     createAccount: "Créer le compte employé",

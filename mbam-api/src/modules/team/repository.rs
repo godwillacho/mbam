@@ -110,6 +110,13 @@ fn standard_roles() -> Vec<(&'static str, &'static str, &'static str, Vec<&'stat
                 "report.profit.view",
                 "sync.pull",
                 "sync.push",
+                "screen.record_transaction",
+                "screen.transaction_drafts",
+                "screen.transactions",
+                "screen.businesses",
+                "screen.team",
+                "screen.products",
+                "screen.reports",
             ],
         ),
         (
@@ -133,6 +140,13 @@ fn standard_roles() -> Vec<(&'static str, &'static str, &'static str, Vec<&'stat
                 "report.view",
                 "sync.pull",
                 "sync.push",
+                "screen.record_transaction",
+                "screen.transaction_drafts",
+                "screen.transactions",
+                "screen.businesses",
+                "screen.team",
+                "screen.products",
+                "screen.reports",
             ],
         ),
         (
@@ -147,6 +161,10 @@ fn standard_roles() -> Vec<(&'static str, &'static str, &'static str, Vec<&'stat
                 "product.view",
                 "sync.pull",
                 "sync.push",
+                "screen.record_transaction",
+                "screen.transaction_drafts",
+                "screen.transactions",
+                "screen.products",
             ],
         ),
     ]
@@ -337,6 +355,93 @@ pub async fn validate_role_scope(
     .bind(unit_id)
     .fetch_one(db)
     .await
+}
+
+pub async fn role_is_assignable(
+    db: &PgPool,
+    account_id: Uuid,
+    role_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar(
+        r#"
+        select exists(
+          select 1 from roles
+          where id = $2 and business_account_id = $1
+            and code <> 'master_owner'
+            and code not like 'custom_member_%'
+        )
+        "#,
+    )
+    .bind(account_id)
+    .bind(role_id)
+    .fetch_one(db)
+    .await
+}
+
+pub async fn can_assign_permissions(
+    db: &PgPool,
+    actor_id: Uuid,
+    account_id: Uuid,
+    permissions: &[String],
+) -> Result<bool, sqlx::Error> {
+    let granted: i64 = sqlx::query_scalar(
+        r#"
+        select count(distinct p.code)
+        from memberships m
+        join role_permissions rp on rp.role_id = m.role_id
+        join permissions p on p.id = rp.permission_id
+        where m.user_id = $1 and m.business_account_id = $2
+          and m.status = 'active' and p.code = any($3)
+        "#,
+    )
+    .bind(actor_id)
+    .bind(account_id)
+    .bind(permissions)
+    .fetch_one(db)
+    .await?;
+    Ok(granted == permissions.len() as i64)
+}
+
+pub async fn upsert_custom_role(
+    db: &PgPool,
+    account_id: Uuid,
+    membership_id: Uuid,
+    member_name: &str,
+    permissions: &[String],
+) -> Result<Uuid, sqlx::Error> {
+    let mut tx = db.begin().await?;
+    let code = format!("custom_member_{}", membership_id.simple());
+    let name = format!("Custom - {member_name}");
+    let role_id = sqlx::query_scalar::<_, Uuid>(
+        r#"
+        insert into roles (business_account_id, code, name, description, is_system_role)
+        values ($1, $2, $3, 'Custom screen access for one employee', false)
+        on conflict (business_account_id, code)
+        do update set name = excluded.name, description = excluded.description
+        returning id
+        "#,
+    )
+    .bind(account_id)
+    .bind(code)
+    .bind(name)
+    .fetch_one(&mut *tx)
+    .await?;
+    sqlx::query("delete from role_permissions where role_id = $1")
+        .bind(role_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(
+        r#"
+        insert into role_permissions (role_id, permission_id)
+        select $1, id from permissions where code = any($2)
+        "#,
+    )
+    .bind(role_id)
+    .bind(permissions)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(role_id)
 }
 
 pub async fn create_invitation(

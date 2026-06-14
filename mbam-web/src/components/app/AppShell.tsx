@@ -25,11 +25,27 @@ import {
 import LanguageSwitcher from "./LanguageSwitcher";
 import "./AppShell.css";
 
-const navItems: Array<{ to: string; labelKey: string; routeKey?: AppRouteKey }> = [
+const navItems: Array<{
+  to: string;
+  labelKey: string;
+  routeKey?: AppRouteKey;
+}> = [
   { to: "/dashboard", labelKey: "app.nav.dashboard" },
-  { to: "/transactions/new", labelKey: "app.nav.recordTransaction", routeKey: "recordTransaction" },
-  { to: "/transactions/drafts", labelKey: "app.nav.drafts", routeKey: "transactionDrafts" },
-  { to: "/transactions", labelKey: "app.nav.transactions", routeKey: "transactions" },
+  {
+    to: "/transactions/new",
+    labelKey: "app.nav.recordTransaction",
+    routeKey: "recordTransaction",
+  },
+  {
+    to: "/transactions/drafts",
+    labelKey: "app.nav.drafts",
+    routeKey: "transactionDrafts",
+  },
+  {
+    to: "/transactions",
+    labelKey: "app.nav.transactions",
+    routeKey: "transactions",
+  },
   { to: "/businesses", labelKey: "app.nav.businesses", routeKey: "businesses" },
   { to: "/products", labelKey: "app.nav.products", routeKey: "products" },
   { to: "/reports", labelKey: "app.nav.reports", routeKey: "reports" },
@@ -42,14 +58,20 @@ export default function AppShell() {
   const [currentMember, setCurrentMember] = useState(() => getCurrentMember());
   const [authLocked, setAuthLocked] = useState(false);
   const [, setWorkspaceVersion] = useState(0);
-  const visibleNavItems = navItems.filter((item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey));
-  const workspaceName = workspace.masterAccount.name || t("app.defaultWorkspaceName");
+  const visibleNavItems = navItems.filter(
+    (item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey),
+  );
+  const workspaceName =
+    workspace.masterAccount.name || t("app.defaultWorkspaceName");
 
   useEffect(() => {
     const syncCurrentMember = () => setCurrentMember(getCurrentMember());
     window.addEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
     return () => {
-      window.removeEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
+      window.removeEventListener(
+        CURRENT_MEMBER_CHANGE_EVENT,
+        syncCurrentMember,
+      );
     };
   }, []);
 
@@ -74,7 +96,9 @@ export default function AppShell() {
   useEffect(() => {
     const synchronize = () => {
       if (navigator.onLine && getAccessToken() && isOfflineVaultUnlocked()) {
-        void synchronizeOfflineChanges(createApiSyncTransport()).catch(() => undefined);
+        void synchronizeOfflineChanges(createApiSyncTransport()).catch(
+          () => undefined,
+        );
       }
     };
     synchronize();
@@ -102,7 +126,9 @@ export default function AppShell() {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
             >
               {t(item.labelKey)}
             </NavLink>
@@ -111,7 +137,9 @@ export default function AppShell() {
 
         <div className="sidebar-card">
           <span>{t("app.ownerLabel")}</span>
-          <strong>{t(`roles.${currentMember.roleId}`)}</strong>
+          <strong>
+            {currentMember.roleName ?? t(`roles.${currentMember.roleId}`)}
+          </strong>
           <small>{workspaceName}</small>
         </div>
       </aside>
