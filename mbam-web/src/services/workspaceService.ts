@@ -60,19 +60,7 @@ export async function hydrateCloudWorkspace(): Promise<void> {
   const session = getCurrentSession();
   if (!session) return;
 
-  const businesses = await listBusinesses();
-  const businessUnits = (
-    await Promise.all(
-      businesses.map((business) => listBusinessUnits(business.id)),
-    )
-  ).flat();
-
-  const [productResult, cloudTransactions, team] = await Promise.all([
-    listProducts([]),
-    listCloudTransactions(),
-    loadTeamWorkspace(),
-  ]);
-
+  const team = await loadTeamWorkspace();
   const permissionsByRoleId = new Map(
     team.roles.map((role) => [role.id, role.permissions]),
   );
@@ -89,6 +77,31 @@ export async function hydrateCloudWorkspace(): Promise<void> {
   ) {
     teamMembers.unshift(workspace.teamMembers[0]);
   }
+
+  updateCloudWorkspace({
+    roles: team.roles.map((role) => ({
+      id: roleId(role.code),
+      name: role.name,
+      permissions: role.permissions,
+    })),
+    teamMembers,
+  });
+
+  if (sessionMember) {
+    setCurrentMemberId(sessionMember.id);
+  }
+
+  const businesses = await listBusinesses();
+  const businessUnits = (
+    await Promise.all(
+      businesses.map((business) => listBusinessUnits(business.id)),
+    )
+  ).flat();
+
+  const [productResult, cloudTransactions] = await Promise.all([
+    listProducts([]),
+    listCloudTransactions(),
+  ]);
 
   updateCloudWorkspace({
     masterAccount: {
@@ -111,17 +124,7 @@ export async function hydrateCloudWorkspace(): Promise<void> {
       createdAt: transaction.createdAt,
       recordedBy: transaction.recordedBy,
     })),
-    roles: team.roles.map((role) => ({
-      id: roleId(role.code),
-      name: role.name,
-      permissions: role.permissions,
-    })),
-    teamMembers,
     customers: [],
     pendingPayments: [],
   });
-
-  if (sessionMember) {
-    setCurrentMemberId(sessionMember.id);
-  }
 }
