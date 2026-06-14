@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
 import { getScopedPendingPayments } from "../../security/accessControl";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
@@ -41,7 +42,7 @@ export default function PendingPaymentsPage() {
         <div>
           <span className="eyebrow">{t("pendingPayments.eyebrow")}</span>
           <h2>{t("pendingPayments.title")}</h2>
-          <p>{t("pendingPayments.description")}</p>
+          <DevOnly><p>{t("pendingPayments.description")}</p></DevOnly>
         </div>
       </div>
 

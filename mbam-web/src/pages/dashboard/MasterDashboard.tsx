@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import DevOnly from "../../components/app/DevOnly";
 import {
   isDemoWorkspace,
   WORKSPACE_CHANGE_EVENT,
@@ -351,7 +352,7 @@ export default function MasterDashboard() {
         <div>
           <span className="eyebrow">{t("roleDashboard.eyebrow")}</span>
           <h2>{t("roleDashboard.title")}</h2>
-          <p>{t("roleDashboard.description")}</p>
+          <DevOnly><p>{t("roleDashboard.description")}</p></DevOnly>
         </div>
         {isCashier && (
           <div className="dashboard-heading-action">
@@ -360,16 +361,18 @@ export default function MasterDashboard() {
         )}
       </div>
 
-      <article className="card role-preview-card">
-        <div>
-          <span className="eyebrow">{t("roleDashboard.rolePreview")}</span>
-          <h3>{t("roleDashboard.viewingAs")}: {selectedMember.fullName}</h3>
-          <p className="card-muted">
-            {selectedRole ? t(`roleDashboard.roleNames.${selectedRole.id}`) : ""} · {t("roleDashboard.scope")}: {getMemberScopeLabel(selectedMember)}
-          </p>
-        </div>
-        {isDevEnvironment && isDemoWorkspace() && <span className="badge">{t("app.devAccount")}</span>}
-      </article>
+      <DevOnly>
+        <article className="card role-preview-card">
+          <div>
+            <span className="eyebrow">{t("roleDashboard.rolePreview")}</span>
+            <h3>{t("roleDashboard.viewingAs")}: {selectedMember.fullName}</h3>
+            <p className="card-muted">
+              {selectedRole ? t(`roleDashboard.roleNames.${selectedRole.id}`) : ""} · {t("roleDashboard.scope")}: {getMemberScopeLabel(selectedMember)}
+            </p>
+          </div>
+          {isDevEnvironment && isDemoWorkspace() && <span className="badge">{t("app.devAccount")}</span>}
+        </article>
+      </DevOnly>
 
       <div className="metrics-grid clean-metrics-grid dashboard-options-grid">
         {metrics.map((metric) => (

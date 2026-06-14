@@ -1,7 +1,8 @@
 import { type ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { workspace } from "../../data/mockWorkspace";
+import DevOnly from "../../components/app/DevOnly";
+import { isDemoWorkspace, workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
 import { listBusinesses } from "../../services/businessService";
 import {
@@ -423,12 +424,12 @@ export default function ProductRevenuePage() {
         <div>
           <span className="eyebrow">{t("productRevenue.eyebrow")}</span>
           <h2>{t("productRevenue.title")}</h2>
-          <p>{t("productRevenue.description")}</p>
+          <DevOnly><p>{t("productRevenue.description")}</p></DevOnly>
         </div>
       </div>
 
-      {isDevEnvironment && source === "mock" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.mockSourceNote")}</div>}
-      {isDevEnvironment && source === "cache" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.cacheSourceNote")}</div>}
+      {isDevEnvironment && isDemoWorkspace() && source === "mock" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.mockSourceNote")}</div>}
+      {isDevEnvironment && isDemoWorkspace() && source === "cache" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.cacheSourceNote")}</div>}
       {error && <div className="product-revenue-error">{error}</div>}
 
       <div className="filter-bar card product-table-controls">

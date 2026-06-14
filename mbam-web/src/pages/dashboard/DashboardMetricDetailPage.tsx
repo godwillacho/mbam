@@ -1,5 +1,6 @@
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import { canViewDashboardMetric, getStoredDashboardMember, type DashboardMetricKey } from "./dashboardPermissions";
@@ -157,7 +158,7 @@ export default function DashboardMetricDetailPage() {
         <div>
           <span className="eyebrow">{t("metricDetails.eyebrow")}</span>
           <h2>{t(`roleDashboard.metrics.${metricKey}`)}</h2>
-          <p>{t("metricDetails.description")}</p>
+          <DevOnly><p>{t("metricDetails.description")}</p></DevOnly>
         </div>
         <Link className="secondary-btn" to="/dashboard">{t("pendingPayments.backToDashboard")}</Link>
       </div>

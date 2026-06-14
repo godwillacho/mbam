@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
 import { listBusinesses, listBusinessUnits } from "../../services/businessService";
@@ -357,14 +358,14 @@ export default function TransactionRecordPage() {
         <div>
           <span className="eyebrow">{t("transactionRecord.eyebrow")}</span>
           <h2>{t("transactionRecord.title")}</h2>
-          <p>{t("transactionRecord.description")}</p>
+          <DevOnly><p>{t("transactionRecord.description")}</p></DevOnly>
         </div>
       </div>
 
       <form className="form-card" noValidate onSubmit={handleSubmit}>
         <header>
           <h3>{t("transactionRecord.detailsTitle")}</h3>
-          <small>{t("transactionRecord.detailsSubtitle")}</small>
+          <DevOnly><small>{t("transactionRecord.detailsSubtitle")}</small></DevOnly>
         </header>
 
         {Object.keys(errors).length > 0 && (
@@ -430,7 +431,7 @@ export default function TransactionRecordPage() {
           <div className="form-field">
             <label htmlFor="customer-contact">{t("transactionRecord.customerContact")}</label>
             <input id="customer-contact" type="tel" maxLength={24} placeholder={t("transactionRecord.customerContactPlaceholder")} value={customerContact} onChange={(event) => setCustomerContact(event.target.value)} />
-            {errors.customerContact ? <span className="field-error">{errors.customerContact}</span> : <span className="form-hint">{t("transactionRecord.newCustomerHint")}</span>}
+            {errors.customerContact ? <span className="field-error">{errors.customerContact}</span> : <DevOnly><span className="form-hint">{t("transactionRecord.newCustomerHint")}</span></DevOnly>}
           </div>
 
           {selectedCustomer && (
@@ -457,7 +458,7 @@ export default function TransactionRecordPage() {
           <div className="form-field">
             <label htmlFor="amount">{t("transactionRecord.totalAmount")}</label>
             <input id="amount" type="number" min="0" max="100000000" placeholder="0" value={totalAmount} readOnly={useItemizedDetails} onChange={(event) => setTotalAmount(event.target.value)} />
-            {errors.totalAmount ? <span className="field-error">{errors.totalAmount}</span> : useItemizedDetails && <span className="form-hint">{t("transactionRecord.autoFilledTotal")}</span>}
+            {errors.totalAmount ? <span className="field-error">{errors.totalAmount}</span> : useItemizedDetails && <DevOnly><span className="form-hint">{t("transactionRecord.autoFilledTotal")}</span></DevOnly>}
           </div>
 
           <div className="form-field full itemized-toggle-card">
@@ -465,7 +466,7 @@ export default function TransactionRecordPage() {
               <input type="checkbox" checked={useItemizedDetails} onChange={(event) => handleItemizedToggle(event.target.checked)} />
               <span>
                 <strong>{t("transactionRecord.itemizedToggleTitle")}</strong>
-                <small>{t("transactionRecord.itemizedToggleSubtitle")}</small>
+                <DevOnly><small>{t("transactionRecord.itemizedToggleSubtitle")}</small></DevOnly>
               </span>
             </label>
           </div>
@@ -475,7 +476,7 @@ export default function TransactionRecordPage() {
               <div className="itemized-header">
                 <div>
                   <strong>{t("transactionRecord.itemizedTitle")}</strong>
-                  <small>{t("transactionRecord.itemizedSubtitle")}</small>
+                  <DevOnly><small>{t("transactionRecord.itemizedSubtitle")}</small></DevOnly>
                 </div>
                 <span>{formatMoney(itemizedTotal, workspace.masterAccount.currency)}</span>
               </div>
@@ -517,7 +518,7 @@ export default function TransactionRecordPage() {
                           </div>
                         )}
 
-                        {item.productId && <small className="learned-product-hint">{t("transactionRecord.learnedProductSelected")} · {item.priceSource === "customer" ? t("transactionRecord.customerSpecificPriceApplied") : t("transactionRecord.defaultPriceApplied")}</small>}
+                        {item.productId && <DevOnly><small className="learned-product-hint">{t("transactionRecord.learnedProductSelected")} · {item.priceSource === "customer" ? t("transactionRecord.customerSpecificPriceApplied") : t("transactionRecord.defaultPriceApplied")}</small></DevOnly>}
                         {errors[`line-${item.id}`] && <span className="field-error">{errors[`line-${item.id}`]}</span>}
                       </div>
                       <input aria-label={t("transactionRecord.quantity")} type="number" min="0.001" max="10000" placeholder="1" value={item.quantity} onChange={(event) => updateLineItem(item.id, "quantity", event.target.value)} />
@@ -531,7 +532,7 @@ export default function TransactionRecordPage() {
 
               <div className="itemized-actions">
                 <button type="button" className="secondary-btn" onClick={() => setLineItems((items) => [...items, createLineItem()])}>{t("transactionRecord.addItem")}</button>
-                <small>{t("transactionRecord.totalTransfers")}</small>
+                <DevOnly><small>{t("transactionRecord.totalTransfers")}</small></DevOnly>
               </div>
             </section>
           )}
@@ -541,12 +542,12 @@ export default function TransactionRecordPage() {
             <div className="payment-status-options">
               <label className={paymentStatus === "paid" ? "payment-option active" : "payment-option"}>
                 <input type="radio" name="payment-status" value="paid" checked={paymentStatus === "paid"} onChange={() => { setPaymentStatus("paid"); setOutstandingAmount(""); }} />
-                <span><strong>{t("transactionRecord.paid")}</strong><small>{t("transactionRecord.paidHint")}</small></span>
+                <span><strong>{t("transactionRecord.paid")}</strong><DevOnly><small>{t("transactionRecord.paidHint")}</small></DevOnly></span>
               </label>
 
               <label className={paymentStatus === "pending" ? "payment-option active warning" : "payment-option"}>
                 <input type="radio" name="payment-status" value="pending" checked={paymentStatus === "pending"} onChange={() => setPaymentStatus("pending")} />
-                <span><strong>{t("transactionRecord.pendingPayment")}</strong><small>{t("transactionRecord.pendingHint")}</small></span>
+                <span><strong>{t("transactionRecord.pendingPayment")}</strong><DevOnly><small>{t("transactionRecord.pendingHint")}</small></DevOnly></span>
               </label>
             </div>
           </fieldset>
@@ -555,14 +556,14 @@ export default function TransactionRecordPage() {
             <div className="form-field full pending-payment-panel">
               <label htmlFor="outstanding-amount">{t("transactionRecord.outstandingAmount")}</label>
               <input id="outstanding-amount" type="number" min="0" max={totalAmount || undefined} placeholder={t("transactionRecord.outstandingPlaceholder")} value={outstandingAmount} onChange={(event) => setOutstandingAmount(event.target.value)} />
-              {errors.outstandingAmount ? <span className="field-error">{errors.outstandingAmount}</span> : <span className="form-hint">{t("transactionRecord.outstandingHint")}</span>}
+              {errors.outstandingAmount ? <span className="field-error">{errors.outstandingAmount}</span> : <DevOnly><span className="form-hint">{t("transactionRecord.outstandingHint")}</span></DevOnly>}
             </div>
           )}
 
           <div className="form-field full">
             <label htmlFor="note">{t("transactionRecord.note")}</label>
             <textarea id="note" maxLength={240} placeholder={t("transactionRecord.notePlaceholder")} value={note} onChange={(event) => setNote(event.target.value)} />
-            {errors.note ? <span className="field-error">{errors.note}</span> : <span className="form-hint">{t("transactionRecord.offlineHint")}</span>}
+            {errors.note ? <span className="field-error">{errors.note}</span> : <DevOnly><span className="form-hint">{t("transactionRecord.offlineHint")}</span></DevOnly>}
           </div>
         </div>
 

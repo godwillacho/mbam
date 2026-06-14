@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import DevOnly from "../../components/app/DevOnly";
 import { ApiClientError } from "../../services/apiClient";
 import {
   cancelInvitation,
@@ -149,7 +150,7 @@ export default function TeamAccessPage() {
         <div>
           <span className="eyebrow">{t("team.eyebrow")}</span>
           <h2>{t("team.title")}</h2>
-          <p>{t("team.description")}</p>
+          <DevOnly><p>{t("team.description")}</p></DevOnly>
         </div>
         <button className="primary-btn" type="button" onClick={() => setShowInvite((value) => !value)}>
           {showInvite ? t("common.cancel") : t("team.inviteWorker")}

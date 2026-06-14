@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import DevOnly from "../../components/app/DevOnly";
 import { productSales } from "../../data/mockProductSales";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember, getScopedTransactions } from "../../security/accessControl";
@@ -164,7 +165,7 @@ export default function TransactionInvoicePage() {
         <div>
           <span className="eyebrow">{t("invoice.eyebrow")}</span>
           <h2>{invoice.reference}</h2>
-          <p>{t("invoice.description")}</p>
+          <DevOnly><p>{t("invoice.description")}</p></DevOnly>
         </div>
         <div className="dashboard-heading-action">
           <Link className="secondary-btn" to="/transactions">{t("invoice.backToTransactions")}</Link>
