@@ -1,6 +1,7 @@
 import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember, getScopedTransactions } from "../../security/accessControl";
 import { listBrowserDbTransactions, type TransactionBrowserRow } from "../../services/transactions/transactionBrowserDbService";
@@ -96,7 +97,7 @@ export default function TransactionsPage() {
         <div>
           <span className="eyebrow">{t("transactions.eyebrow")}</span>
           <h2>{t("transactions.title")}</h2>
-          <p>{t("transactions.description")}</p>
+          <DevOnly><p>{t("transactions.description")}</p></DevOnly>
         </div>
       </div>
 

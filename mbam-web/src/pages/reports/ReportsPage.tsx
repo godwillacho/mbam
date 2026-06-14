@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
 import { formatMoney } from "../../utils/formatters";
 
@@ -14,7 +15,7 @@ export default function ReportsPage() {
         <div>
           <span className="eyebrow">{t("reports.eyebrow")}</span>
           <h2>{t("reports.title")}</h2>
-          <p>{t("reports.description")}</p>
+          <DevOnly><p>{t("reports.description")}</p></DevOnly>
         </div>
       </div>
 

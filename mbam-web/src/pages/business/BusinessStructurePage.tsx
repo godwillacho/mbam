@@ -1,6 +1,7 @@
 import { type FormEvent, type KeyboardEvent, type MouseEvent, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import DevOnly from "../../components/app/DevOnly";
 import { updateCloudWorkspace, workspace } from "../../data/mockWorkspace";
 import { ApiClientError } from "../../services/apiClient";
 import {
@@ -175,7 +176,7 @@ export default function BusinessStructurePage() {
         <div>
           <span className="eyebrow">{t("businesses.eyebrow")}</span>
           <h2>{t("businesses.title")}</h2>
-          <p>{t("businesses.description")}</p>
+          <DevOnly><p>{t("businesses.description")}</p></DevOnly>
         </div>
         <div className="dashboard-heading-action business-heading-actions">
           <button className="secondary-btn" type="button" onClick={() => openCreateEmployee()}>

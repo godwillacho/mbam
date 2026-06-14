@@ -195,8 +195,6 @@ export const workspace: WorkspaceData = JSON.parse(
   JSON.stringify(demoWorkspace),
 ) as WorkspaceData;
 
-let demoMode = true;
-
 function notifyWorkspaceChanged(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(WORKSPACE_CHANGE_EVENT));
@@ -204,11 +202,10 @@ function notifyWorkspaceChanged(): void {
 }
 
 export function isDemoWorkspace(): boolean {
-  return demoMode;
+  return workspace.masterAccount.id === demoWorkspace.masterAccount.id;
 }
 
 export function activateCloudWorkspace(user: AuthUser): void {
-  demoMode = false;
   workspace.masterAccount = {
     id: user.id,
     name: `${user.fullName}'s workspace`,
