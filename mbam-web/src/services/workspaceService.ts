@@ -1,7 +1,4 @@
-import {
-  updateCloudWorkspace,
-  workspace,
-} from "../data/mockWorkspace";
+import { updateCloudWorkspace, workspace } from "../data/mockWorkspace";
 import { setCurrentMemberId } from "../security/accessControl";
 import type {
   PaymentMethod,
@@ -25,12 +22,17 @@ function scopeLevel(member: TeamEmployee): ScopeLevel {
   return "master";
 }
 
-function toTeamMember(member: TeamEmployee): TeamMember {
+function toTeamMember(
+  member: TeamEmployee,
+  permissions?: string[],
+): TeamMember {
   return {
     id: member.id,
     fullName: member.full_name,
     email: member.email,
     roleId: roleId(member.role_code),
+    roleName: member.role_name,
+    ...(permissions ? { permissions } : {}),
     scopeLevel: scopeLevel(member),
     businessId: member.business_id,
     businessUnitId: member.business_unit_id,
@@ -71,21 +73,26 @@ export async function hydrateCloudWorkspace(): Promise<void> {
     loadTeamWorkspace(),
   ]);
 
-  const teamMembers = team.members.map(toTeamMember);
+  const permissionsByRoleId = new Map(
+    team.roles.map((role) => [role.id, role.permissions]),
+  );
+  const teamMembers = team.members.map((member) =>
+    toTeamMember(member, permissionsByRoleId.get(member.role_id)),
+  );
   const sessionMember = teamMembers.find(
     (member) => member.email.toLowerCase() === session.user.email.toLowerCase(),
   );
 
-  if (!sessionMember && !teamMembers.some((member) => member.email === session.user.email)) {
+  if (
+    !sessionMember &&
+    !teamMembers.some((member) => member.email === session.user.email)
+  ) {
     teamMembers.unshift(workspace.teamMembers[0]);
   }
 
   updateCloudWorkspace({
     masterAccount: {
-      name:
-        businesses.length === 1
-          ? businesses[0].name
-          : "",
+      name: businesses.length === 1 ? businesses[0].name : "",
       currency: businesses[0]?.currency ?? workspace.masterAccount.currency,
     },
     businesses,

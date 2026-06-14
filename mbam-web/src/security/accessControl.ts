@@ -1,16 +1,55 @@
 import { workspace } from "../data/mockWorkspace";
-import type { BusinessUnit, PendingPaymentRecord, TeamMember, TransactionRecord } from "../types/workspace";
+import type {
+  BusinessUnit,
+  PendingPaymentRecord,
+  TeamMember,
+  TransactionRecord,
+} from "../types/workspace";
 
-export type AppRouteKey = "recordTransaction" | "transactionDrafts" | "transactions" | "businesses" | "team" | "reports" | "products";
+export type AppRouteKey =
+  | "recordTransaction"
+  | "transactionDrafts"
+  | "transactions"
+  | "businesses"
+  | "team"
+  | "reports"
+  | "products";
 
 export const CURRENT_MEMBER_CHANGE_EVENT = "mbam-current-member-change";
 let currentMemberId = workspace.teamMembers[0]?.id;
 
 const routeAccessByRole: Record<string, AppRouteKey[]> = {
-  "role-master-owner": ["recordTransaction", "transactionDrafts", "transactions", "businesses", "team", "reports", "products"],
-  "role-business-admin": ["recordTransaction", "transactionDrafts", "transactions", "businesses", "team", "reports", "products"],
-  "role-shop-manager": ["recordTransaction", "transactionDrafts", "transactions", "reports", "products"],
-  "role-cashier": ["recordTransaction", "transactionDrafts", "transactions", "products"],
+  "role-master-owner": [
+    "recordTransaction",
+    "transactionDrafts",
+    "transactions",
+    "businesses",
+    "team",
+    "reports",
+    "products",
+  ],
+  "role-business-admin": [
+    "recordTransaction",
+    "transactionDrafts",
+    "transactions",
+    "businesses",
+    "team",
+    "reports",
+    "products",
+  ],
+  "role-shop-manager": [
+    "recordTransaction",
+    "transactionDrafts",
+    "transactions",
+    "reports",
+    "products",
+  ],
+  "role-cashier": [
+    "recordTransaction",
+    "transactionDrafts",
+    "transactions",
+    "products",
+  ],
 };
 
 const productManagementRoles = new Set([
@@ -19,8 +58,21 @@ const productManagementRoles = new Set([
   "role-shop-manager",
 ]);
 
+const routePermission: Record<AppRouteKey, string> = {
+  recordTransaction: "screen.record_transaction",
+  transactionDrafts: "screen.transaction_drafts",
+  transactions: "screen.transactions",
+  businesses: "screen.businesses",
+  team: "screen.team",
+  reports: "screen.reports",
+  products: "screen.products",
+};
+
 export function getCurrentMember(): TeamMember {
-  return workspace.teamMembers.find((member) => member.id === currentMemberId) ?? workspace.teamMembers[0];
+  return (
+    workspace.teamMembers.find((member) => member.id === currentMemberId) ??
+    workspace.teamMembers[0]
+  );
 }
 
 export function setCurrentMemberId(memberId: string): void {
@@ -29,21 +81,37 @@ export function setCurrentMemberId(memberId: string): void {
   window.dispatchEvent(new Event(CURRENT_MEMBER_CHANGE_EVENT));
 }
 
-export function canAccessRoute(member: TeamMember, routeKey: AppRouteKey): boolean {
+export function canAccessRoute(
+  member: TeamMember,
+  routeKey: AppRouteKey,
+): boolean {
+  if (member.permissions) {
+    return member.permissions.includes(routePermission[routeKey]);
+  }
   return (routeAccessByRole[member.roleId] ?? []).includes(routeKey);
 }
 
 export function canManageProducts(member: TeamMember): boolean {
+  if (member.permissions) {
+    return (
+      member.permissions.includes("product.create") ||
+      member.permissions.includes("product.update")
+    );
+  }
   return productManagementRoles.has(member.roleId);
 }
 
 export function getScopedUnits(member: TeamMember): BusinessUnit[] {
   if (member.scopeLevel === "master") return workspace.businessUnits;
   if (member.scopeLevel === "business" && member.businessId) {
-    return workspace.businessUnits.filter((unit) => unit.businessId === member.businessId);
+    return workspace.businessUnits.filter(
+      (unit) => unit.businessId === member.businessId,
+    );
   }
   if (member.scopeLevel === "unit" && member.businessUnitId) {
-    return workspace.businessUnits.filter((unit) => unit.id === member.businessUnitId);
+    return workspace.businessUnits.filter(
+      (unit) => unit.id === member.businessUnitId,
+    );
   }
   return [];
 }
@@ -58,16 +126,22 @@ export function getScopedTransactions(member: TeamMember): TransactionRecord[] {
   );
 
   if (member.roleId === "role-cashier") {
-    return transactions.filter((transaction) => transaction.recordedBy === member.fullName);
+    return transactions.filter(
+      (transaction) => transaction.recordedBy === member.fullName,
+    );
   }
 
   return transactions;
 }
 
-export function getScopedPendingPayments(member: TeamMember): PendingPaymentRecord[] {
+export function getScopedPendingPayments(
+  member: TeamMember,
+): PendingPaymentRecord[] {
   const scopedUnits = getScopedUnits(member);
   const scopedUnitIds = new Set(scopedUnits.map((unit) => unit.id));
-  const payments = workspace.pendingPayments.filter((payment) => scopedUnitIds.has(payment.businessUnitId));
+  const payments = workspace.pendingPayments.filter((payment) =>
+    scopedUnitIds.has(payment.businessUnitId),
+  );
 
   if (member.roleId === "role-cashier") {
     return payments.filter((payment) => payment.recordedBy === member.fullName);

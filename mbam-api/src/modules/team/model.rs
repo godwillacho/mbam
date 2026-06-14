@@ -83,6 +83,7 @@ pub struct CreateInvitationResponse {
 #[derive(Debug, Deserialize)]
 pub struct UpdateTeamMemberRequest {
     pub role_id: Option<Uuid>,
+    pub custom_permissions: Option<Vec<String>>,
     pub business_id: Option<Option<Uuid>>,
     pub business_unit_id: Option<Option<Uuid>>,
     pub status: Option<String>,
