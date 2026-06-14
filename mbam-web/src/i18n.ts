@@ -5,14 +5,16 @@ import { authEn } from "./i18n/authEn";
 import { authFr } from "./i18n/authFr";
 
 export const supportedLanguages = ["en", "fr"] as const;
-export type SupportedLanguage = typeof supportedLanguages[number];
+export type SupportedLanguage = (typeof supportedLanguages)[number];
 
 const transactionRecordEn = {
   eyebrow: "Transaction record",
   title: "Record a new sale",
-  description: "This form represents the offline-first sales entry flow. Later it will write to IndexedDB first, then sync to the Rust API when internet access is available.",
+  description:
+    "This form represents the offline-first sales entry flow. Later it will write to IndexedDB first, then sync to the Rust API when internet access is available.",
   detailsTitle: "Sale details",
-  detailsSubtitle: "Choose the business, shop, customer, payment method, payment status, and total amount.",
+  detailsSubtitle:
+    "Choose the business, shop, customer, payment method, payment status, and total amount.",
   business: "Business",
   unit: "Shop or unit",
   directBusinessSale: "No unit — record directly for this business",
@@ -22,7 +24,8 @@ const transactionRecordEn = {
   noContactSaved: "No contact saved",
   customerContact: "Customer contact",
   customerContactPlaceholder: "Phone number or WhatsApp",
-  newCustomerHint: "New customers will be saved from this name and contact when the sale is recorded.",
+  newCustomerHint:
+    "New customers will be saved from this name and contact when the sale is recorded.",
   lastPurchase: "Last purchase",
   notRecorded: "not recorded",
   totalSpent: "Total spent",
@@ -31,10 +34,12 @@ const transactionRecordEn = {
   totalAmount: "Total amount",
   autoFilledTotal: "Auto-filled from itemized transaction details.",
   itemizedToggleTitle: "Add itemized transaction details",
-  itemizedToggleSubtitle: "Optional CSV-style section for multiple products with customer-specific prices.",
+  itemizedToggleSubtitle:
+    "Optional CSV-style section for multiple products with customer-specific prices.",
   itemizedAria: "Itemized transaction details",
   itemizedTitle: "Transaction details",
-  itemizedSubtitle: "Enter each item, quantity, and fixed price. Learned products can auto-fill customer-specific prices.",
+  itemizedSubtitle:
+    "Enter each item, quantity, and fixed price. Learned products can auto-fill customer-specific prices.",
   itemName: "Item name",
   quantity: "Qty",
   fixedPrice: "Fixed price",
@@ -54,13 +59,15 @@ const transactionRecordEn = {
   pendingHint: "The sale is recorded, but the customer still owes money.",
   outstandingAmount: "Outstanding amount",
   outstandingPlaceholder: "Amount still owed",
-  outstandingHint: "This amount will be saved with the transaction so the business can follow up on unpaid balances.",
+  outstandingHint:
+    "This amount will be saved with the transaction so the business can follow up on unpaid balances.",
   amountPaid: "Amount paid",
   amountPaidPlaceholder: "Amount already paid",
   pendingAmount: "Pending amount",
   note: "Transaction note",
   notePlaceholder: "Add optional note for this sale",
-  offlineHint: "The first implementation will queue this locally before backend sync.",
+  offlineHint:
+    "The first implementation will queue this locally before backend sync.",
   saveDraft: "Save draft",
   recordSale: "Record sale",
   validation: {
@@ -72,43 +79,54 @@ const transactionRecordEn = {
     customerContactInvalid: "Enter a valid phone or WhatsApp contact.",
     paymentMethodInvalid: "Choose a valid payment method.",
     totalAmountInvalid: "Enter a valid total amount greater than zero.",
-    outstandingAmountInvalid: "Enter a valid outstanding amount greater than zero.",
-    outstandingAmountTooHigh: "Outstanding amount cannot be greater than the total amount.",
+    outstandingAmountInvalid:
+      "Enter a valid outstanding amount greater than zero.",
+    outstandingAmountTooHigh:
+      "Outstanding amount cannot be greater than the total amount.",
     amountPaidInvalid: "Enter a valid amount paid.",
-    amountPaidTooHigh: "Amount paid must be less than the total for a pending payment.",
+    amountPaidTooHigh:
+      "Amount paid must be less than the total for a pending payment.",
     noteTooLong: "The note is too long.",
-    lineItemInvalid: "Line item {{index}} needs a valid name, quantity, and price.",
+    lineItemInvalid:
+      "Line item {{index}} needs a valid name, quantity, and price.",
   },
 };
 
 const transactionRecordFr = {
   eyebrow: "Enregistrement de transaction",
   title: "Enregistrer une nouvelle vente",
-  description: "Ce formulaire représente le flux de vente hors ligne d’abord. Plus tard, il écrira d’abord dans IndexedDB, puis se synchronisera avec l’API Rust lorsque l’accès Internet sera disponible.",
+  description:
+    "Ce formulaire représente le flux de vente hors ligne d’abord. Plus tard, il écrira d’abord dans IndexedDB, puis se synchronisera avec l’API Rust lorsque l’accès Internet sera disponible.",
   detailsTitle: "Détails de la vente",
-  detailsSubtitle: "Choisissez l’entreprise, la boutique, le client, le mode de paiement, le statut de paiement et le montant total.",
+  detailsSubtitle:
+    "Choisissez l’entreprise, la boutique, le client, le mode de paiement, le statut de paiement et le montant total.",
   business: "Entreprise",
   unit: "Boutique ou unité",
-  directBusinessSale: "Aucune unité — enregistrer directement pour cette entreprise",
+  directBusinessSale:
+    "Aucune unité — enregistrer directement pour cette entreprise",
   customerName: "Nom du client",
   customerPlaceholder: "Rechercher ou saisir un nouveau client",
   customerSuggestions: "Suggestions de clients",
   noContactSaved: "Aucun contact enregistré",
   customerContact: "Contact du client",
   customerContactPlaceholder: "Numéro de téléphone ou WhatsApp",
-  newCustomerHint: "Les nouveaux clients seront enregistrés à partir de ce nom et de ce contact lorsque la vente sera validée.",
+  newCustomerHint:
+    "Les nouveaux clients seront enregistrés à partir de ce nom et de ce contact lorsque la vente sera validée.",
   lastPurchase: "Dernier achat",
   notRecorded: "non enregistré",
   totalSpent: "Total dépensé",
   noPendingBalance: "Aucun solde en attente",
   paymentMethod: "Mode de paiement",
   totalAmount: "Montant total",
-  autoFilledTotal: "Rempli automatiquement à partir des détails de la transaction.",
+  autoFilledTotal:
+    "Rempli automatiquement à partir des détails de la transaction.",
   itemizedToggleTitle: "Ajouter les détails des articles",
-  itemizedToggleSubtitle: "Section facultative de type CSV pour plusieurs produits avec des prix spécifiques au client.",
+  itemizedToggleSubtitle:
+    "Section facultative de type CSV pour plusieurs produits avec des prix spécifiques au client.",
   itemizedAria: "Détails des articles de la transaction",
   itemizedTitle: "Détails de la transaction",
-  itemizedSubtitle: "Saisissez chaque article, la quantité et le prix fixe. Les produits appris peuvent remplir automatiquement les prix spécifiques au client.",
+  itemizedSubtitle:
+    "Saisissez chaque article, la quantité et le prix fixe. Les produits appris peuvent remplir automatiquement les prix spécifiques au client.",
   itemName: "Nom de l’article",
   quantity: "Qté",
   fixedPrice: "Prix fixe",
@@ -120,21 +138,25 @@ const transactionRecordFr = {
   customerSpecificPriceApplied: "prix spécifique au client appliqué",
   defaultPriceApplied: "prix par défaut appliqué",
   addItem: "Ajouter un article",
-  totalTransfers: "Le total est transféré automatiquement vers le champ Montant total.",
+  totalTransfers:
+    "Le total est transféré automatiquement vers le champ Montant total.",
   paymentStatus: "Statut de paiement",
   paid: "Payé",
   paidHint: "Le client a entièrement payé cette vente.",
   pendingPayment: "Paiement en attente",
-  pendingHint: "La vente est enregistrée, mais le client doit encore de l’argent.",
+  pendingHint:
+    "La vente est enregistrée, mais le client doit encore de l’argent.",
   outstandingAmount: "Montant restant dû",
   outstandingPlaceholder: "Montant encore dû",
-  outstandingHint: "Ce montant sera enregistré avec la transaction afin que l’entreprise puisse suivre les soldes impayés.",
+  outstandingHint:
+    "Ce montant sera enregistré avec la transaction afin que l’entreprise puisse suivre les soldes impayés.",
   amountPaid: "Montant payé",
   amountPaidPlaceholder: "Montant déjà payé",
   pendingAmount: "Montant restant",
   note: "Note de transaction",
   notePlaceholder: "Ajouter une note facultative pour cette vente",
-  offlineHint: "La première implémentation mettra cette transaction en file d’attente localement avant la synchronisation backend.",
+  offlineHint:
+    "La première implémentation mettra cette transaction en file d’attente localement avant la synchronisation backend.",
   saveDraft: "Enregistrer le brouillon",
   recordSale: "Enregistrer la vente",
   validation: {
@@ -143,15 +165,20 @@ const transactionRecordFr = {
     businessRequired: "Choisissez une entreprise valide.",
     unitRequired: "Choisissez une unité valide sous l’entreprise sélectionnée.",
     customerNameRequired: "Saisissez un nom de client valide.",
-    customerContactInvalid: "Saisissez un numéro de téléphone ou WhatsApp valide.",
+    customerContactInvalid:
+      "Saisissez un numéro de téléphone ou WhatsApp valide.",
     paymentMethodInvalid: "Choisissez un mode de paiement valide.",
     totalAmountInvalid: "Saisissez un montant total valide supérieur à zéro.",
-    outstandingAmountInvalid: "Saisissez un montant restant valide supérieur à zéro.",
-    outstandingAmountTooHigh: "Le montant restant ne peut pas dépasser le montant total.",
+    outstandingAmountInvalid:
+      "Saisissez un montant restant valide supérieur à zéro.",
+    outstandingAmountTooHigh:
+      "Le montant restant ne peut pas dépasser le montant total.",
     amountPaidInvalid: "Saisissez un montant payé valide.",
-    amountPaidTooHigh: "Le montant payé doit être inférieur au total pour un paiement en attente.",
+    amountPaidTooHigh:
+      "Le montant payé doit être inférieur au total pour un paiement en attente.",
     noteTooLong: "La note est trop longue.",
-    lineItemInvalid: "L’article {{index}} nécessite un nom, une quantité et un prix valides.",
+    lineItemInvalid:
+      "L’article {{index}} nécessite un nom, une quantité et un prix valides.",
   },
 };
 
@@ -197,8 +224,17 @@ const resources = {
         devAccount: "Dev account",
       },
       categories: { Groceries: "Groceries", Electronics: "Electronics" },
-      unitTypes: { shop: "shop", warehouse: "warehouse", sales_desk: "sales desk" },
-      paymentMethods: { cash: "Cash", mobile_money: "Mobile money", card: "Card", bank_transfer: "Bank transfer" },
+      unitTypes: {
+        shop: "shop",
+        warehouse: "warehouse",
+        sales_desk: "sales desk",
+      },
+      paymentMethods: {
+        cash: "Cash",
+        mobile_money: "Mobile money",
+        card: "Card",
+        bank_transfer: "Bank transfer",
+      },
       roles: {
         "role-master-owner": "Master Owner",
         "role-business-admin": "Business Admin",
@@ -211,7 +247,8 @@ const resources = {
         newTransaction: "New transaction",
         loading: "Loading drafts...",
         emptyTitle: "No saved drafts",
-        emptyBody: "Partially completed transactions that you save will appear here.",
+        emptyBody:
+          "Partially completed transactions that you save will appear here.",
         customer: "Customer",
         paymentStatus: "Payment status",
         total: "Total",
@@ -240,7 +277,8 @@ const resources = {
       dashboard: {
         eyebrow: "Master dashboard",
         title: "Control every business from one place",
-        description: "This page gives the master account owner a central view of businesses, shops, staff access, transaction activity, and offline sync status.",
+        description:
+          "This page gives the master account owner a central view of businesses, shops, staff access, transaction activity, and offline sync status.",
         recordTransaction: "Record transaction",
         todayRevenue: "Today revenue",
         acrossUnits: "Across all active units",
@@ -259,7 +297,8 @@ const resources = {
       transactions: {
         eyebrow: "Transactions",
         title: "Sales history and sync queue",
-        description: "This page shows completed and queued transactions across the permitted account scope. Backend filters must enforce the same business, unit, date range, and worker scope.",
+        description:
+          "This page shows completed and queued transactions across the permitted account scope. Backend filters must enforce the same business, unit, date range, and worker scope.",
         recentRecords: "Recent records",
         demoTransactions: "{{count}} demo transactions",
         reference: "Reference",
@@ -273,11 +312,13 @@ const resources = {
       businesses: {
         eyebrow: "Businesses and shops",
         title: "Structure the master account",
-        description: "This design supports one master account controlling many businesses, and each business controlling many shops, branches, warehouses, or sales units.",
+        description:
+          "This design supports one master account controlling many businesses, and each business controlling many shops, branches, warehouses, or sales units.",
         createBusiness: "Create business",
         creating: "Creating...",
         formTitle: "New business",
-        formSubtitle: "This business will be created directly in your cloud account.",
+        formSubtitle:
+          "This business will be created directly in your cloud account.",
         name: "Business name",
         type: "Business type",
         country: "Country",
@@ -289,11 +330,30 @@ const resources = {
         empty: "No businesses yet. Create the first business for this account.",
         noUnits: "No shops or units have been added yet.",
         totalToday: "Total today",
+        treeEyebrow: "Account hierarchy",
+        treeTitle: "Business structure",
+        businessCount: "{{count}} businesses",
+        treeName: "Name",
+        treeType: "Type / role",
+        treeLocation: "Location / contact",
+        treeTeam: "Team / status",
+        treeRevenue: "Today revenue",
+        treeActions: "Actions",
+        business: "Business",
+        selected: "Selected",
+        manage: "Manage",
+        addEmployee: "Add employee",
+        viewEmployee: "View employee",
+        expandBusiness: "Expand {{name}}",
+        collapseBusiness: "Collapse {{name}}",
+        expandUnit: "Expand {{name}} team",
+        collapseUnit: "Collapse {{name}} team",
       },
       team: {
         eyebrow: "Team access",
         title: "Roles and scoped permissions",
-        description: "This page represents how master owners invite workers and assign access to the whole account, one business, or one shop.",
+        description:
+          "This page represents how master owners invite workers and assign access to the whole account, one business, or one shop.",
         inviteWorker: "Invite worker",
         members: "Members",
         scopedHint: "Access is scoped by master account, business, or unit.",
@@ -310,7 +370,8 @@ const resources = {
       reports: {
         eyebrow: "Reports",
         title: "Business insight overview",
-        description: "Reports will later respect each user’s permission scope. Master owners can see everything, business admins see one business, and shop workers see their assigned unit.",
+        description:
+          "Reports will later respect each user’s permission scope. Master owners can see everything, business admins see one business, and shop workers see their assigned unit.",
         completedRevenue: "Completed revenue",
         completedRecords: "{{count}} completed records",
         queuedAmount: "Queued amount",
@@ -369,9 +430,21 @@ const resources = {
         readyToSync: "Prêt à synchroniser",
         devAccount: "Compte dev",
       },
-      categories: { Groceries: "Produits alimentaires", Electronics: "Électronique" },
-      unitTypes: { shop: "boutique", warehouse: "entrepôt", sales_desk: "point de vente" },
-      paymentMethods: { cash: "Espèces", mobile_money: "Mobile money", card: "Carte", bank_transfer: "Virement bancaire" },
+      categories: {
+        Groceries: "Produits alimentaires",
+        Electronics: "Électronique",
+      },
+      unitTypes: {
+        shop: "boutique",
+        warehouse: "entrepôt",
+        sales_desk: "point de vente",
+      },
+      paymentMethods: {
+        cash: "Espèces",
+        mobile_money: "Mobile money",
+        card: "Carte",
+        bank_transfer: "Virement bancaire",
+      },
       roles: {
         "role-master-owner": "Propriétaire principal",
         "role-business-admin": "Administrateur d’entreprise",
@@ -384,7 +457,8 @@ const resources = {
         newTransaction: "Nouvelle transaction",
         loading: "Chargement des brouillons...",
         emptyTitle: "Aucun brouillon enregistré",
-        emptyBody: "Les transactions partiellement remplies que vous enregistrez apparaîtront ici.",
+        emptyBody:
+          "Les transactions partiellement remplies que vous enregistrez apparaîtront ici.",
         customer: "Client",
         paymentStatus: "Statut du paiement",
         total: "Total",
@@ -413,7 +487,8 @@ const resources = {
       dashboard: {
         eyebrow: "Tableau de bord principal",
         title: "Contrôlez toutes vos entreprises depuis un seul endroit",
-        description: "Cette page donne au propriétaire du compte principal une vue centrale des entreprises, boutiques, accès du personnel, activités de transaction et état de synchronisation hors ligne.",
+        description:
+          "Cette page donne au propriétaire du compte principal une vue centrale des entreprises, boutiques, accès du personnel, activités de transaction et état de synchronisation hors ligne.",
         recordTransaction: "Enregistrer une vente",
         todayRevenue: "Revenu du jour",
         acrossUnits: "Sur toutes les unités actives",
@@ -432,7 +507,8 @@ const resources = {
       transactions: {
         eyebrow: "Transactions",
         title: "Historique des ventes et file de synchronisation",
-        description: "Cette page affiche les transactions terminées et en attente dans le périmètre autorisé. Le backend devra appliquer les mêmes filtres d’entreprise, d’unité, de période et d’employé.",
+        description:
+          "Cette page affiche les transactions terminées et en attente dans le périmètre autorisé. Le backend devra appliquer les mêmes filtres d’entreprise, d’unité, de période et d’employé.",
         recentRecords: "Enregistrements récents",
         demoTransactions: "{{count}} transactions de démonstration",
         reference: "Référence",
@@ -446,11 +522,13 @@ const resources = {
       businesses: {
         eyebrow: "Entreprises et boutiques",
         title: "Structurer le compte principal",
-        description: "Cette conception prend en charge un compte principal contrôlant plusieurs entreprises, chaque entreprise pouvant contrôler plusieurs boutiques, agences, entrepôts ou points de vente.",
+        description:
+          "Cette conception prend en charge un compte principal contrôlant plusieurs entreprises, chaque entreprise pouvant contrôler plusieurs boutiques, agences, entrepôts ou points de vente.",
         createBusiness: "Créer une entreprise",
         creating: "Création...",
         formTitle: "Nouvelle entreprise",
-        formSubtitle: "Cette entreprise sera créée directement dans votre compte cloud.",
+        formSubtitle:
+          "Cette entreprise sera créée directement dans votre compte cloud.",
         name: "Nom de l’entreprise",
         type: "Type d’entreprise",
         country: "Pays",
@@ -462,14 +540,34 @@ const resources = {
         empty: "Aucune entreprise. Créez la première entreprise de ce compte.",
         noUnits: "Aucune boutique ou unité n’a encore été ajoutée.",
         totalToday: "Total du jour",
+        treeEyebrow: "Hiérarchie du compte",
+        treeTitle: "Structure des entreprises",
+        businessCount: "{{count}} entreprises",
+        treeName: "Nom",
+        treeType: "Type / rôle",
+        treeLocation: "Emplacement / contact",
+        treeTeam: "Équipe / statut",
+        treeRevenue: "Revenu du jour",
+        treeActions: "Actions",
+        business: "Entreprise",
+        selected: "Sélectionnée",
+        manage: "Gérer",
+        addEmployee: "Ajouter un employé",
+        viewEmployee: "Voir l’employé",
+        expandBusiness: "Développer {{name}}",
+        collapseBusiness: "Réduire {{name}}",
+        expandUnit: "Développer l’équipe de {{name}}",
+        collapseUnit: "Réduire l’équipe de {{name}}",
       },
       team: {
         eyebrow: "Accès équipe",
         title: "Rôles et permissions par périmètre",
-        description: "Cette page montre comment les propriétaires principaux invitent des employés et attribuent l’accès à tout le compte, à une entreprise ou à une boutique.",
+        description:
+          "Cette page montre comment les propriétaires principaux invitent des employés et attribuent l’accès à tout le compte, à une entreprise ou à une boutique.",
         inviteWorker: "Inviter un employé",
         members: "Membres",
-        scopedHint: "L’accès est limité par compte principal, entreprise ou unité.",
+        scopedHint:
+          "L’accès est limité par compte principal, entreprise ou unité.",
         name: "Nom",
         email: "Email",
         role: "Rôle",
@@ -483,7 +581,8 @@ const resources = {
       reports: {
         eyebrow: "Rapports",
         title: "Vue d’ensemble des performances",
-        description: "Les rapports respecteront plus tard le périmètre de permission de chaque utilisateur. Les propriétaires principaux voient tout, les administrateurs voient une entreprise, et les employés de boutique voient leur unité assignée.",
+        description:
+          "Les rapports respecteront plus tard le périmètre de permission de chaque utilisateur. Les propriétaires principaux voient tout, les administrateurs voient une entreprise, et les employés de boutique voient leur unité assignée.",
         completedRevenue: "Revenu terminé",
         completedRecords: "{{count}} enregistrements terminés",
         queuedAmount: "Montant en attente",
@@ -518,7 +617,9 @@ void i18n
     },
   })
   .then(() => {
-    document.documentElement.lang = i18n.resolvedLanguage?.startsWith("fr") ? "fr" : "en";
+    document.documentElement.lang = i18n.resolvedLanguage?.startsWith("fr")
+      ? "fr"
+      : "en";
   });
 
 export default i18n;
