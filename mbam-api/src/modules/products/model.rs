@@ -9,6 +9,7 @@ pub struct Product {
     #[serde(skip_serializing)]
     pub business_account_id: Uuid,
     pub business_id: Uuid,
+    pub business_unit_id: Uuid,
     pub name: String,
     pub sku: Option<String>,
     pub category: String,
@@ -33,6 +34,7 @@ pub struct Product {
 pub struct ProductWriteRequest {
     pub id: Option<Uuid>,
     pub business_id: Uuid,
+    pub business_unit_id: Uuid,
     pub name: String,
     pub sku: Option<String>,
     pub category: Option<String>,
