@@ -7,6 +7,7 @@ import {
   workspace,
 } from "../../data/mockWorkspace";
 import { getCurrentSession } from "../../services/authService";
+import { API_AUTH_LOCK_EVENT } from "../../services/apiClient";
 import { getAccessToken } from "../../services/authSessionStore";
 import {
   createApiSyncTransport,
@@ -39,6 +40,7 @@ const isDevEnvironment = import.meta.env.DEV;
 export default function AppShell() {
   const { t } = useTranslation();
   const [currentMember, setCurrentMember] = useState(() => getCurrentMember());
+  const [authLocked, setAuthLocked] = useState(false);
   const [, setWorkspaceVersion] = useState(0);
   const visibleNavItems = navItems.filter((item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey));
   const workspaceName = workspace.masterAccount.name || t("app.defaultWorkspaceName");
@@ -49,6 +51,12 @@ export default function AppShell() {
     return () => {
       window.removeEventListener(CURRENT_MEMBER_CHANGE_EVENT, syncCurrentMember);
     };
+  }, []);
+
+  useEffect(() => {
+    const lockSession = () => setAuthLocked(true);
+    window.addEventListener(API_AUTH_LOCK_EVENT, lockSession);
+    return () => window.removeEventListener(API_AUTH_LOCK_EVENT, lockSession);
   }, []);
 
   useEffect(() => {
@@ -74,7 +82,7 @@ export default function AppShell() {
     return () => window.removeEventListener("online", synchronize);
   }, []);
 
-  if (!getCurrentSession()) {
+  if (authLocked || !getCurrentSession()) {
     return <Navigate to="/auth" replace />;
   }
 
