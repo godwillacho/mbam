@@ -4,8 +4,8 @@ use uuid::Uuid;
 use super::model::{Product, ProductWriteRequest};
 
 const PRODUCT_COLUMNS: &str = r#"
-  id, business_account_id, business_id, name, sku, category, manufacturer,
-  brand, variant, package_size, unit_of_measure, barcode,
+  id, business_account_id, business_id, business_unit_id, name, sku, category,
+  manufacturer, brand, variant, package_size, unit_of_measure, barcode,
   available_quantity::float8 as available_quantity,
   low_stock_threshold::float8 as low_stock_threshold,
   expiry_date, cost_price::float8 as cost_price,
@@ -13,9 +13,10 @@ const PRODUCT_COLUMNS: &str = r#"
 "#;
 
 const PRODUCT_SELECT_COLUMNS: &str = r#"
-  product.id, product.business_account_id, product.business_id, product.name,
-  product.sku, product.category, product.manufacturer, product.brand,
-  product.variant, product.package_size, product.unit_of_measure, product.barcode,
+  product.id, product.business_account_id, product.business_id,
+  product.business_unit_id, product.name, product.sku, product.category,
+  product.manufacturer, product.brand, product.variant, product.package_size,
+  product.unit_of_measure, product.barcode,
   product.available_quantity::float8 as available_quantity,
   product.low_stock_threshold::float8 as low_stock_threshold,
   product.expiry_date, product.cost_price::float8 as cost_price,
@@ -30,14 +31,26 @@ pub async fn list_for_user(db: &PgPool, user_id: Uuid) -> Result<Vec<Product>, s
         from products product
         join memberships membership
           on membership.business_account_id = product.business_account_id
-         and (membership.business_id is null or membership.business_id = product.business_id)
         join role_permissions role_permission on role_permission.role_id = membership.role_id
         join permissions permission
           on permission.id = role_permission.permission_id
          and permission.code = 'product.view'
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = membership.id
+         and business_scope.business_id = product.business_id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = membership.id
+         and unit_scope.business_unit_id = product.business_unit_id
         where membership.user_id = $1
           and membership.status = 'active'
           and product.status = 'active'
+          and (
+            membership.business_id is null
+            or membership.business_id = product.business_id
+            or membership.business_unit_id = product.business_unit_id
+            or business_scope.business_id is not null
+            or unit_scope.business_unit_id is not null
+          )
         order by product.name, product.created_at
         "#
     );
@@ -58,13 +71,26 @@ pub async fn find_visible(
         from products product
         join memberships membership
           on membership.business_account_id = product.business_account_id
-         and (membership.business_id is null or membership.business_id = product.business_id)
         join role_permissions role_permission on role_permission.role_id = membership.role_id
         join permissions permission
           on permission.id = role_permission.permission_id
          and permission.code = 'product.view'
-        where membership.user_id = $1 and membership.status = 'active'
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = membership.id
+         and business_scope.business_id = product.business_id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = membership.id
+         and unit_scope.business_unit_id = product.business_unit_id
+        where membership.user_id = $1
+          and membership.status = 'active'
           and product.id = $2
+          and (
+            membership.business_id is null
+            or membership.business_id = product.business_id
+            or membership.business_unit_id = product.business_unit_id
+            or business_scope.business_id is not null
+            or unit_scope.business_unit_id is not null
+          )
         limit 1
         "#
     );
@@ -75,10 +101,11 @@ pub async fn find_visible(
         .await
 }
 
-pub async fn permitted_account_id(
+pub async fn permitted_scope(
     db: &PgPool,
     user_id: Uuid,
     business_id: Uuid,
+    business_unit_id: Uuid,
     permission: &str,
 ) -> Result<Option<Uuid>, sqlx::Error> {
     sqlx::query_scalar(
@@ -89,17 +116,35 @@ pub async fn permitted_account_id(
           on business.business_account_id = membership.business_account_id
          and business.id = $2
          and business.status = 'active'
+        join business_units unit
+          on unit.business_account_id = membership.business_account_id
+         and unit.business_id = business.id
+         and unit.id = $3
+         and unit.status = 'active'
         join role_permissions role_permission on role_permission.role_id = membership.role_id
         join permissions permission on permission.id = role_permission.permission_id
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = membership.id
+         and business_scope.business_id = business.id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = membership.id
+         and unit_scope.business_unit_id = unit.id
         where membership.user_id = $1 and membership.status = 'active'
-          and (membership.business_id is null or membership.business_id = $2)
-          and permission.code = $3
+          and permission.code = $4
+          and (
+            membership.business_id is null
+            or membership.business_id = business.id
+            or membership.business_unit_id = unit.id
+            or business_scope.business_id is not null
+            or unit_scope.business_unit_id is not null
+          )
         order by membership.created_at
         limit 1
         "#,
     )
     .bind(user_id)
     .bind(business_id)
+    .bind(business_unit_id)
     .bind(permission)
     .fetch_optional(db)
     .await
@@ -107,7 +152,7 @@ pub async fn permitted_account_id(
 
 pub async fn duplicate_exists(
     db: &PgPool,
-    business_id: Uuid,
+    business_unit_id: Uuid,
     product_id: Option<Uuid>,
     sku: Option<&str>,
     barcode: Option<&str>,
@@ -116,7 +161,7 @@ pub async fn duplicate_exists(
         r#"
         select exists(
           select 1 from products
-          where business_id = $1 and status = 'active'
+          where business_unit_id = $1 and status = 'active'
             and ($2::uuid is null or id <> $2)
             and (
               ($3::text is not null and lower(sku) = lower($3))
@@ -125,7 +170,7 @@ pub async fn duplicate_exists(
         )
         "#,
     )
-    .bind(business_id)
+    .bind(business_unit_id)
     .bind(product_id)
     .bind(sku)
     .bind(barcode)
@@ -142,13 +187,14 @@ pub async fn create(
     let query = format!(
         r#"
         insert into products (
-          id, business_account_id, business_id, name, sku, category, manufacturer,
-          brand, variant, package_size, unit_of_measure, barcode,
-          available_quantity, low_stock_threshold, expiry_date, cost_price, default_price
+          id, business_account_id, business_id, business_unit_id, name, sku,
+          category, manufacturer, brand, variant, package_size, unit_of_measure,
+          barcode, available_quantity, low_stock_threshold, expiry_date,
+          cost_price, default_price
         )
         values (
           coalesce($1, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9,
-          $10, $11, $12, $13, $14, $15, $16, $17
+          $10, $11, $12, $13, $14, $15, $16, $17, $18
         )
         returning {PRODUCT_COLUMNS}
         "#
@@ -158,6 +204,7 @@ pub async fn create(
         .bind(payload.id)
         .bind(account_id)
         .bind(payload.business_id)
+        .bind(payload.business_unit_id)
         .bind(&payload.name)
         .bind(&payload.sku)
         .bind(payload.category.as_deref().unwrap_or("other"))
@@ -189,10 +236,11 @@ pub async fn update(
     let query = format!(
         r#"
         update products set
-          name = $4, sku = $5, category = $6, manufacturer = $7, brand = $8,
-          variant = $9, package_size = $10, unit_of_measure = $11, barcode = $12,
-          available_quantity = $13, low_stock_threshold = $14, expiry_date = $15,
-          cost_price = $16, default_price = $17, updated_at = now()
+          business_unit_id = $4, name = $5, sku = $6, category = $7,
+          manufacturer = $8, brand = $9, variant = $10, package_size = $11,
+          unit_of_measure = $12, barcode = $13, available_quantity = $14,
+          low_stock_threshold = $15, expiry_date = $16, cost_price = $17,
+          default_price = $18, updated_at = now()
         where id = $1 and business_account_id = $2 and business_id = $3
         returning {PRODUCT_COLUMNS}
         "#
@@ -202,6 +250,7 @@ pub async fn update(
         .bind(product_id)
         .bind(account_id)
         .bind(payload.business_id)
+        .bind(payload.business_unit_id)
         .bind(&payload.name)
         .bind(&payload.sku)
         .bind(payload.category.as_deref().unwrap_or("other"))
@@ -261,15 +310,16 @@ async fn audit(
     sqlx::query(
         r#"
         insert into audit_logs (
-          actor_user_id, business_account_id, business_id, action,
-          resource_type, resource_id
+          actor_user_id, business_account_id, business_id, business_unit_id,
+          action, resource_type, resource_id
         )
-        values ($1, $2, $3, $4, 'product', $5)
+        values ($1, $2, $3, $4, $5, 'product', $6)
         "#,
     )
     .bind(actor_id)
     .bind(account_id)
     .bind(product.business_id)
+    .bind(product.business_unit_id)
     .bind(action)
     .bind(product.id)
     .execute(&mut **tx)
