@@ -6,7 +6,7 @@ export const authEn = {
   signInSubheading: "Sign in to your Mbam account",
   signupSubheading: "Start recording your sales for free",
   signedInTitle: "Signed in successfully",
-  signedInBody: "Welcome, {{name}}. Your secure Mbam session is ready.",
+  signedInBody: "Your secure Mbam session is ready.",
   offlinePassphrase: "Offline unlock passphrase",
   preparingOffline: "Securing offline access…",
   enableOffline: "Enable encrypted offline access",

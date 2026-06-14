@@ -46,13 +46,13 @@ function formatOptionalDate(value?: string): string {
   return value ? formatDateTime(value) : "—";
 }
 
-function getMemberScopeLabel(member: TeamMember): string {
+function getMemberScopeLabel(member: TeamMember, defaultWorkspaceName: string): string {
   const unit = findUnit(member.businessUnitId);
   const business = findBusiness(member.businessId ?? unit?.businessId);
 
   if (unit && business) return `${business.name} / ${unit.name}`;
   if (business) return business.name;
-  return workspace.masterAccount.name;
+  return workspace.masterAccount.name || defaultWorkspaceName;
 }
 
 function getScopedUnits(member: TeamMember): BusinessUnit[] {
@@ -367,7 +367,7 @@ export default function MasterDashboard() {
             <span className="eyebrow">{t("roleDashboard.rolePreview")}</span>
             <h3>{t("roleDashboard.viewingAs")}: {selectedMember.fullName}</h3>
             <p className="card-muted">
-              {selectedRole ? t(`roleDashboard.roleNames.${selectedRole.id}`) : ""} · {t("roleDashboard.scope")}: {getMemberScopeLabel(selectedMember)}
+              {selectedRole ? t(`roleDashboard.roleNames.${selectedRole.id}`) : ""} · {t("roleDashboard.scope")}: {getMemberScopeLabel(selectedMember, t("app.defaultWorkspaceName"))}
             </p>
           </div>
           {isDevEnvironment && isDemoWorkspace() && <span className="badge">{t("app.devAccount")}</span>}
