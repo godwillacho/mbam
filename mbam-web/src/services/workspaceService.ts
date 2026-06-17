@@ -25,6 +25,8 @@ function scopeLevel(member: TeamEmployee): ScopeLevel {
 function toTeamMember(
   member: TeamEmployee,
   permissions?: string[],
+  grantedBusinessIds?: string[],
+  grantedBusinessUnitIds?: string[],
 ): TeamMember {
   return {
     id: member.id,
@@ -36,6 +38,8 @@ function toTeamMember(
     scopeLevel: scopeLevel(member),
     businessId: member.business_id,
     businessUnitId: member.business_unit_id,
+    ...(grantedBusinessIds ? { businessIds: grantedBusinessIds } : {}),
+    ...(grantedBusinessUnitIds ? { businessUnitIds: grantedBusinessUnitIds } : {}),
     status: member.status,
   };
 }
@@ -61,14 +65,23 @@ export async function hydrateCloudWorkspace(): Promise<void> {
   if (!session) return;
 
   const team = await loadTeamWorkspace();
+  const sessionEmail = session.user.email.toLowerCase();
   const permissionsByRoleId = new Map(
     team.roles.map((role) => [role.id, role.permissions]),
   );
-  const teamMembers = team.members.map((member) =>
-    toTeamMember(member, permissionsByRoleId.get(member.role_id)),
-  );
+  const grantedBusinessIds = team.businesses.map((business) => business.id);
+  const grantedBusinessUnitIds = team.business_units.map((unit) => unit.id);
+  const teamMembers = team.members.map((member) => {
+    const isSessionMember = member.email.toLowerCase() === sessionEmail;
+    return toTeamMember(
+      member,
+      permissionsByRoleId.get(member.role_id),
+      isSessionMember ? grantedBusinessIds : undefined,
+      isSessionMember ? grantedBusinessUnitIds : undefined,
+    );
+  });
   const sessionMember = teamMembers.find(
-    (member) => member.email.toLowerCase() === session.user.email.toLowerCase(),
+    (member) => member.email.toLowerCase() === sessionEmail,
   );
 
   if (
