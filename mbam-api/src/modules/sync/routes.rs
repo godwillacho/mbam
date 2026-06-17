@@ -61,14 +61,15 @@ async fn push(
 }
 
 fn operation_bound_to_session(operation: &Value, user_id: Uuid, device_id: Uuid) -> bool {
-    operation
+    let operation_user_id = operation
         .get("userId")
         .and_then(Value::as_str)
-        .is_some_and(|value| value == user_id.to_string())
-        && operation
-            .get("deviceId")
-            .and_then(Value::as_str)
-            .is_some_and(|value| value == device_id.to_string())
+        .and_then(|value| Uuid::parse_str(value).ok());
+    let operation_device_id = operation
+        .get("deviceId")
+        .and_then(Value::as_str)
+        .and_then(|value| Uuid::parse_str(value).ok());
+    operation_user_id == Some(user_id) && operation_device_id == Some(device_id)
 }
 
 fn request_device_id(headers: &HeaderMap) -> Result<Uuid, ApiError> {
