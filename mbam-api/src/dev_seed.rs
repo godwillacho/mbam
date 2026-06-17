@@ -4,63 +4,128 @@ use uuid::Uuid;
 use crate::security::password;
 
 const ACCOUNT_ID: &str = "10000000-0000-4000-8000-000000000001";
+const MASTER_USER_ID: &str = "10000000-0000-4000-8000-000000000100";
 const ADMIN_USER_ID: &str = "10000000-0000-4000-8000-000000000101";
-const MANAGER_USER_ID: &str = "10000000-0000-4000-8000-000000000102";
-const CASHIER_USER_ID: &str = "10000000-0000-4000-8000-000000000103";
-const GROCERY_BUSINESS_ID: &str = "10000000-0000-4000-8000-000000000201";
-const ELECTRONICS_BUSINESS_ID: &str = "10000000-0000-4000-8000-000000000202";
-const DOUALA_UNIT_ID: &str = "10000000-0000-4000-8000-000000000301";
-const YAOUNDE_UNIT_ID: &str = "10000000-0000-4000-8000-000000000302";
-const SHOWROOM_UNIT_ID: &str = "10000000-0000-4000-8000-000000000303";
-const WAREHOUSE_UNIT_ID: &str = "10000000-0000-4000-8000-000000000304";
+const MANAGER_ONE_USER_ID: &str = "10000000-0000-4000-8000-000000000102";
+const CASHIER_ONE_USER_ID: &str = "10000000-0000-4000-8000-000000000103";
+const MANAGER_TWO_USER_ID: &str = "10000000-0000-4000-8000-000000000104";
+const CASHIER_TWO_USER_ID: &str = "10000000-0000-4000-8000-000000000105";
+const BUSINESS_ID: &str = "10000000-0000-4000-8000-000000000201";
+const UNIT_ONE_ID: &str = "10000000-0000-4000-8000-000000000301";
+const UNIT_TWO_ID: &str = "10000000-0000-4000-8000-000000000302";
+const MASTER_MEMBERSHIP_ID: &str = "10000000-0000-4000-8000-000000000400";
 const ADMIN_MEMBERSHIP_ID: &str = "10000000-0000-4000-8000-000000000401";
-const MANAGER_MEMBERSHIP_ID: &str = "10000000-0000-4000-8000-000000000402";
-const CASHIER_MEMBERSHIP_ID: &str = "10000000-0000-4000-8000-000000000403";
+const MANAGER_ONE_MEMBERSHIP_ID: &str = "10000000-0000-4000-8000-000000000402";
+const CASHIER_ONE_MEMBERSHIP_ID: &str = "10000000-0000-4000-8000-000000000403";
+const MANAGER_TWO_MEMBERSHIP_ID: &str = "10000000-0000-4000-8000-000000000404";
+const CASHIER_TWO_MEMBERSHIP_ID: &str = "10000000-0000-4000-8000-000000000405";
+
+const MASTER_PERMISSIONS: &[&str] = &[
+    "business.create", "business.view", "business.update", "business.disable",
+    "unit.create", "unit.view", "unit.update", "unit.disable",
+    "worker.invite", "worker.view", "worker.update", "worker.disable",
+    "role.create", "role.view", "role.update", "role.assign",
+    "sale.create", "sale.view", "sale.refund",
+    "product.create", "product.update", "product.view",
+    "report.view", "report.profit.view", "sync.pull", "sync.push",
+    "screen.record_transaction", "screen.transaction_drafts", "screen.transactions",
+    "screen.businesses", "screen.team", "screen.products", "screen.reports",
+];
+
+const BUSINESS_ADMIN_PERMISSIONS: &[&str] = &[
+    "business.view", "business.update", "unit.view", "unit.create", "unit.update",
+    "worker.view", "worker.invite", "worker.update", "worker.disable", "role.assign",
+    "sale.create", "sale.view", "sale.refund",
+    "product.create", "product.update", "product.view",
+    "report.view", "report.profit.view", "sync.pull", "sync.push",
+    "screen.record_transaction", "screen.transaction_drafts", "screen.transactions",
+    "screen.businesses", "screen.team", "screen.products", "screen.reports",
+];
+
+const SHOP_MANAGER_PERMISSIONS: &[&str] = &[
+    "business.view", "unit.view", "worker.view", "worker.invite", "worker.update",
+    "worker.disable", "role.assign", "sale.create", "sale.view", "sale.refund",
+    "product.create", "product.update", "product.view", "report.view",
+    "sync.pull", "sync.push", "screen.record_transaction", "screen.transaction_drafts",
+    "screen.transactions", "screen.businesses", "screen.team", "screen.products",
+    "screen.reports",
+];
+
+const CASHIER_PERMISSIONS: &[&str] = &[
+    "business.view", "unit.view", "sale.create", "sale.view", "product.view",
+    "sync.pull", "sync.push", "screen.record_transaction", "screen.transaction_drafts",
+    "screen.transactions", "screen.products",
+];
 
 pub async fn seed_test_accounts(db: &PgPool) -> Result<(), sqlx::Error> {
     let account_id = uuid(ACCOUNT_ID);
-    let grocery_business_id = uuid(GROCERY_BUSINESS_ID);
-    let electronics_business_id = uuid(ELECTRONICS_BUSINESS_ID);
-    let douala_unit_id = uuid(DOUALA_UNIT_ID);
-    let yaounde_unit_id = uuid(YAOUNDE_UNIT_ID);
-    let showroom_unit_id = uuid(SHOWROOM_UNIT_ID);
-    let warehouse_unit_id = uuid(WAREHOUSE_UNIT_ID);
-
-    let admin_hash = hash("AdminTest123")?;
-    let manager_hash = hash("ManagerTest123")?;
-    let cashier_hash = hash("CashierTest123")?;
-
+    let business_id = uuid(BUSINESS_ID);
+    let unit_one_id = uuid(UNIT_ONE_ID);
+    let unit_two_id = uuid(UNIT_TWO_ID);
     let mut tx = db.begin().await?;
 
+    let master_user_id = upsert_user(
+        &mut tx,
+        uuid(MASTER_USER_ID),
+        "Mbam Test Master Owner",
+        "master.test@mbam.local",
+        &hash("MasterTest123")?,
+    )
+    .await?;
     let admin_user_id = upsert_user(
         &mut tx,
         uuid(ADMIN_USER_ID),
-        "Mbam Test Admin",
+        "Mbam Test Business Admin",
         "admin.test@mbam.local",
-        &admin_hash,
+        &hash("AdminTest123")?,
     )
     .await?;
-    let manager_user_id = upsert_user(
+    let manager_one_user_id = upsert_user(
         &mut tx,
-        uuid(MANAGER_USER_ID),
-        "Mbam Test Shop Manager",
+        uuid(MANAGER_ONE_USER_ID),
+        "Mbam Test Shop Manager One",
         "manager.test@mbam.local",
-        &manager_hash,
+        &hash("ManagerTest123")?,
     )
     .await?;
-    let cashier_user_id = upsert_user(
+    let cashier_one_user_id = upsert_user(
         &mut tx,
-        uuid(CASHIER_USER_ID),
-        "Mbam Test Cashier",
+        uuid(CASHIER_ONE_USER_ID),
+        "Mbam Test Cashier One",
         "cashier.test@mbam.local",
-        &cashier_hash,
+        &hash("CashierTest123")?,
     )
     .await?;
+    let manager_two_user_id = upsert_user(
+        &mut tx,
+        uuid(MANAGER_TWO_USER_ID),
+        "Mbam Test Shop Manager Two",
+        "manager.two.test@mbam.local",
+        &hash("ManagerTest123")?,
+    )
+    .await?;
+    let cashier_two_user_id = upsert_user(
+        &mut tx,
+        uuid(CASHIER_TWO_USER_ID),
+        "Mbam Test Cashier Two",
+        "cashier.two.test@mbam.local",
+        &hash("CashierTest123")?,
+    )
+    .await?;
+
+    let test_user_ids = [
+        master_user_id,
+        admin_user_id,
+        manager_one_user_id,
+        cashier_one_user_id,
+        manager_two_user_id,
+        cashier_two_user_id,
+    ];
 
     sqlx::query(
         r#"
         insert into business_accounts (id, name, owner_user_id, status)
-        values ($1, 'Mbam Role Test Account', $2, 'active')
+        values ($1, 'Mbam Dashboard Test Account', $2, 'active')
         on conflict (id) do update
           set name = excluded.name,
               owner_user_id = excluded.owner_user_id,
@@ -69,104 +134,66 @@ pub async fn seed_test_accounts(db: &PgPool) -> Result<(), sqlx::Error> {
         "#,
     )
     .bind(account_id)
-    .bind(admin_user_id)
+    .bind(master_user_id)
     .execute(&mut *tx)
     .await?;
 
     upsert_business(
         &mut tx,
         account_id,
-        grocery_business_id,
-        "Mbam Test Grocery",
-        "Retail grocery",
+        business_id,
+        "Mbam Dashboard Test Business",
+        "Retail",
         "Cameroon",
         "XAF",
     )
     .await?;
-    upsert_business(
+    upsert_unit(
         &mut tx,
         account_id,
-        electronics_business_id,
-        "Mbam Test Electronics",
-        "Consumer electronics",
-        "Cameroon",
-        "XAF",
+        business_id,
+        unit_one_id,
+        "Dashboard Test Shop One",
+        "shop",
+        "Akwa, Douala",
+    )
+    .await?;
+    upsert_unit(
+        &mut tx,
+        account_id,
+        business_id,
+        unit_two_id,
+        "Dashboard Test Shop Two",
+        "shop",
+        "Mokolo, Yaounde",
     )
     .await?;
 
-    upsert_unit(&mut tx, account_id, grocery_business_id, douala_unit_id, "Douala Test Shop", "shop", "Akwa, Douala").await?;
-    upsert_unit(&mut tx, account_id, grocery_business_id, yaounde_unit_id, "Yaounde Test Desk", "sales_desk", "Mokolo, Yaounde").await?;
-    upsert_unit(&mut tx, account_id, electronics_business_id, showroom_unit_id, "Bonapriso Test Showroom", "shop", "Bonapriso, Douala").await?;
-    upsert_unit(&mut tx, account_id, electronics_business_id, warehouse_unit_id, "Bassa Test Warehouse", "warehouse", "Bassa Industrial Zone").await?;
-
-    let business_admin_role_id = upsert_role(
+    let master_role_id = upsert_role(
+        &mut tx,
+        account_id,
+        "master_owner",
+        "Master Owner",
+        "Full access to the development test account.",
+        MASTER_PERMISSIONS,
+    )
+    .await?;
+    let admin_role_id = upsert_role(
         &mut tx,
         account_id,
         "business_admin",
         "Business Admin",
-        "Manage granted businesses, workers, reports, products, and sales.",
-        &[
-            "business.view",
-            "business.update",
-            "unit.view",
-            "unit.create",
-            "unit.update",
-            "worker.view",
-            "worker.invite",
-            "worker.update",
-            "worker.disable",
-            "role.assign",
-            "sale.create",
-            "sale.view",
-            "sale.refund",
-            "product.create",
-            "product.update",
-            "product.view",
-            "report.view",
-            "report.profit.view",
-            "sync.pull",
-            "sync.push",
-            "screen.record_transaction",
-            "screen.transaction_drafts",
-            "screen.transactions",
-            "screen.businesses",
-            "screen.team",
-            "screen.products",
-            "screen.reports",
-        ],
+        "Manage the test business and both test shops.",
+        BUSINESS_ADMIN_PERMISSIONS,
     )
     .await?;
-    let shop_manager_role_id = upsert_role(
+    let manager_role_id = upsert_role(
         &mut tx,
         account_id,
         "shop_manager",
         "Shop Manager",
-        "Manage operations, workers, products, sales, and reports in one unit.",
-        &[
-            "business.view",
-            "unit.view",
-            "worker.view",
-            "worker.invite",
-            "worker.update",
-            "worker.disable",
-            "role.assign",
-            "sale.create",
-            "sale.view",
-            "sale.refund",
-            "product.create",
-            "product.update",
-            "product.view",
-            "report.view",
-            "sync.pull",
-            "sync.push",
-            "screen.record_transaction",
-            "screen.transaction_drafts",
-            "screen.transactions",
-            "screen.businesses",
-            "screen.team",
-            "screen.products",
-            "screen.reports",
-        ],
+        "Manage one assigned test shop.",
+        SHOP_MANAGER_PERMISSIONS,
     )
     .await?;
     let cashier_role_id = upsert_role(
@@ -174,73 +201,100 @@ pub async fn seed_test_accounts(db: &PgPool) -> Result<(), sqlx::Error> {
         account_id,
         "cashier",
         "Cashier",
-        "Record sales and view data required for assigned work.",
-        &[
-            "business.view",
-            "unit.view",
-            "sale.create",
-            "sale.view",
-            "product.view",
-            "sync.pull",
-            "sync.push",
-            "screen.record_transaction",
-            "screen.transaction_drafts",
-            "screen.transactions",
-            "screen.products",
-        ],
+        "Record sales in one assigned test shop.",
+        CASHIER_PERMISSIONS,
     )
     .await?;
 
-    remove_non_test_memberships(&mut tx, &[admin_user_id, manager_user_id, cashier_user_id]).await?;
-
-    let admin_membership_id = upsert_membership(
-        &mut tx,
+    let membership_ids = [
+        uuid(MASTER_MEMBERSHIP_ID),
         uuid(ADMIN_MEMBERSHIP_ID),
-        admin_user_id,
+        uuid(MANAGER_ONE_MEMBERSHIP_ID),
+        uuid(CASHIER_ONE_MEMBERSHIP_ID),
+        uuid(MANAGER_TWO_MEMBERSHIP_ID),
+        uuid(CASHIER_TWO_MEMBERSHIP_ID),
+    ];
+    remove_stale_test_access(&mut tx, account_id, &test_user_ids, &membership_ids).await?;
+
+    let master_membership_id = upsert_membership(
+        &mut tx,
+        membership_ids[0],
+        master_user_id,
         account_id,
-        business_admin_role_id,
-        Some(grocery_business_id),
+        master_role_id,
+        None,
         None,
     )
     .await?;
-    let manager_membership_id = upsert_membership(
+    let admin_membership_id = upsert_membership(
         &mut tx,
-        uuid(MANAGER_MEMBERSHIP_ID),
-        manager_user_id,
+        membership_ids[1],
+        admin_user_id,
         account_id,
-        shop_manager_role_id,
-        Some(grocery_business_id),
-        Some(douala_unit_id),
+        admin_role_id,
+        Some(business_id),
+        None,
     )
     .await?;
-    let cashier_membership_id = upsert_membership(
+    let manager_one_membership_id = upsert_membership(
         &mut tx,
-        uuid(CASHIER_MEMBERSHIP_ID),
-        cashier_user_id,
+        membership_ids[2],
+        manager_one_user_id,
+        account_id,
+        manager_role_id,
+        Some(business_id),
+        Some(unit_one_id),
+    )
+    .await?;
+    let cashier_one_membership_id = upsert_membership(
+        &mut tx,
+        membership_ids[3],
+        cashier_one_user_id,
         account_id,
         cashier_role_id,
-        Some(grocery_business_id),
-        Some(yaounde_unit_id),
+        Some(business_id),
+        Some(unit_one_id),
+    )
+    .await?;
+    let manager_two_membership_id = upsert_membership(
+        &mut tx,
+        membership_ids[4],
+        manager_two_user_id,
+        account_id,
+        manager_role_id,
+        Some(business_id),
+        Some(unit_two_id),
+    )
+    .await?;
+    let cashier_two_membership_id = upsert_membership(
+        &mut tx,
+        membership_ids[5],
+        cashier_two_user_id,
+        account_id,
+        cashier_role_id,
+        Some(business_id),
+        Some(unit_two_id),
     )
     .await?;
 
-    grant_business_scope(&mut tx, admin_membership_id, grocery_business_id).await?;
-    grant_business_scope(&mut tx, admin_membership_id, electronics_business_id).await?;
-    grant_unit_scope(&mut tx, admin_membership_id, douala_unit_id).await?;
-    grant_unit_scope(&mut tx, admin_membership_id, yaounde_unit_id).await?;
-    grant_unit_scope(&mut tx, admin_membership_id, showroom_unit_id).await?;
-    grant_unit_scope(&mut tx, admin_membership_id, warehouse_unit_id).await?;
-    grant_unit_scope(&mut tx, manager_membership_id, douala_unit_id).await?;
-    grant_unit_scope(&mut tx, cashier_membership_id, yaounde_unit_id).await?;
+    grant_business_scope(&mut tx, admin_membership_id, business_id).await?;
+    for membership_id in [master_membership_id, admin_membership_id] {
+        grant_unit_scope(&mut tx, membership_id, unit_one_id).await?;
+        grant_unit_scope(&mut tx, membership_id, unit_two_id).await?;
+    }
+    grant_unit_scope(&mut tx, manager_one_membership_id, unit_one_id).await?;
+    grant_unit_scope(&mut tx, cashier_one_membership_id, unit_one_id).await?;
+    grant_unit_scope(&mut tx, manager_two_membership_id, unit_two_id).await?;
+    grant_unit_scope(&mut tx, cashier_two_membership_id, unit_two_id).await?;
 
     upsert_product(
         &mut tx,
         account_id,
-        grocery_business_id,
-        douala_unit_id,
+        business_id,
+        unit_one_id,
         uuid("10000000-0000-4000-8000-000000000501"),
         "Test Rice Bag 25kg",
-        "TEST-RICE-25",
+        "TEST-SHOP1-RICE",
         "Groceries",
         25_000.0,
     )
@@ -248,28 +302,17 @@ pub async fn seed_test_accounts(db: &PgPool) -> Result<(), sqlx::Error> {
     upsert_product(
         &mut tx,
         account_id,
-        grocery_business_id,
-        yaounde_unit_id,
+        business_id,
+        unit_two_id,
         uuid("10000000-0000-4000-8000-000000000502"),
         "Test Cooking Oil 5L",
-        "TEST-OIL-5L",
+        "TEST-SHOP2-OIL",
         "Groceries",
         6_500.0,
     )
     .await?;
-    upsert_product(
-        &mut tx,
-        account_id,
-        electronics_business_id,
-        showroom_unit_id,
-        uuid("10000000-0000-4000-8000-000000000503"),
-        "Test Bluetooth Speaker",
-        "TEST-SPK-BT",
-        "Electronics",
-        45_000.0,
-    )
-    .await?;
 
+    verify_fixture(&mut tx, account_id, business_id, &test_user_ids).await?;
     tx.commit().await
 }
 
@@ -310,23 +353,28 @@ async fn upsert_user(
     .await
 }
 
-async fn remove_non_test_memberships(
+async fn remove_stale_test_access(
     tx: &mut Transaction<'_, Postgres>,
+    account_id: Uuid,
     user_ids: &[Uuid],
+    membership_ids: &[Uuid],
 ) -> Result<(), sqlx::Error> {
+    sqlx::query("delete from refresh_tokens where user_id = any($1)")
+        .bind(user_ids)
+        .execute(&mut **tx)
+        .await?;
     sqlx::query(
-        r#"
-        delete from memberships
-        where user_id = any($1)
-          and id <> all($2)
-        "#,
+        "delete from memberships where user_id = any($1) and id <> all($2)",
     )
     .bind(user_ids)
-    .bind(&[
-        uuid(ADMIN_MEMBERSHIP_ID),
-        uuid(MANAGER_MEMBERSHIP_ID),
-        uuid(CASHIER_MEMBERSHIP_ID),
-    ][..])
+    .bind(membership_ids)
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query(
+        "delete from memberships where business_account_id = $1 and id <> all($2)",
+    )
+    .bind(account_id)
+    .bind(membership_ids)
     .execute(&mut **tx)
     .await?;
     Ok(())
@@ -346,7 +394,8 @@ async fn upsert_business(
         insert into businesses (id, business_account_id, name, business_type, country, currency, status)
         values ($1, $2, $3, $4, $5, $6, 'active')
         on conflict (id) do update
-          set name = excluded.name,
+          set business_account_id = excluded.business_account_id,
+              name = excluded.name,
               business_type = excluded.business_type,
               country = excluded.country,
               currency = excluded.currency,
@@ -379,7 +428,9 @@ async fn upsert_unit(
         insert into business_units (id, business_account_id, business_id, name, unit_type, location, status)
         values ($1, $2, $3, $4, $5, $6, 'active')
         on conflict (id) do update
-          set name = excluded.name,
+          set business_account_id = excluded.business_account_id,
+              business_id = excluded.business_id,
+              name = excluded.name,
               unit_type = excluded.unit_type,
               location = excluded.location,
               status = 'active',
@@ -436,7 +487,6 @@ async fn upsert_role(
     .bind(permissions)
     .execute(&mut **tx)
     .await?;
-
     Ok(role_id)
 }
 
@@ -523,7 +573,8 @@ async fn upsert_product(
         )
         values ($1, $2, $3, $4, $5, $6, $7, 50, 5, $8, 'active')
         on conflict (id) do update
-          set business_id = excluded.business_id,
+          set business_account_id = excluded.business_account_id,
+              business_id = excluded.business_id,
               business_unit_id = excluded.business_unit_id,
               name = excluded.name,
               sku = excluded.sku,
@@ -543,5 +594,55 @@ async fn upsert_product(
     .bind(default_price)
     .execute(&mut **tx)
     .await?;
+    Ok(())
+}
+
+async fn verify_fixture(
+    tx: &mut Transaction<'_, Postgres>,
+    account_id: Uuid,
+    business_id: Uuid,
+    user_ids: &[Uuid],
+) -> Result<(), sqlx::Error> {
+    let account_users = sqlx::query_scalar::<_, i64>(
+        "select count(*) from memberships where business_account_id = $1 and user_id = any($2) and status = 'active'",
+    )
+    .bind(account_id)
+    .bind(user_ids)
+    .fetch_one(&mut **tx)
+    .await?;
+    let units = sqlx::query_scalar::<_, i64>(
+        "select count(*) from business_units where business_account_id = $1 and business_id = $2 and status = 'active' and id = any($3)",
+    )
+    .bind(account_id)
+    .bind(business_id)
+    .bind(&[uuid(UNIT_ONE_ID), uuid(UNIT_TWO_ID)][..])
+    .fetch_one(&mut **tx)
+    .await?;
+    let valid_profiles = sqlx::query_scalar::<_, i64>(
+        r#"
+        select count(*)
+        from memberships m
+        join roles r on r.id = m.role_id and r.business_account_id = m.business_account_id
+        where m.business_account_id = $1
+          and m.user_id = any($2)
+          and m.status = 'active'
+          and (
+            (r.code = 'master_owner' and m.business_id is null and m.business_unit_id is null)
+            or (r.code = 'business_admin' and m.business_id = $3 and m.business_unit_id is null)
+            or (r.code in ('shop_manager', 'cashier') and m.business_id = $3 and m.business_unit_id is not null)
+          )
+        "#,
+    )
+    .bind(account_id)
+    .bind(user_ids)
+    .bind(business_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if account_users != 6 || units != 2 || valid_profiles != 6 {
+        return Err(sqlx::Error::Protocol(format!(
+            "development dashboard fixture invalid: memberships={account_users}, units={units}, profiles={valid_profiles}",
+        )));
+    }
     Ok(())
 }
