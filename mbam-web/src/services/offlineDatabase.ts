@@ -8,7 +8,7 @@ import type {
 } from "../types/offline.types";
 
 const DATABASE_NAME = "mbam-offline";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 interface VaultRecord {
   id: "primary";
@@ -61,6 +61,15 @@ export interface EncryptedGrantRecord {
   value: EncryptedValue;
 }
 
+export interface EncryptedAuthorizationSnapshotRecord {
+  id: "current";
+  userId: string;
+  deviceId: string;
+  authorizationVersion: number;
+  storedAt: string;
+  value: EncryptedValue;
+}
+
 interface MetadataRecord {
   key: string;
   value: string;
@@ -98,6 +107,10 @@ interface MbamOfflineSchema extends DBSchema {
     key: "current";
     value: EncryptedGrantRecord;
   };
+  authorizationSnapshots: {
+    key: "current";
+    value: EncryptedAuthorizationSnapshotRecord;
+  };
   metadata: {
     key: string;
     value: MetadataRecord;
@@ -106,33 +119,54 @@ interface MbamOfflineSchema extends DBSchema {
 
 let databasePromise: Promise<IDBPDatabase<MbamOfflineSchema>> | null = null;
 
+function createStores(database: IDBPDatabase<MbamOfflineSchema>): void {
+  if (!database.objectStoreNames.contains("vault")) {
+    database.createObjectStore("vault", { keyPath: "id" });
+  }
+
+  if (!database.objectStoreNames.contains("entities")) {
+    const entities = database.createObjectStore("entities", {
+      keyPath: "id",
+    });
+    entities.createIndex("by-owner", "ownerId");
+    entities.createIndex("by-type", "entityType");
+  }
+
+  if (!database.objectStoreNames.contains("outbox")) {
+    const outbox = database.createObjectStore("outbox", {
+      keyPath: "operationId",
+    });
+    outbox.createIndex("by-status", "status");
+    outbox.createIndex("by-created-at", "createdAt");
+  }
+
+  if (!database.objectStoreNames.contains("conflicts")) {
+    const conflicts = database.createObjectStore("conflicts", {
+      keyPath: "conflictId",
+    });
+    conflicts.createIndex("by-operation", "operationId");
+  }
+
+  if (!database.objectStoreNames.contains("grants")) {
+    database.createObjectStore("grants", { keyPath: "id" });
+  }
+
+  if (!database.objectStoreNames.contains("authorizationSnapshots")) {
+    database.createObjectStore("authorizationSnapshots", { keyPath: "id" });
+  }
+
+  if (!database.objectStoreNames.contains("metadata")) {
+    database.createObjectStore("metadata", { keyPath: "key" });
+  }
+}
+
 export function getOfflineDatabase(): Promise<IDBPDatabase<MbamOfflineSchema>> {
   databasePromise ??= openDB<MbamOfflineSchema>(
     DATABASE_NAME,
     DATABASE_VERSION,
     {
       upgrade(database) {
-        database.createObjectStore("vault", { keyPath: "id" });
-
-        const entities = database.createObjectStore("entities", {
-          keyPath: "id",
-        });
-        entities.createIndex("by-owner", "ownerId");
-        entities.createIndex("by-type", "entityType");
-
-        const outbox = database.createObjectStore("outbox", {
-          keyPath: "operationId",
-        });
-        outbox.createIndex("by-status", "status");
-        outbox.createIndex("by-created-at", "createdAt");
-
-        const conflicts = database.createObjectStore("conflicts", {
-          keyPath: "conflictId",
-        });
-        conflicts.createIndex("by-operation", "operationId");
-
-        database.createObjectStore("grants", { keyPath: "id" });
-        database.createObjectStore("metadata", { keyPath: "key" });
+        createStores(database);
       },
     },
   );
@@ -163,7 +197,7 @@ export async function saveVaultRecord(
 export async function clearOfflineDatabase(): Promise<void> {
   const database = await getOfflineDatabase();
   const transaction = database.transaction(
-    ["vault", "entities", "outbox", "conflicts", "grants", "metadata"],
+    ["vault", "entities", "outbox", "conflicts", "grants", "authorizationSnapshots", "metadata"],
     "readwrite",
   );
   await Promise.all([
@@ -172,6 +206,7 @@ export async function clearOfflineDatabase(): Promise<void> {
     transaction.objectStore("outbox").clear(),
     transaction.objectStore("conflicts").clear(),
     transaction.objectStore("grants").clear(),
+    transaction.objectStore("authorizationSnapshots").clear(),
     transaction.objectStore("metadata").clear(),
     transaction.done,
   ]);
@@ -305,6 +340,22 @@ export async function getGrantRecord(): Promise<
 
 export async function deleteGrantRecord(): Promise<void> {
   await (await getOfflineDatabase()).delete("grants", "current");
+}
+
+export async function saveAuthorizationSnapshotRecord(
+  record: EncryptedAuthorizationSnapshotRecord,
+): Promise<void> {
+  await (await getOfflineDatabase()).put("authorizationSnapshots", record);
+}
+
+export async function getAuthorizationSnapshotRecord(): Promise<
+  EncryptedAuthorizationSnapshotRecord | undefined
+> {
+  return (await getOfflineDatabase()).get("authorizationSnapshots", "current");
+}
+
+export async function deleteAuthorizationSnapshotRecord(): Promise<void> {
+  await (await getOfflineDatabase()).delete("authorizationSnapshots", "current");
 }
 
 export async function setSyncCursor(cursor: string): Promise<void> {
