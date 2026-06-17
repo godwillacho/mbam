@@ -14,23 +14,21 @@ unit scopes. They are not frontend mock profiles.
 
 | Baseline | Scope | Email | Password | Expected dashboard |
 | --- | --- | --- | --- | --- |
-| Master owner | Entire account | `master.test@mbam.local` | `MasterTest123` | `/dashboard?view=master` |
-| Business admin | Business and both units | `admin.test@mbam.local` | `AdminTest123` | `/dashboard?view=business` |
-| Shop manager | Unit 1 | `manager.test@mbam.local` | `ManagerTest123` | `/dashboard?view=shop` |
-| Cashier | Unit 1 | `cashier.test@mbam.local` | `CashierTest123` | `/dashboard?view=personal` |
-| Shop manager | Unit 2 | `manager.two.test@mbam.local` | `ManagerTest123` | `/dashboard?view=shop` |
-| Cashier | Unit 2 | `cashier.two.test@mbam.local` | `CashierTest123` | `/dashboard?view=personal` |
+| Master owner | Entire account | `master.test@mbam.local` | `MasterTest123` | `/dashboard/master` |
+| Business admin | Business and both units | `admin.test@mbam.local` | `AdminTest123` | `/dashboard/business` |
+| Shop manager | Unit 1 | `manager.test@mbam.local` | `ManagerTest123` | `/dashboard/shop` |
+| Cashier | Unit 1 | `cashier.test@mbam.local` | `CashierTest123` | `/dashboard/personal` |
+| Shop manager | Unit 2 | `manager.two.test@mbam.local` | `ManagerTest123` | `/dashboard/shop` |
+| Cashier | Unit 2 | `cashier.two.test@mbam.local` | `CashierTest123` | `/dashboard/personal` |
 
-A business administrator is intentionally business-scoped. Unit-level
-administration uses the shop-manager baseline. The API rejects a business admin
-assigned directly to one unit.
+Cashiers have the personal baseline plus record transaction, drafts,
+transactions, and product create/update/view for their assigned shop only.
+A business administrator is business-scoped. Unit-level administration uses the
+shop-manager baseline.
 
 ## Run Locally
 
-Docker Compose manages PostgreSQL only. Run the API and web server directly on
-the host so code changes and logs remain visible in their local terminals.
-
-Start the database from the repository root:
+Docker Compose manages PostgreSQL only. Start it from the repository root:
 
 ```bash
 docker compose -f docker-compose.private.yml up -d db
@@ -55,30 +53,26 @@ npm install
 npm run dev
 ```
 
-The development seed resets passwords, memberships, scopes, and refresh tokens
-for these users whenever the API starts.
+The development seed resets passwords, memberships, role permissions, scopes,
+and refresh tokens whenever the API starts.
 
-For a completely clean disposable database, stop PostgreSQL and delete its
-volume before starting only the database again:
+For a completely clean disposable database:
 
 ```bash
 docker compose -f docker-compose.private.yml down -v
 docker compose -f docker-compose.private.yml up -d db
 ```
 
-`down -v` deletes the local PostgreSQL volume. Do not run it against data you
-need to retain.
+`down -v` deletes the local PostgreSQL volume.
 
 ## Validation Scenarios
 
 1. Sign in separately with each account in a fresh private browser window.
-2. Confirm access bootstrap completes once and selects the authenticated user's
-   profile rather than the first profile returned by the API.
-3. Confirm each account lands on the expected baseline dashboard.
-4. Confirm Unit 1 accounts cannot read Unit 2 transactions or products.
-5. Confirm Unit 2 accounts cannot read Unit 1 transactions or products.
-6. Confirm cashiers cannot open master or business dashboards through URL edits.
-7. Confirm shop managers cannot open business or master dashboards.
-8. Confirm the business admin can access both units but not another account.
-9. Confirm missing custom permissions removes menus and metrics instead of
-   granting broader access.
+2. Confirm authentication validates the API dashboard profile before navigation.
+3. Confirm cashier lands on `/dashboard/personal` without waiting for products or transactions to finish loading.
+4. Confirm cashier can record a transaction and add/edit products only in the assigned shop.
+5. Confirm Unit 1 accounts cannot read or modify Unit 2 products or transactions.
+6. Confirm Unit 2 accounts cannot read or modify Unit 1 products or transactions.
+7. Confirm URL edits cannot open a broader baseline dashboard.
+8. Confirm custom permissions add only their explicit menus and metrics.
+9. Confirm missing permission data removes access instead of granting broader access.
