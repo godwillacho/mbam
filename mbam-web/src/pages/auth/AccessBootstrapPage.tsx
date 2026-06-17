@@ -9,7 +9,7 @@ import { hydrateCloudWorkspace } from "../../services/workspaceService";
 
 function requestedPath(searchParams: URLSearchParams): string | null {
   const next = searchParams.get("next") ?? sessionStorage.getItem("mbam-auth-next");
-  if (!next?.startsWith("/")) return null;
+  if (!next?.startsWith("/") || next === "/") return null;
   if (
     next.startsWith("/auth") ||
     next.startsWith("/access") ||
@@ -21,8 +21,12 @@ function requestedPath(searchParams: URLSearchParams): string | null {
 }
 
 function pathIsAllowed(profile: DashboardProfile, path: string): boolean {
-  if (path === "/" || path.startsWith("/dashboard")) return true;
-  return profile.dashboards.some((dashboard) => path.startsWith(dashboard.path));
+  return profile.dashboards.some((dashboard) => {
+    if (path.startsWith("/dashboard")) {
+      return path === dashboard.path;
+    }
+    return path === dashboard.path || path.startsWith(`${dashboard.path}/`);
+  });
 }
 
 function baselineOption(profile: DashboardProfile): DashboardOption | undefined {
