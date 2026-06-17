@@ -1,4 +1,5 @@
 import { clearActiveSession, getAccessToken } from "./authSessionStore";
+import { getDeviceBinding } from "./deviceBindingService";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -32,6 +33,17 @@ function lockOutOnAuthFailure(status: number): void {
   }
 }
 
+async function deviceHeaders(): Promise<Record<string, string>> {
+  const binding = await getDeviceBinding().catch(() => null);
+  return binding
+    ? {
+        "X-Mbam-Device-Id": binding.deviceId,
+        "X-Mbam-Device-Fingerprint": binding.fingerprintHash,
+        "X-Mbam-Device-Label": binding.deviceLabel,
+      }
+    : {};
+}
+
 async function parseJsonResponse<TResponse>(
   response: Response,
 ): Promise<TResponse> {
@@ -60,6 +72,7 @@ export async function getJson<TResponse>(path: string): Promise<TResponse> {
     method: "GET",
     headers: {
       Accept: "application/json",
+      ...(await deviceHeaders()),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     credentials: "include",
@@ -88,6 +101,7 @@ export async function deleteJson<TResponse>(path: string): Promise<TResponse> {
     method: "DELETE",
     headers: {
       Accept: "application/json",
+      ...(await deviceHeaders()),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     credentials: "include",
@@ -106,6 +120,7 @@ async function sendJson<TResponse, TPayload>(
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...(await deviceHeaders()),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify(payload),
