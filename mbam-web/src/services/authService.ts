@@ -117,25 +117,28 @@ export async function unlockOfflineSession(
   passphrase: string,
 ): Promise<AuthSession> {
   await unlockOfflineVault(passphrase);
-  const grant = await getValidOfflineGrant();
-  if (!grant) {
-    lockOfflineVault();
-    throw new Error("offline_authorization_required");
-  }
+  try {
+    const grant = await getValidOfflineGrant();
+    if (!grant) {
+      throw new Error("offline_authorization_required");
+    }
 
-  const snapshot = await getValidOfflineAuthorizationSnapshot(grant.payload.userId);
-  if (!snapshot) {
-    lockOfflineVault();
-    throw new Error("offline_authorization_snapshot_required");
-  }
+    const snapshot = await getValidOfflineAuthorizationSnapshot(grant.payload.userId);
+    if (!snapshot) {
+      throw new Error("offline_authorization_snapshot_required");
+    }
 
-  const session: AuthSession = {
-    ...snapshot.session,
-    offlineGrant: { token: grant.token },
-    createdAt: new Date().toISOString(),
-  };
-  setActiveSession(session);
-  return session;
+    const session: AuthSession = {
+      ...snapshot.session,
+      offlineGrant: { token: grant.token },
+      createdAt: new Date().toISOString(),
+    };
+    setActiveSession(session);
+    return session;
+  } catch (error) {
+    lockOfflineVault();
+    throw error;
+  }
 }
 
 export async function offlineAccessIsConfigured(): Promise<boolean> {
