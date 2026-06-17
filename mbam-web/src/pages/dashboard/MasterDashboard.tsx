@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import {
@@ -8,6 +8,7 @@ import {
   workspace,
 } from "../../data/mockWorkspace";
 import {
+  canAccessRoute,
   CURRENT_MEMBER_CHANGE_EVENT,
   getCurrentMember,
   getScopedPendingPayments,
@@ -22,8 +23,10 @@ import type {
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import { getProductDescriptor } from "../../utils/productDisplay";
 import {
-  getDashboardMetricsForRole,
+  getDashboardMetricsForMember,
+  normalizeDashboardView,
   type DashboardMetricKey,
+  type DashboardView,
 } from "./dashboardPermissions";
 import "./MasterDashboard.css";
 
@@ -58,7 +61,7 @@ function sumPendingPayments(
 }
 
 function formatOptionalDate(value?: string): string {
-  return value ? formatDateTime(value) : "—";
+  return value ? formatDateTime(value) : "-";
 }
 
 function getMemberScopeLabel(
@@ -73,8 +76,27 @@ function getMemberScopeLabel(
   return workspace.masterAccount.name || defaultWorkspaceName;
 }
 
+function getDashboardTitle(member: TeamMember, view: DashboardView): string {
+  if (view === "master") return "Master dashboard";
+  if (view === "business") return "Business dashboard";
+  if (view === "shop") return "Shop dashboard";
+  if (view === "personal") return "Personal dashboard";
+  return member.roleName ?? "Custom dashboard";
+}
+
 function getScopedUnits(member: TeamMember): BusinessUnit[] {
   if (member.scopeLevel === "master") return workspace.businessUnits;
+
+  const grantedUnitIds = new Set(member.businessUnitIds ?? []);
+  const grantedBusinessIds = new Set(member.businessIds ?? []);
+  if (grantedUnitIds.size > 0 || grantedBusinessIds.size > 0) {
+    return workspace.businessUnits.filter(
+      (unit) =>
+        grantedUnitIds.has(unit.id) ||
+        grantedBusinessIds.has(unit.businessId),
+    );
+  }
+
   if (member.scopeLevel === "business" && member.businessId) {
     return workspace.businessUnits.filter(
       (unit) => unit.businessId === member.businessId,
@@ -134,6 +156,7 @@ function getFullPagePath(metricKey: DashboardMetricKey): string {
 
 export default function MasterDashboard() {
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
   const [selectedMember, setSelectedMember] = useState(() =>
     getCurrentMember(),
   );
@@ -159,7 +182,8 @@ export default function MasterDashboard() {
   const selectedRole = workspace.roles.find(
     (role) => role.id === selectedMember.roleId,
   );
-  const allowedMetricKeys = getDashboardMetricsForRole(selectedMember.roleId);
+  const dashboardView = normalizeDashboardView(searchParams.get("view"), selectedMember);
+  const allowedMetricKeys = getDashboardMetricsForMember(selectedMember, dashboardView);
   const isCashier = selectedMember.roleId === "role-cashier";
   const isMasterOwner = selectedMember.scopeLevel === "master";
   const isBusinessAdmin = selectedMember.scopeLevel === "business";
@@ -290,6 +314,31 @@ export default function MasterDashboard() {
   const metrics = allowedMetricKeys
     .map((key) => allMetrics.find((metric) => metric.key === key))
     .filter((metric): metric is DashboardMetric => Boolean(metric));
+
+  if (metrics.length === 0) {
+    return (
+      <section className="page-grid role-dashboard-page">
+        <div className="page-heading clean-dashboard-heading">
+          <div>
+            <span className="eyebrow">Access controlled</span>
+            <h2>No dashboard access</h2>
+            <p className="card-muted">
+              This role has no open dashboard clauses from the API permission profile.
+            </p>
+          </div>
+        </div>
+        <article className="card dashboard-detail-card full-width-detail-card">
+          <p className="card-muted">
+            Ask an administrator to grant a baseline dashboard or custom screen access.
+          </p>
+          <Link className="secondary-btn full-report-link" to="/dashboard-picker">
+            Reload access
+          </Link>
+        </article>
+      </section>
+    );
+  }
+
   const activeMetric =
     metrics.find((metric) => metric.key === selectedMetric) ?? metrics[0];
   const activeMetricKey = activeMetric.key;
@@ -308,7 +357,7 @@ export default function MasterDashboard() {
           <div className="list-item" key={transaction.id}>
             <div>
               <strong>
-                {transaction.reference} · {transaction.customerName}
+                {transaction.reference} - {transaction.customerName}
               </strong>
               <small>
                 {t("roleDashboard.labels.recordedBy")}: {transaction.recordedBy}
@@ -337,7 +386,7 @@ export default function MasterDashboard() {
           <div>
             <strong>{unit.name}</strong>
             <small>
-              {unit.location} · {t(`unitTypes.${unit.type}`)}
+              {unit.location} - {t(`unitTypes.${unit.type}`)}
             </small>
           </div>
           <span
@@ -391,8 +440,7 @@ export default function MasterDashboard() {
             <div>
               <strong>{business.name}</strong>
               <small>
-                {business.type} · {t("roleDashboard.labels.units")}:{" "}
-                {units.length}
+                {business.type} - {t("roleDashboard.labels.units")}: {units.length}
               </small>
             </div>
             <span className="badge">
@@ -460,7 +508,7 @@ export default function MasterDashboard() {
           <div>
             <strong>{member.fullName}</strong>
             <small>
-              {member.email} · {t(`roleDashboard.roleNames.${member.roleId}`)}
+              {member.email} - {t(`roleDashboard.roleNames.${member.roleId}`)}
             </small>
           </div>
           <span
@@ -493,8 +541,7 @@ export default function MasterDashboard() {
                   {descriptor || t(`categories.${product.category}`)}
                 </small>
                 <small>
-                  {product.sku ?? t("common.noSku")} ·{" "}
-                  {t(`categories.${product.category}`)}
+                  {product.sku ?? t("common.noSku")} - {t(`categories.${product.category}`)}
                 </small>
               </div>
               <span className="badge">{product.timesSold}</span>
@@ -538,16 +585,12 @@ export default function MasterDashboard() {
       <div className="page-heading clean-dashboard-heading">
         <div>
           <span className="eyebrow">{t("roleDashboard.eyebrow")}</span>
-          <h2>
-            {selectedMember.roleId.startsWith("role-custom-member-")
-              ? selectedMember.roleName
-              : t(`roleDashboard.roleNames.${selectedMember.roleId}`)}
-          </h2>
+          <h2>{getDashboardTitle(selectedMember, dashboardView)}</h2>
           <DevOnly>
             <p>{t("roleDashboard.description")}</p>
           </DevOnly>
         </div>
-        {isCashier && (
+        {isCashier && canAccessRoute(selectedMember, "recordTransaction") && (
           <div className="dashboard-heading-action">
             <Link className="primary-btn" to="/transactions/new">
               {t("roleDashboard.recordSale")}
@@ -566,12 +609,8 @@ export default function MasterDashboard() {
             <p className="card-muted">
               {selectedRole
                 ? t(`roleDashboard.roleNames.${selectedRole.id}`)
-                : ""}{" "}
-              · {t("roleDashboard.scope")}:{" "}
-              {getMemberScopeLabel(
-                selectedMember,
-                t("app.defaultWorkspaceName"),
-              )}
+                : selectedMember.roleName ?? ""}{" "}
+              - {t("roleDashboard.scope")}: {getMemberScopeLabel(selectedMember, t("app.defaultWorkspaceName"))}
             </p>
           </div>
           {isDevEnvironment && isDemoWorkspace() && (
@@ -607,34 +646,35 @@ export default function MasterDashboard() {
             <p className="card-muted">{t("roleDashboard.clickHint")}</p>
           </div>
           <span className="badge">
-            {t(`roleDashboard.metrics.${activeMetricKey}`)}:{" "}
-            {activeMetric.value}
+            {t(`roleDashboard.metrics.${activeMetricKey}`)}: {activeMetric.value}
           </span>
         </header>
         {renderDetail()}
-        <Link className="secondary-btn full-report-link" to={detailPath}>
-          {t("roleDashboard.openFullReport")}
-        </Link>
+        {canAccessRoute(selectedMember, "reports") && (
+          <Link className="secondary-btn full-report-link" to={detailPath}>
+            {t("roleDashboard.openFullReport")}
+          </Link>
+        )}
       </article>
 
       <article className="card quick-actions-card quick-actions-below">
         <h3>{t("roleDashboard.quickActions")}</h3>
         <div className="quick-action-list">
-          {isCashier && (
+          {canAccessRoute(selectedMember, "recordTransaction") && (
             <Link to="/transactions/new">{t("roleDashboard.recordSale")}</Link>
           )}
-          {!isCashier && (
+          {canAccessRoute(selectedMember, "transactions") && (
             <Link to="/transactions">
               {t("roleDashboard.openTransactions")}
             </Link>
           )}
-          {(isMasterOwner || isBusinessAdmin) && (
+          {(isMasterOwner || isBusinessAdmin) && canAccessRoute(selectedMember, "businesses") && (
             <Link to="/businesses">{t("roleDashboard.manageBusinesses")}</Link>
           )}
-          {(isMasterOwner || isBusinessAdmin) && (
-            <Link to="/businesses">{t("roleDashboard.manageTeam")}</Link>
+          {canAccessRoute(selectedMember, "team") && (
+            <Link to="/team">{t("roleDashboard.manageTeam")}</Link>
           )}
-          {!isCashier && (
+          {canAccessRoute(selectedMember, "reports") && (
             <Link to="/reports">{t("roleDashboard.viewReports")}</Link>
           )}
         </div>
