@@ -205,10 +205,14 @@ pub async fn list_members(
           target.status, target.updated_at
         from memberships actor
         join memberships target on target.business_account_id = actor.business_account_id
-          and (actor.business_id is null or target.business_id = actor.business_id)
-          and (actor.business_unit_id is null or target.business_unit_id = actor.business_unit_id)
         join users u on u.id = target.user_id
         join roles r on r.id = target.role_id
+        left join membership_business_scopes actor_business_scope
+          on actor_business_scope.membership_id = actor.id
+         and actor_business_scope.business_id = target.business_id
+        left join membership_business_unit_scopes actor_unit_scope
+          on actor_unit_scope.membership_id = actor.id
+         and actor_unit_scope.business_unit_id = target.business_unit_id
         where actor.user_id = $1 and actor.status = 'active'
           and (
             target.user_id = actor.user_id
@@ -218,6 +222,18 @@ pub async fn list_members(
               join permissions ap on ap.id = arp.permission_id
               where arp.role_id = actor.role_id and ap.code = 'worker.view'
             )
+          )
+          and (
+            actor.business_id is null
+            or target.business_id = actor.business_id
+            or actor_business_scope.business_id is not null
+            or target.business_id is null
+          )
+          and (
+            actor.business_unit_id is null
+            or target.business_unit_id = actor.business_unit_id
+            or actor_unit_scope.business_unit_id is not null
+            or target.business_unit_id is null
           )
         order by u.full_name, u.email
         "#,
@@ -241,10 +257,26 @@ pub async fn list_invitations(
         join role_permissions arp on arp.role_id = actor.role_id
         join permissions ap on ap.id = arp.permission_id and ap.code = 'worker.view'
         join invitations i on i.business_account_id = actor.business_account_id
-          and (actor.business_id is null or i.business_id = actor.business_id)
-          and (actor.business_unit_id is null or i.business_unit_id = actor.business_unit_id)
         join roles r on r.id = i.role_id
+        left join membership_business_scopes actor_business_scope
+          on actor_business_scope.membership_id = actor.id
+         and actor_business_scope.business_id = i.business_id
+        left join membership_business_unit_scopes actor_unit_scope
+          on actor_unit_scope.membership_id = actor.id
+         and actor_unit_scope.business_unit_id = i.business_unit_id
         where actor.user_id = $1 and actor.status = 'active' and i.status = 'pending'
+          and (
+            actor.business_id is null
+            or i.business_id = actor.business_id
+            or actor_business_scope.business_id is not null
+            or i.business_id is null
+          )
+          and (
+            actor.business_unit_id is null
+            or i.business_unit_id = actor.business_unit_id
+            or actor_unit_scope.business_unit_id is not null
+            or i.business_unit_id is null
+          )
         order by i.created_at desc
         "#,
     )
@@ -262,8 +294,22 @@ pub async fn list_businesses(
         select distinct b.id, b.name
         from memberships m
         join businesses b on b.business_account_id = m.business_account_id
-          and (m.business_id is null or m.business_id = b.id)
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = m.id
+         and business_scope.business_id = b.id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = m.id
+        left join business_units scoped_unit
+          on scoped_unit.id = unit_scope.business_unit_id
+         and scoped_unit.business_id = b.id
+         and scoped_unit.status = 'active'
         where m.user_id = $1 and m.status = 'active' and b.status = 'active'
+          and (
+            m.business_id is null
+            or m.business_id = b.id
+            or business_scope.business_id is not null
+            or scoped_unit.id is not null
+          )
         order by b.name
         "#,
     )
@@ -278,9 +324,24 @@ pub async fn list_units(db: &PgPool, user_id: Uuid) -> Result<Vec<UnitScopeRespo
         select distinct bu.id, bu.business_id, bu.name
         from memberships m
         join business_units bu on bu.business_account_id = m.business_account_id
-          and (m.business_id is null or m.business_id = bu.business_id)
-          and (m.business_unit_id is null or m.business_unit_id = bu.id)
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = m.id
+         and business_scope.business_id = bu.business_id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = m.id
+         and unit_scope.business_unit_id = bu.id
         where m.user_id = $1 and m.status = 'active' and bu.status = 'active'
+          and (
+            m.business_id is null
+            or m.business_id = bu.business_id
+            or business_scope.business_id is not null
+            or unit_scope.business_unit_id is not null
+          )
+          and (
+            m.business_unit_id is null
+            or m.business_unit_id = bu.id
+            or unit_scope.business_unit_id is not null
+          )
         order by bu.name
         "#,
     )
@@ -297,6 +358,10 @@ pub async fn authorization_version(db: &PgPool, user_id: Uuid) -> Result<i64, sq
           select updated_at as changed_at from memberships where user_id = $1
           union all
           select r.created_at from roles r join memberships m on m.role_id = r.id where m.user_id = $1
+          union all
+          select mbs.created_at from membership_business_scopes mbs join memberships m on m.id = mbs.membership_id where m.user_id = $1
+          union all
+          select mbus.created_at from membership_business_unit_scopes mbus join memberships m on m.id = mbus.membership_id where m.user_id = $1
         ) changes
         "#,
     )
@@ -318,9 +383,25 @@ pub async fn permitted_scope(
         from memberships m
         join role_permissions rp on rp.role_id = m.role_id
         join permissions p on p.id = rp.permission_id and p.code = $2
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = m.id
+         and business_scope.business_id = $3
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = m.id
+         and unit_scope.business_unit_id = $4
         where m.user_id = $1 and m.status = 'active'
-          and (m.business_id is null or m.business_id = $3)
-          and (m.business_unit_id is null or m.business_unit_id = $4)
+          and (
+            $3::uuid is null
+            or m.business_id is null
+            or m.business_id = $3
+            or business_scope.business_id is not null
+          )
+          and (
+            $4::uuid is null
+            or m.business_unit_id is null
+            or m.business_unit_id = $4
+            or unit_scope.business_unit_id is not null
+          )
         order by (m.business_id is null) desc, (m.business_unit_id is null) desc
         limit 1
         "#,
