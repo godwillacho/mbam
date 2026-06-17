@@ -13,16 +13,6 @@ import { clearActiveSession } from "../../services/authSessionStore";
 import { hydrateCloudWorkspace } from "../../services/workspaceService";
 import type { TeamMember } from "../../types/workspace";
 
-const routeForAccess: Array<{ routeKey: AppRouteKey; path: string }> = [
-  { routeKey: "recordTransaction", path: "/transactions/new" },
-  { routeKey: "transactionDrafts", path: "/transactions/drafts" },
-  { routeKey: "transactions", path: "/transactions" },
-  { routeKey: "products", path: "/products" },
-  { routeKey: "businesses", path: "/businesses" },
-  { routeKey: "team", path: "/team" },
-  { routeKey: "reports", path: "/reports" },
-];
-
 const routeKeyByPath: Array<{ test: (path: string) => boolean; routeKey: AppRouteKey }> = [
   { test: (path) => path.startsWith("/transactions/new"), routeKey: "recordTransaction" },
   { test: (path) => path.startsWith("/transactions/drafts"), routeKey: "transactionDrafts" },
