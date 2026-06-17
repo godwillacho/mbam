@@ -220,9 +220,9 @@ export function activateCloudWorkspace(user: AuthUser): void {
   workspace.pendingPayments = [];
   workspace.roles = [
     {
-      id: "role-master-owner",
-      name: "Master Owner",
-      permissions: ["All businesses", "All shops", "Roles", "Reports", "Settings"],
+      id: "role-pending-access",
+      name: "Loading access",
+      permissions: [],
     },
   ];
   workspace.teamMembers = [
@@ -230,8 +230,10 @@ export function activateCloudWorkspace(user: AuthUser): void {
       id: user.id,
       fullName: user.fullName,
       email: user.email,
-      roleId: "role-master-owner",
-      scopeLevel: "master",
+      roleId: "role-pending-access",
+      roleName: "Loading access",
+      permissions: [],
+      scopeLevel: "unit",
       status: "active",
     },
   ];
