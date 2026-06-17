@@ -16,7 +16,7 @@ mod security;
 mod state;
 
 use axum::{
-    http::{header, HeaderValue, Method},
+    http::{header, HeaderName, HeaderValue, Method},
     Router,
 };
 use std::net::SocketAddr;
@@ -71,7 +71,14 @@ fn build_router(state: AppState) -> Router {
         .allow_origin(AllowOrigin::exact(web_origin))
         .allow_credentials(true)
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
-        .allow_headers([header::ACCEPT, header::AUTHORIZATION, header::CONTENT_TYPE]);
+        .allow_headers([
+            header::ACCEPT,
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            HeaderName::from_static("x-mbam-device-id"),
+            HeaderName::from_static("x-mbam-device-fingerprint"),
+            HeaderName::from_static("x-mbam-device-label"),
+        ]);
     let business_router = modules::businesses::routes::router()
         .merge(modules::business_units::routes::router());
 
