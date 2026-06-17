@@ -30,8 +30,23 @@ describe("dashboard least privilege", () => {
     expect(metrics).not.toContain("team");
   });
 
-  it("denies all dashboard metrics when permissions are unavailable", () => {
+  it("denies all dashboard metrics when non-master permissions are unavailable", () => {
     expect(getDashboardMetricsForMember(member())).toEqual([]);
+  });
+
+  it("allows only the validated system master baseline when assignable role data omits it", () => {
+    const master = member({
+      roleId: "role-master-owner",
+      scopeLevel: "master",
+      businessId: undefined,
+      businessUnitId: undefined,
+    });
+
+    expect(getDashboardMetricsForMember(master)).toEqual(
+      getDashboardMetricsForRole("role-master-owner"),
+    );
+    expect(getDashboardMetricsForMember({ ...master, scopeLevel: "unit" })).toEqual([]);
+    expect(getDashboardMetricsForMember({ ...master, status: "disabled" })).toEqual([]);
   });
 
   it("keeps a cashier on the personal baseline when an elevated view is requested", () => {
