@@ -24,6 +24,7 @@ import {
 } from "./offlineDatabase";
 import { requireOfflineDataKey } from "./offlineVaultService";
 import { getJson, postJson } from "./apiClient";
+import { getDeviceBinding } from "./deviceBindingService";
 import { reconcileRoleScopedLocalData } from "./localSync/localSyncStore";
 import { BUSINESS_WORKSPACE_CHANGE_EVENT } from "./businessService";
 
@@ -46,17 +47,19 @@ export interface SyncTransport {
 
 export function createApiSyncTransport(): SyncTransport {
   return {
-    push: (operations) =>
-      postJson<SyncPushResult[], { operations: OfflineOperation[] }>(
+    push: async (operations) => {
+      const binding = await getDeviceBinding();
+      return postJson<SyncPushResult[], { operations: OfflineOperation[]; deviceId: string }>(
         "/api/v1/sync/push",
-        { operations },
-      ),
-    pull: (cursor) =>
-      getJson<SyncPullResult>(
-        cursor
-          ? `/api/v1/sync/pull?cursor=${encodeURIComponent(cursor)}`
-          : "/api/v1/sync/pull",
-      ),
+        { operations, deviceId: binding.deviceId },
+      );
+    },
+    pull: async (cursor) => {
+      const binding = await getDeviceBinding();
+      const params = new URLSearchParams({ deviceId: binding.deviceId });
+      if (cursor) params.set("cursor", cursor);
+      return getJson<SyncPullResult>(`/api/v1/sync/pull?${params.toString()}`);
+    },
   };
 }
 
