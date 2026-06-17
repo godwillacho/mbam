@@ -19,9 +19,6 @@ const CASHIER_MEMBERSHIP_ID: &str = "10000000-0000-4000-8000-000000000403";
 
 pub async fn seed_test_accounts(db: &PgPool) -> Result<(), sqlx::Error> {
     let account_id = uuid(ACCOUNT_ID);
-    let admin_user_id = uuid(ADMIN_USER_ID);
-    let manager_user_id = uuid(MANAGER_USER_ID);
-    let cashier_user_id = uuid(CASHIER_USER_ID);
     let grocery_business_id = uuid(GROCERY_BUSINESS_ID);
     let electronics_business_id = uuid(ELECTRONICS_BUSINESS_ID);
     let douala_unit_id = uuid(DOUALA_UNIT_ID);
@@ -35,25 +32,25 @@ pub async fn seed_test_accounts(db: &PgPool) -> Result<(), sqlx::Error> {
 
     let mut tx = db.begin().await?;
 
-    upsert_user(
+    let admin_user_id = upsert_user(
         &mut tx,
-        admin_user_id,
+        uuid(ADMIN_USER_ID),
         "Mbam Test Admin",
         "admin.test@mbam.local",
         &admin_hash,
     )
     .await?;
-    upsert_user(
+    let manager_user_id = upsert_user(
         &mut tx,
-        manager_user_id,
+        uuid(MANAGER_USER_ID),
         "Mbam Test Shop Manager",
         "manager.test@mbam.local",
         &manager_hash,
     )
     .await?;
-    upsert_user(
+    let cashier_user_id = upsert_user(
         &mut tx,
-        cashier_user_id,
+        uuid(CASHIER_USER_ID),
         "Mbam Test Cashier",
         "cashier.test@mbam.local",
         &cashier_hash,
@@ -194,6 +191,8 @@ pub async fn seed_test_accounts(db: &PgPool) -> Result<(), sqlx::Error> {
     )
     .await?;
 
+    remove_non_test_memberships(&mut tx, &[admin_user_id, manager_user_id, cashier_user_id]).await?;
+
     let admin_membership_id = upsert_membership(
         &mut tx,
         uuid(ADMIN_MEMBERSHIP_ID),
@@ -285,12 +284,12 @@ fn hash(value: &str) -> Result<String, sqlx::Error> {
 
 async fn upsert_user(
     tx: &mut Transaction<'_, Postgres>,
-    user_id: Uuid,
+    suggested_user_id: Uuid,
     full_name: &str,
     email: &str,
     password_hash: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
+) -> Result<Uuid, sqlx::Error> {
+    sqlx::query_scalar::<_, Uuid>(
         r#"
         insert into users (id, full_name, email, password_hash, email_verified, status)
         values ($1, $2, $3, $4, true, 'active')
@@ -300,12 +299,34 @@ async fn upsert_user(
               email_verified = true,
               status = 'active',
               updated_at = now()
+        returning id
         "#,
     )
-    .bind(user_id)
+    .bind(suggested_user_id)
     .bind(full_name)
     .bind(email)
     .bind(password_hash)
+    .fetch_one(&mut **tx)
+    .await
+}
+
+async fn remove_non_test_memberships(
+    tx: &mut Transaction<'_, Postgres>,
+    user_ids: &[Uuid],
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        delete from memberships
+        where user_id = any($1)
+          and id <> all($2)
+        "#,
+    )
+    .bind(user_ids)
+    .bind(&[
+        uuid(ADMIN_MEMBERSHIP_ID),
+        uuid(MANAGER_MEMBERSHIP_ID),
+        uuid(CASHIER_MEMBERSHIP_ID),
+    ][..])
     .execute(&mut **tx)
     .await?;
     Ok(())
