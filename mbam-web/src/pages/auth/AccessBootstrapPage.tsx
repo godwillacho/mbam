@@ -4,6 +4,7 @@ import AuthLayout from "../../components/auth/AuthLayout";
 import { setCurrentMemberId } from "../../security/accessControl";
 import { getCurrentSession } from "../../services/authService";
 import { clearActiveSession } from "../../services/authSessionStore";
+import { saveOfflineAuthorizationSnapshot } from "../../services/offlineAuthorizationSnapshotService";
 import type { DashboardOption, DashboardProfile } from "../../services/teamService";
 import { hydrateCloudWorkspace } from "../../services/workspaceService";
 
@@ -57,7 +58,7 @@ export default function AccessBootstrapPage() {
     setIsLoading(true);
     setError("");
     void hydrateCloudWorkspace()
-      .then((team) => {
+      .then(async (team) => {
         if (ignore) return;
         sessionStorage.removeItem("mbam-auth-next");
         const profile = team?.dashboard_profiles[0];
@@ -75,6 +76,9 @@ export default function AccessBootstrapPage() {
         }
 
         setCurrentMemberId(profile.membership_id);
+        if (session.accessToken) {
+          await saveOfflineAuthorizationSnapshot(session, team, path).catch(() => undefined);
+        }
         navigate(path, { replace: true });
       })
       .catch((loadError: unknown) => {
