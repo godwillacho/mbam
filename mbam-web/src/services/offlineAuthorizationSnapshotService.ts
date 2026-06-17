@@ -1,4 +1,6 @@
 import type { AuthSession } from "../types/auth";
+import type { WorkspaceData } from "../types/workspace";
+import { workspace } from "../data/mockWorkspace";
 import type { DashboardProfile, TeamWorkspace } from "./teamService";
 import { decryptJson, encryptJson } from "./encryptionService";
 import {
@@ -25,11 +27,16 @@ export interface OfflineAuthorizationSnapshot {
   userId: string;
   session: AuthSession;
   team: TeamWorkspace;
+  workspaceData: WorkspaceData;
   dashboardProfile: DashboardProfile;
   selectedDashboardPath: string;
   deviceBinding: DeviceBinding;
   authorizationVersion: number;
   storedAt: string;
+}
+
+function cloneWorkspaceData(): WorkspaceData {
+  return JSON.parse(JSON.stringify(workspace)) as WorkspaceData;
 }
 
 export async function saveOfflineAuthorizationSnapshot(
@@ -56,6 +63,7 @@ export async function saveOfflineAuthorizationSnapshot(
       accessToken: "",
     },
     team,
+    workspaceData: cloneWorkspaceData(),
     dashboardProfile,
     selectedDashboardPath,
     deviceBinding,
