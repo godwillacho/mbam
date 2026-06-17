@@ -29,7 +29,7 @@ import { reconcileRoleScopedLocalData } from "./localSync/localSyncStore";
 import { BUSINESS_WORKSPACE_CHANGE_EVENT } from "./businessService";
 
 export interface QueueOperationInput<T> {
-  deviceId: string;
+  deviceId?: string;
   userId: string;
   businessId: string;
   businessUnitId?: string;
@@ -75,10 +75,6 @@ export async function queueOfflineOperation<T>(
   input: QueueOperationInput<T>,
 ): Promise<OfflineOperation<T>> {
   const binding = await getDeviceBinding();
-  if (input.deviceId !== binding.deviceId) {
-    throw new Error("offline_device_binding_mismatch");
-  }
-
   const operation: OfflineOperation<T> = {
     operationId: createId(),
     deviceId: binding.deviceId,
@@ -187,8 +183,14 @@ async function recordConflict(
 export async function synchronizeOfflineChanges(
   transport: SyncTransport,
 ): Promise<void> {
+  const binding = await getDeviceBinding();
   const pendingRecords = await getOutboxRecordsByStatus("pending");
-  const operations = await Promise.all(pendingRecords.map(decryptOperation));
+  const operations = await Promise.all(
+    pendingRecords.map(async (record) => ({
+      ...(await decryptOperation(record)),
+      deviceId: binding.deviceId,
+    })),
+  );
 
   if (operations.length > 0) {
     const attemptTime = new Date().toISOString();
@@ -196,6 +198,7 @@ export async function synchronizeOfflineChanges(
       pendingRecords.map((record) =>
         putOutboxRecord({
           ...record,
+          deviceId: binding.deviceId,
           status: "syncing",
           lastAttemptAt: attemptTime,
         }),
@@ -210,6 +213,7 @@ export async function synchronizeOfflineChanges(
         pendingRecords.map((record) =>
           putOutboxRecord({
             ...record,
+            deviceId: binding.deviceId,
             status: record.retryCount + 1 >= 5 ? "failed" : "pending",
             retryCount: record.retryCount + 1,
             errorMessage:
