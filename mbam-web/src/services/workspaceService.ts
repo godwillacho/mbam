@@ -9,7 +9,7 @@ import type {
 import { listBusinesses, listBusinessUnits } from "./businessService";
 import { getCurrentSession } from "./authService";
 import { listProducts } from "./productService";
-import { loadTeamWorkspace, type TeamEmployee } from "./teamService";
+import { loadTeamWorkspace, type TeamEmployee, type TeamWorkspace } from "./teamService";
 import { listCloudTransactions } from "./transactionService";
 
 function roleId(code: string): string {
@@ -60,9 +60,9 @@ function transactionStatus(value: string): TransactionStatus {
   return "completed";
 }
 
-export async function hydrateCloudWorkspace(): Promise<void> {
+export async function hydrateCloudWorkspace(): Promise<TeamWorkspace | undefined> {
   const session = getCurrentSession();
-  if (!session) return;
+  if (!session) return undefined;
 
   const team = await loadTeamWorkspace();
   const sessionEmail = session.user.email.toLowerCase();
@@ -135,4 +135,6 @@ export async function hydrateCloudWorkspace(): Promise<void> {
     customers: [],
     pendingPayments: [],
   });
+
+  return team;
 }
