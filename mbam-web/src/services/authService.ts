@@ -12,6 +12,7 @@ import {
   getActiveSession,
   setActiveSession,
 } from "./authSessionStore";
+import { getDeviceBinding } from "./deviceBindingService";
 import {
   getValidOfflineAuthorizationSnapshot,
 } from "./offlineAuthorizationSnapshotService";
@@ -239,6 +240,7 @@ export async function resendVerification(email: string): Promise<void> {
 export async function signInWithProvider(
   provider: AuthProvider,
 ): Promise<AuthSession> {
+  await getDeviceBinding();
   window.location.assign(buildApiUrl(`/api/v1/auth/oauth/${provider}/start`));
   return new Promise<AuthSession>(() => undefined);
 }
