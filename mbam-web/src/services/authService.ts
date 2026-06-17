@@ -5,7 +5,6 @@ import type {
   LoginPayload,
   SignupPayload,
 } from "../types/auth";
-import { activateCloudWorkspace } from "../data/mockWorkspace";
 import { validateLoginInput, validateSignupInput } from "../utils/validation";
 import { buildApiUrl, isApiConfigured, postJson } from "./apiClient";
 import {
@@ -73,7 +72,6 @@ function buildSessionFromBackend(response: BackendAuthResponse): AuthSession {
 
 function saveSession(session: AuthSession): AuthSession {
   setActiveSession(session);
-  activateCloudWorkspace(session.user);
   return session;
 }
 
