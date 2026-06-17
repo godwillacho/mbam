@@ -32,11 +32,8 @@ export function dashboardPathForView(view: Exclude<DashboardView, "custom">): st
 }
 
 export function baselineDashboardView(member: TeamMember): Exclude<DashboardView, "custom"> | null {
-  const roleView = roleBaseline(member.roleId);
-  if (roleView) return roleView;
-  if (member.scopeLevel === "master") return "master";
-  if (member.scopeLevel === "business") return "business";
-  return null;
+  if (member.status !== "active") return null;
+  return roleBaseline(member.roleId);
 }
 
 export function baselineDashboardPath(member: TeamMember): string | null {
