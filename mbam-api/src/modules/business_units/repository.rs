@@ -30,11 +30,25 @@ pub async fn permitted_account_id(
          and b.status = 'active'
         join role_permissions rp on rp.role_id = m.role_id
         join permissions p on p.id = rp.permission_id and p.code = $3
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = m.id
+         and business_scope.business_id = b.id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = m.id
+        left join business_units scoped_unit
+          on scoped_unit.id = unit_scope.business_unit_id
+         and scoped_unit.business_id = b.id
+         and scoped_unit.status = 'active'
         where m.user_id = $1
           and m.status = 'active'
-          and (m.business_id is null or m.business_id = $2)
           and m.business_unit_id is null
-        order by (m.business_id is null) desc
+          and (
+            m.business_id is null
+            or m.business_id = $2
+            or business_scope.business_id is not null
+            or scoped_unit.id is not null
+          )
+        order by (m.business_id is null) desc, (business_scope.business_id is not null) desc
         limit 1
         "#,
     )
@@ -59,12 +73,27 @@ pub async fn list_for_business(
         join memberships m on m.business_account_id = bu.business_account_id
         join role_permissions rp on rp.role_id = m.role_id
         join permissions p on p.id = rp.permission_id and p.code = 'unit.view'
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = m.id
+         and business_scope.business_id = bu.business_id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = m.id
+         and unit_scope.business_unit_id = bu.id
         where m.user_id = $1
           and m.status = 'active'
           and bu.business_id = $2
           and bu.status = 'active'
-          and (m.business_id is null or m.business_id = bu.business_id)
-          and (m.business_unit_id is null or m.business_unit_id = bu.id)
+          and (
+            m.business_id is null
+            or m.business_id = bu.business_id
+            or business_scope.business_id is not null
+            or unit_scope.business_unit_id is not null
+          )
+          and (
+            m.business_unit_id is null
+            or m.business_unit_id = bu.id
+            or unit_scope.business_unit_id is not null
+          )
         order by bu.name
         "#,
     )
