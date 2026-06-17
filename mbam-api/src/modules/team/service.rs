@@ -1,29 +1,325 @@
 use chrono::{Duration, Utc};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{config::Config, error::ApiError, modules::auth::mailer, security::password};
 
 use super::{
     model::{
-        CreateInvitationRequest, CreateInvitationResponse, InvitationDetailsResponse,
-        RegisterInvitationRequest, TeamMemberResponse, TeamWorkspaceResponse,
-        UpdateTeamMemberRequest,
+        BusinessScopeResponse, CreateInvitationRequest, CreateInvitationResponse,
+        DashboardOptionResponse, DashboardProfileResponse, InvitationDetailsResponse,
+        RegisterInvitationRequest, RoleResponse, TeamMemberResponse, TeamWorkspaceResponse,
+        UnitScopeResponse, UpdateTeamMemberRequest,
     },
     repository,
 };
 
 pub async fn workspace(db: &PgPool, user_id: Uuid) -> Result<TeamWorkspaceResponse, ApiError> {
     repository::ensure_standard_roles(db, user_id).await?;
+    let members = repository::list_members(db, user_id).await?;
+    let invitations = repository::list_invitations(db, user_id).await?;
+    let roles = repository::list_roles(db, user_id).await?;
+    let businesses = repository::list_businesses(db, user_id).await?;
+    let business_units = repository::list_units(db, user_id).await?;
+    let dashboard_profiles = build_dashboard_profiles(
+        user_id,
+        &members,
+        &roles,
+        &businesses,
+        &business_units,
+    );
+    let authorization_version = repository::authorization_version(db, user_id).await?;
+
     Ok(TeamWorkspaceResponse {
-        members: repository::list_members(db, user_id).await?,
-        invitations: repository::list_invitations(db, user_id).await?,
-        roles: repository::list_roles(db, user_id).await?,
-        businesses: repository::list_businesses(db, user_id).await?,
-        business_units: repository::list_units(db, user_id).await?,
-        authorization_version: repository::authorization_version(db, user_id).await?,
+        members,
+        invitations,
+        roles,
+        businesses,
+        business_units,
+        dashboard_profiles,
+        authorization_version,
     })
+}
+
+fn build_dashboard_profiles(
+    user_id: Uuid,
+    members: &[TeamMemberResponse],
+    roles: &[RoleResponse],
+    businesses: &[BusinessScopeResponse],
+    business_units: &[UnitScopeResponse],
+) -> Vec<DashboardProfileResponse> {
+    let permissions_by_role = roles
+        .iter()
+        .map(|role| (role.id, role.permissions.clone()))
+        .collect::<HashMap<_, _>>();
+
+    members
+        .iter()
+        .filter(|member| member.user_id == user_id && member.status == "active")
+        .map(|member| {
+            let permissions = permissions_by_role
+                .get(&member.role_id)
+                .cloned()
+                .unwrap_or_default();
+            let scope_level = scope_level(member);
+            let scope_label = scope_label(member, businesses, business_units);
+            let dashboards = dashboards_for_member(member, &permissions);
+            let base_dashboard_id = dashboards
+                .iter()
+                .find(|dashboard| dashboard.is_baseline)
+                .map(|dashboard| dashboard.id.clone())
+                .unwrap_or_else(|| "personal_dashboard".to_string());
+
+            DashboardProfileResponse {
+                membership_id: member.id,
+                user_id: member.user_id,
+                role_code: member.role_code.clone(),
+                role_name: member.role_name.clone(),
+                scope_level,
+                scope_label,
+                base_dashboard_id,
+                permissions,
+                dashboards,
+            }
+        })
+        .collect()
+}
+
+fn scope_level(member: &TeamMemberResponse) -> String {
+    if member.business_unit_id.is_some() {
+        "unit".to_string()
+    } else if member.business_id.is_some() {
+        "business".to_string()
+    } else {
+        "master".to_string()
+    }
+}
+
+fn scope_label(
+    member: &TeamMemberResponse,
+    businesses: &[BusinessScopeResponse],
+    business_units: &[UnitScopeResponse],
+) -> String {
+    let unit = member
+        .business_unit_id
+        .and_then(|unit_id| business_units.iter().find(|unit| unit.id == unit_id));
+    let business_id = member.business_id.or(unit.map(|unit| unit.business_id));
+    let business = business_id.and_then(|id| businesses.iter().find(|item| item.id == id));
+
+    match (business, unit) {
+        (Some(business), Some(unit)) => format!("{} / {}", business.name, unit.name),
+        (Some(business), None) => business.name.clone(),
+        _ => "Workspace access".to_string(),
+    }
+}
+
+fn has_permission(permissions: &[String], permission: &str) -> bool {
+    permissions.iter().any(|value| value == permission)
+}
+
+fn dashboards_for_member(
+    member: &TeamMemberResponse,
+    permissions: &[String],
+) -> Vec<DashboardOptionResponse> {
+    let mut dashboards = Vec::new();
+    match member.role_code.as_str() {
+        "business_admin" => dashboards.push(dashboard(
+            "business_dashboard",
+            "Business dashboard",
+            "Business-wide view for granted businesses and units.",
+            "/dashboard?view=business",
+            "business",
+            None,
+            true,
+        )),
+        "shop_manager" => dashboards.push(dashboard(
+            "shop_dashboard",
+            "Shop dashboard",
+            "Shop-level operations view for the assigned unit.",
+            "/dashboard?view=shop",
+            "shop",
+            None,
+            true,
+        )),
+        "cashier" => dashboards.push(dashboard(
+            "personal_dashboard",
+            "Personal cashier dashboard",
+            "Your own sales, drafts, and assigned work queue.",
+            "/dashboard?view=personal",
+            "personal",
+            None,
+            true,
+        )),
+        "master_owner" => dashboards.push(dashboard(
+            "master_dashboard",
+            "Master dashboard",
+            "Account-wide dashboard for all businesses and units.",
+            "/dashboard?view=master",
+            "master",
+            None,
+            true,
+        )),
+        _ => dashboards.push(dashboard(
+            "custom_dashboard",
+            "Custom dashboard",
+            "Dashboard assembled from this user's custom permissions.",
+            "/dashboard?view=custom",
+            "custom",
+            None,
+            true,
+        )),
+    }
+
+    if member.role_code == "cashier"
+        && member.business_unit_id.is_some()
+        && (has_permission(permissions, "screen.reports")
+            || has_permission(permissions, "report.view")
+            || has_permission(permissions, "worker.view"))
+    {
+        dashboards.push(dashboard(
+            "shop_dashboard",
+            "Shop dashboard",
+            "Additional shop information granted to this cashier.",
+            "/dashboard?view=shop",
+            "shop",
+            None,
+            false,
+        ));
+    }
+
+    if (member.business_id.is_some() || member.role_code == "business_admin")
+        && has_permission(permissions, "screen.businesses")
+    {
+        dashboards.push(dashboard(
+            "business_structure",
+            "Business structure",
+            "Granted access to businesses and units.",
+            "/businesses",
+            "business_structure",
+            Some("businesses"),
+            false,
+        ));
+    }
+
+    add_if_allowed(
+        &mut dashboards,
+        permissions,
+        "screen.record_transaction",
+        dashboard(
+            "record_transaction",
+            "Record sale",
+            "Create a sale for the assigned scope.",
+            "/transactions/new",
+            "workflow",
+            Some("recordTransaction"),
+            member.role_code == "cashier",
+        ),
+    );
+    add_if_allowed(
+        &mut dashboards,
+        permissions,
+        "screen.transaction_drafts",
+        dashboard(
+            "transaction_drafts",
+            "Drafts",
+            "Continue saved transaction drafts.",
+            "/transactions/drafts",
+            "workflow",
+            Some("transactionDrafts"),
+            false,
+        ),
+    );
+    add_if_allowed(
+        &mut dashboards,
+        permissions,
+        "screen.transactions",
+        dashboard(
+            "transactions",
+            "Transactions",
+            "Review transactions validated for this role.",
+            "/transactions",
+            "workflow",
+            Some("transactions"),
+            false,
+        ),
+    );
+    add_if_allowed(
+        &mut dashboards,
+        permissions,
+        "screen.products",
+        dashboard(
+            "products",
+            "Products",
+            "Open products within the validated scope.",
+            "/products",
+            "workflow",
+            Some("products"),
+            false,
+        ),
+    );
+    add_if_allowed(
+        &mut dashboards,
+        permissions,
+        "screen.team",
+        dashboard(
+            "team_access",
+            "Team access",
+            "Manage employees where this role is permitted.",
+            "/team",
+            "workflow",
+            Some("team"),
+            false,
+        ),
+    );
+    add_if_allowed(
+        &mut dashboards,
+        permissions,
+        "screen.reports",
+        dashboard(
+            "reports",
+            "Reports",
+            "Open reports validated for this role and scope.",
+            "/reports",
+            "workflow",
+            Some("reports"),
+            false,
+        ),
+    );
+
+    dashboards
+}
+
+fn add_if_allowed(
+    dashboards: &mut Vec<DashboardOptionResponse>,
+    permissions: &[String],
+    permission: &str,
+    option: DashboardOptionResponse,
+) {
+    if has_permission(permissions, permission) && !dashboards.iter().any(|item| item.id == option.id) {
+        dashboards.push(option);
+    }
+}
+
+fn dashboard(
+    id: &str,
+    label: &str,
+    description: &str,
+    path: &str,
+    dashboard_type: &str,
+    route_key: Option<&str>,
+    is_baseline: bool,
+) -> DashboardOptionResponse {
+    DashboardOptionResponse {
+        id: id.to_string(),
+        label: label.to_string(),
+        description: description.to_string(),
+        path: path.to_string(),
+        dashboard_type: dashboard_type.to_string(),
+        route_key: route_key.map(str::to_string),
+        is_baseline,
+    }
 }
 
 pub async fn create_invitation(
