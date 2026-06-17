@@ -42,8 +42,10 @@ const roleMetricAccess: Record<string, DashboardMetricKey[]> = {
   ],
 };
 
+const fallbackMetricAccess: DashboardMetricKey[] = ["ownTransactions"];
+
 export function getDashboardMetricsForRole(roleId: string): DashboardMetricKey[] {
-  return roleMetricAccess[roleId] ?? [];
+  return roleMetricAccess[roleId] ?? fallbackMetricAccess;
 }
 
 export function canViewDashboardMetric(member: TeamMember, metricKey: DashboardMetricKey): boolean {
