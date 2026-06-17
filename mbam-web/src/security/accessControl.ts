@@ -1,4 +1,5 @@
 import { workspace } from "../data/mockWorkspace";
+import { getActiveSession } from "../services/authSessionStore";
 import type {
   BusinessUnit,
   PendingPaymentRecord,
@@ -69,10 +70,18 @@ const routePermission: Record<AppRouteKey, string> = {
 };
 
 export function getCurrentMember(): TeamMember {
-  return (
-    workspace.teamMembers.find((member) => member.id === currentMemberId) ??
-    workspace.teamMembers[0]
+  const selectedMember = workspace.teamMembers.find(
+    (member) => member.id === currentMemberId,
   );
+  if (selectedMember) return selectedMember;
+
+  const sessionEmail = getActiveSession()?.user.email.toLowerCase();
+  const sessionMember = sessionEmail
+    ? workspace.teamMembers.find(
+        (member) => member.email.toLowerCase() === sessionEmail,
+      )
+    : undefined;
+  return sessionMember ?? workspace.teamMembers[0];
 }
 
 export function setCurrentMemberId(memberId: string): void {
