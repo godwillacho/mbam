@@ -1,8 +1,7 @@
-# Private testing stack for Mbam.
+# Local PostgreSQL for Mbam development.
 #
-# This compose file runs the web app, Rust API, and PostgreSQL on one machine.
-# The web service and database bind to localhost so they are not publicly exposed.
-# Put Tailscale Serve, Cloudflare Tunnel, or another private access layer in front of it.
+# Run the Rust API and Vite web server directly on the host. This compose file
+# intentionally manages only the database.
 
 services:
   db:
@@ -22,46 +21,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  api:
-    build:
-      context: ./mbam-api
-    container_name: mbam-private-api
-    restart: unless-stopped
-    environment:
-      APP_ENV: development
-      API_HOST: 0.0.0.0
-      API_PORT: 8080
-      DATABASE_URL: postgres://${POSTGRES_USER:-mbam}:${POSTGRES_PASSWORD:-mbam_private_password_change_me}@db:5432/${POSTGRES_DB:-mbam}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-replace_this_access_secret_before_real_testing}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-replace_this_refresh_secret_before_real_testing}
-      ACCESS_TOKEN_MINUTES: 15
-      REFRESH_TOKEN_DAYS: 30
-      WEB_ORIGIN: http://localhost:8080
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
-      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Mbam}
-    depends_on:
-      db:
-        condition: service_healthy
-    expose:
-      - "8080"
-
-  web:
-    build:
-      context: ./mbam-web
-      args:
-        # Empty means same-origin /api, which Nginx proxies to the API service.
-        VITE_API_BASE_URL: ""
-    container_name: mbam-private-web
-    restart: unless-stopped
-    depends_on:
-      - api
-    ports:
-      - "127.0.0.1:8080:80"
 
 volumes:
   mbam_private_pgdata:
