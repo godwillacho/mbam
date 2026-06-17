@@ -8,6 +8,7 @@ import type {
 } from "../types/workspace";
 import { listBusinesses, listBusinessUnits } from "./businessService";
 import { getCurrentSession } from "./authService";
+import { getValidOfflineAuthorizationSnapshot } from "./offlineAuthorizationSnapshotService";
 import { listProducts } from "./productService";
 import { loadTeamWorkspace, type TeamEmployee, type TeamWorkspace } from "./teamService";
 import { listCloudTransactions } from "./transactionService";
@@ -60,9 +61,21 @@ function transactionStatus(value: string): TransactionStatus {
   return "completed";
 }
 
+async function hydrateOfflineWorkspace(sessionUserId: string): Promise<TeamWorkspace | undefined> {
+  const snapshot = await getValidOfflineAuthorizationSnapshot(sessionUserId);
+  if (!snapshot) return undefined;
+  updateCloudWorkspace(snapshot.workspaceData);
+  setCurrentMemberId(snapshot.dashboardProfile.membership_id);
+  return snapshot.team;
+}
+
 export async function hydrateCloudWorkspace(): Promise<TeamWorkspace | undefined> {
   const session = getCurrentSession();
   if (!session) return undefined;
+
+  if (!session.accessToken) {
+    return hydrateOfflineWorkspace(session.user.id);
+  }
 
   const team = await loadTeamWorkspace();
   const sessionEmail = session.user.email.toLowerCase();
