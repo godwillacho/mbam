@@ -99,16 +99,16 @@ export async function hydrateCloudWorkspace(): Promise<void> {
     teamMembers,
   });
 
-  const businesses = await listBusinesses();
+  const businesses = await listBusinesses().catch(() => []);
   const businessUnits = (
     await Promise.all(
-      businesses.map((business) => listBusinessUnits(business.id)),
+      businesses.map((business) => listBusinessUnits(business.id).catch(() => [])),
     )
   ).flat();
 
   const [productResult, cloudTransactions] = await Promise.all([
-    listProducts([]),
-    listCloudTransactions(),
+    listProducts([]).catch(() => ({ products: [], source: "fallback" as const })),
+    listCloudTransactions().catch(() => []),
   ]);
 
   updateCloudWorkspace({
