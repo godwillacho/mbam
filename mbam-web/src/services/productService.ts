@@ -6,6 +6,7 @@ import {
 } from "./offlineDatabase";
 import { getValidOfflineGrant } from "./offlineSessionService";
 import { queueOfflineOperation } from "./offlineSyncService";
+import { getDeviceBinding } from "./deviceBindingService";
 import {
   isOfflineVaultUnlocked,
   requireOfflineDataKey,
@@ -177,11 +178,13 @@ async function queueProductWrite(
   ) {
     throw new Error("offline_product_scope_denied");
   }
+  const binding = await getDeviceBinding();
   await saveOffline(product, grant.payload.userId);
   await queueOfflineOperation({
-    deviceId: grant.payload.deviceId,
+    deviceId: binding.deviceId,
     userId: grant.payload.userId,
     businessId: product.businessId,
+    businessUnitId: product.businessUnitId,
     entityType: "product",
     entityId: product.id,
     action,
