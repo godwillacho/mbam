@@ -9,6 +9,7 @@
 mod config;
 mod db;
 mod dev_seed;
+mod dev_seed_cleanup;
 mod error;
 mod modules;
 mod routes;
@@ -46,6 +47,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     if config.app_env == "development" {
+        if let Err(error) = dev_seed_cleanup::cleanup_test_fixture(&pool).await {
+            tracing::warn!(?error, "development test account cleanup failed");
+        }
         if let Err(error) = dev_seed::seed_test_accounts(&pool).await {
             tracing::warn!(?error, "development test account seed failed");
         }
