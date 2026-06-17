@@ -13,6 +13,9 @@ import {
   setActiveSession,
 } from "./authSessionStore";
 import {
+  getValidOfflineAuthorizationSnapshot,
+} from "./offlineAuthorizationSnapshotService";
+import {
   getValidOfflineGrant,
   importOfflineGrantPublicKey,
   saveOfflineGrant,
@@ -120,15 +123,14 @@ export async function unlockOfflineSession(
     throw new Error("offline_authorization_required");
   }
 
+  const snapshot = await getValidOfflineAuthorizationSnapshot(grant.payload.userId);
+  if (!snapshot) {
+    lockOfflineVault();
+    throw new Error("offline_authorization_snapshot_required");
+  }
+
   const session: AuthSession = {
-    user: {
-      id: grant.payload.userId,
-      fullName: grant.payload.displayName,
-      email: grant.payload.email,
-      provider: "email",
-      verified: true,
-    },
-    accessToken: "",
+    ...snapshot.session,
     offlineGrant: { token: grant.token },
     createdAt: new Date().toISOString(),
   };
