@@ -23,10 +23,11 @@ export default function App() {
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/access" element={<AccessBootstrapPage />} />
+        <Route path="/dashboard-picker" element={<AccessBootstrapPage />} />
         <Route path="/invite" element={<InviteAcceptancePage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<AppShell />}>
-          <Route index element={<Navigate to="/access" replace />} />
+          <Route index element={<Navigate to="/dashboard-picker" replace />} />
           <Route path="/dashboard" element={<MasterDashboard />} />
           <Route path="/dashboard/detail/:metricKey" element={<DashboardMetricDetailPage />} />
           <Route path="/dashboard/pending-payments" element={<Navigate to="/pending-payments" replace />} />
@@ -41,7 +42,7 @@ export default function App() {
           <Route path="/team" element={<ProtectedRoute routeKey="team"><TeamAccessPage /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute routeKey="reports"><ReportsPage /></ProtectedRoute>} />
         </Route>
-        <Route path="*" element={<Navigate to="/access" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard-picker" replace />} />
       </Routes>
     </BrowserRouter>
   );
