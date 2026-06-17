@@ -142,6 +142,22 @@ fn is_custom_baseline_role(role_code: &str) -> bool {
     matches!(role_code, "business_admin" | "shop_manager" | "cashier")
 }
 
+fn validate_member_role_scope(
+    role_code: &str,
+    business_id: Option<Uuid>,
+    unit_id: Option<Uuid>,
+) -> Result<(), ApiError> {
+    match role_code {
+        "business_admin" if business_id.is_none() || unit_id.is_some() => Err(ApiError::BadRequest(
+            "business administrators must be assigned to one business".to_string(),
+        )),
+        "shop_manager" | "cashier" if unit_id.is_none() => Err(ApiError::BadRequest(
+            "this role must be assigned to one business unit".to_string(),
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn dashboards_for_member(
     member: &TeamMemberResponse,
     permissions: &[String],
@@ -392,19 +408,7 @@ pub async fn create_invitation(
         .iter()
         .find(|role| role.id == payload.role_id)
         .ok_or(ApiError::Forbidden)?;
-    match role.code.as_str() {
-        "business_admin" if payload.business_id.is_none() || payload.business_unit_id.is_some() => {
-            return Err(ApiError::BadRequest(
-                "business administrators must be assigned to one business".to_string(),
-            ));
-        }
-        "shop_manager" | "cashier" if payload.business_unit_id.is_none() => {
-            return Err(ApiError::BadRequest(
-                "this role must be assigned to one business unit".to_string(),
-            ));
-        }
-        _ => {}
-    }
+    validate_member_role_scope(&role.code, payload.business_id, payload.business_unit_id)?;
 
     let raw_token = Uuid::new_v4().to_string();
     let token_hash = hash_token(&raw_token);
@@ -518,6 +522,7 @@ pub async fn update_member(
     let unit_id = payload.business_unit_id.unwrap_or(current.business_unit_id);
     let role_was_selected = payload.role_id.is_some();
     let mut role_id = payload.role_id.unwrap_or(current.role_id);
+    let mut final_role_code = current.role_code.clone();
     let status = payload.status.as_deref().unwrap_or(&current.status);
     if !matches!(status, "active" | "disabled") {
         return Err(ApiError::BadRequest(
@@ -558,6 +563,7 @@ pub async fn update_member(
                 "custom roles must start from cashier, shop manager, or business admin".to_string(),
             ));
         }
+        validate_member_role_scope(&baseline_role.code, business_id, unit_id)?;
         if !repository::role_is_assignable(db, account_id, baseline_role.id).await? {
             return Err(ApiError::Forbidden);
         }
@@ -584,9 +590,19 @@ pub async fn update_member(
             &permissions,
         )
         .await?;
-    } else if role_was_selected && !repository::role_is_assignable(db, account_id, role_id).await? {
-        return Err(ApiError::Forbidden);
+        final_role_code = baseline_role.code.clone();
+    } else if role_was_selected {
+        if !repository::role_is_assignable(db, account_id, role_id).await? {
+            return Err(ApiError::Forbidden);
+        }
+        let roles = repository::list_roles(db, actor_id).await?;
+        let selected_role = roles
+            .iter()
+            .find(|role| role.id == role_id)
+            .ok_or(ApiError::Forbidden)?;
+        final_role_code = selected_role.code.clone();
     }
+    validate_member_role_scope(baseline_role_code(&final_role_code), business_id, unit_id)?;
     if !repository::validate_role_scope(db, account_id, role_id, business_id, unit_id).await? {
         return Err(ApiError::Forbidden);
     }
