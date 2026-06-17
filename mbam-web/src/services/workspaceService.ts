@@ -84,16 +84,11 @@ export async function hydrateCloudWorkspace(): Promise<void> {
     (member) => member.email.toLowerCase() === sessionEmail,
   );
 
-  if (
-    !sessionMember &&
-    !teamMembers.some((member) => member.email === session.user.email)
-  ) {
-    teamMembers.unshift(workspace.teamMembers[0]);
+  if (!sessionMember) {
+    throw new Error("authenticated_membership_not_found");
   }
 
-  if (sessionMember) {
-    setCurrentMemberId(sessionMember.id);
-  }
+  setCurrentMemberId(sessionMember.id);
 
   updateCloudWorkspace({
     roles: team.roles.map((role) => ({
