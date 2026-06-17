@@ -102,95 +102,100 @@ pub async fn seed_test_accounts(db: &PgPool) -> Result<(), sqlx::Error> {
     let cashier_two_membership_id = upsert_membership(&mut tx, membership_ids[5], cashier_two_user_id, account_id, cashier_role_id, Some(business_id), Some(unit_two_id)).await?;
 
     grant_business_scope(&mut tx, admin_membership_id, business_id).await?;
+    for membership_id in [master_membership_id, admin_membership_id] {
+        grant_unit_scope(&mut tx, membership_id, unit_one_id).await?;
+        grant_unit_scope(&mut tx, membership_id, unit_two_id).await?;
+    }
     grant_unit_scope(&mut tx, manager_one_membership_id, unit_one_id).await?;
     grant_unit_scope(&mut tx, cashier_one_membership_id, unit_one_id).await?;
     grant_unit_scope(&mut tx, manager_two_membership_id, unit_two_id).await?;
     grant_unit_scope(&mut tx, cashier_two_membership_id, unit_two_id).await?;
 
-    seed_product(&mut tx, account_id, business_id, unit_one_id, "Dashboard Test Product One", "TEST-SHOP-ONE", 25_000).await?;
-    seed_product(&mut tx, account_id, business_id, unit_two_id, "Dashboard Test Product Two", "TEST-SHOP-TWO", 35_000).await?;
+    upsert_product(&mut tx, account_id, business_id, unit_one_id, uuid("10000000-0000-4000-8000-000000000501"), "Test Rice Bag 25kg", "TEST-SHOP1-RICE", "Groceries", 25_000.0).await?;
+    upsert_product(&mut tx, account_id, business_id, unit_two_id, uuid("10000000-0000-4000-8000-000000000502"), "Test Cooking Oil 5L", "TEST-SHOP2-OIL", "Groceries", 6_500.0).await?;
 
-    sqlx::query("delete from refresh_tokens where user_id = any($1)").bind(&test_user_ids[..]).execute(&mut *tx).await?;
-
-    let valid_membership_count: i64 = sqlx::query_scalar(r#"
-        select count(*) from memberships
-        where id = any($1) and status = 'active'
-    "#).bind(&membership_ids[..]).fetch_one(&mut *tx).await?;
-    if valid_membership_count != membership_ids.len() as i64 {
-        return Err(sqlx::Error::Protocol("development dashboard fixture membership verification failed".into()));
-    }
-
-    let unit_count: i64 = sqlx::query_scalar(r#"
-        select count(*) from business_units
-        where id = any($1) and business_id = $2 and status = 'active'
-    "#).bind(&[unit_one_id, unit_two_id][..]).bind(business_id).fetch_one(&mut *tx).await?;
-    if unit_count != 2 {
-        return Err(sqlx::Error::Protocol("development dashboard fixture unit verification failed".into()));
-    }
-
-    let _ = master_membership_id;
+    verify_fixture(&mut tx, account_id, business_id, &test_user_ids).await?;
     tx.commit().await
 }
 
-async fn remove_stale_test_access(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, user_ids: &[Uuid], membership_ids: &[Uuid]) -> Result<(), sqlx::Error> {
-    sqlx::query("delete from membership_business_scopes where membership_id = any($1)").bind(membership_ids).execute(&mut **tx).await?;
-    sqlx::query("delete from membership_business_unit_scopes where membership_id = any($1)").bind(membership_ids).execute(&mut **tx).await?;
-    sqlx::query("delete from memberships where business_account_id = $1 and user_id = any($2) and id <> all($3)").bind(account_id).bind(user_ids).bind(membership_ids).execute(&mut **tx).await?;
-    Ok(())
+fn uuid(value: &str) -> Uuid {
+    Uuid::parse_str(value).expect("static development seed UUID must be valid")
 }
 
-async fn upsert_user(tx: &mut Transaction<'_, Postgres>, id: Uuid, full_name: &str, email: &str, password_hash: &str) -> Result<Uuid, sqlx::Error> {
-    sqlx::query(r#"
+fn hash(value: &str) -> Result<String, sqlx::Error> {
+    password::hash_password(value).map_err(|error| sqlx::Error::Protocol(format!("failed to hash development password: {error}")))
+}
+
+async fn upsert_user(tx: &mut Transaction<'_, Postgres>, suggested_user_id: Uuid, full_name: &str, email: &str, password_hash: &str) -> Result<Uuid, sqlx::Error> {
+    sqlx::query_scalar::<_, Uuid>(r#"
         insert into users (id, full_name, email, password_hash, email_verified, status)
         values ($1, $2, $3, $4, true, 'active')
         on conflict (email) do update
           set full_name = excluded.full_name, password_hash = excluded.password_hash,
               email_verified = true, status = 'active', updated_at = now()
-    "#).bind(id).bind(full_name).bind(email).bind(password_hash).execute(&mut **tx).await?;
-    sqlx::query_scalar("select id from users where email = $1").bind(email).fetch_one(&mut **tx).await
+        returning id
+    "#).bind(suggested_user_id).bind(full_name).bind(email).bind(password_hash).fetch_one(&mut **tx).await
 }
 
-async fn upsert_business(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, id: Uuid, name: &str, business_type: &str, country: &str, currency: &str) -> Result<(), sqlx::Error> {
-    sqlx::query(r#"
-        insert into businesses (id, business_account_id, name, business_type, country, currency, status)
-        values ($1, $2, $3, $4, $5, $6, 'active')
-        on conflict (id) do update set name = excluded.name, business_type = excluded.business_type,
-          country = excluded.country, currency = excluded.currency, status = 'active', updated_at = now()
-    "#).bind(id).bind(account_id).bind(name).bind(business_type).bind(country).bind(currency).execute(&mut **tx).await?;
+async fn remove_stale_test_access(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, user_ids: &[Uuid], membership_ids: &[Uuid]) -> Result<(), sqlx::Error> {
+    sqlx::query("delete from refresh_tokens where user_id = any($1)").bind(user_ids).execute(&mut **tx).await?;
+    sqlx::query("delete from memberships where user_id = any($1) and id <> all($2)").bind(user_ids).bind(membership_ids).execute(&mut **tx).await?;
+    sqlx::query("delete from memberships where business_account_id = $1 and id <> all($2)").bind(account_id).bind(membership_ids).execute(&mut **tx).await?;
     Ok(())
 }
 
-async fn upsert_unit(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, business_id: Uuid, id: Uuid, name: &str, unit_type: &str, location: &str) -> Result<(), sqlx::Error> {
+async fn upsert_business(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, business_id: Uuid, name: &str, business_type: &str, country: &str, currency: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(r#"
+        insert into businesses (id, business_account_id, name, business_type, country, currency, status)
+        values ($1, $2, $3, $4, $5, $6, 'active')
+        on conflict (id) do update
+          set business_account_id = excluded.business_account_id, name = excluded.name,
+              business_type = excluded.business_type, country = excluded.country,
+              currency = excluded.currency, status = 'active', updated_at = now()
+    "#).bind(business_id).bind(account_id).bind(name).bind(business_type).bind(country).bind(currency).execute(&mut **tx).await?;
+    Ok(())
+}
+
+async fn upsert_unit(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, business_id: Uuid, unit_id: Uuid, name: &str, unit_type: &str, location: &str) -> Result<(), sqlx::Error> {
     sqlx::query(r#"
         insert into business_units (id, business_account_id, business_id, name, unit_type, location, status)
         values ($1, $2, $3, $4, $5, $6, 'active')
-        on conflict (id) do update set business_id = excluded.business_id, name = excluded.name,
-          unit_type = excluded.unit_type, location = excluded.location, status = 'active', updated_at = now()
-    "#).bind(id).bind(account_id).bind(business_id).bind(name).bind(unit_type).bind(location).execute(&mut **tx).await?;
+        on conflict (id) do update
+          set business_account_id = excluded.business_account_id, business_id = excluded.business_id,
+              name = excluded.name, unit_type = excluded.unit_type, location = excluded.location,
+              status = 'active', updated_at = now()
+    "#).bind(unit_id).bind(account_id).bind(business_id).bind(name).bind(unit_type).bind(location).execute(&mut **tx).await?;
     Ok(())
 }
 
 async fn upsert_role(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, code: &str, name: &str, description: &str, permissions: &[&str]) -> Result<Uuid, sqlx::Error> {
-    let role_id = Uuid::new_v4();
+    let role_id = sqlx::query_scalar::<_, Uuid>(r#"
+        insert into roles (business_account_id, code, name, description, is_system_role)
+        values ($1, $2, $3, $4, true)
+        on conflict (business_account_id, code)
+        do update set name = excluded.name, description = excluded.description
+        returning id
+    "#).bind(account_id).bind(code).bind(name).bind(description).fetch_one(&mut **tx).await?;
+
+    sqlx::query("delete from role_permissions where role_id = $1").bind(role_id).execute(&mut **tx).await?;
     sqlx::query(r#"
-        insert into roles (id, business_account_id, code, name, description, permissions, is_system, status)
-        values ($1, $2, $3, $4, $5, $6, true, 'active')
-        on conflict (business_account_id, code) do update
-          set name = excluded.name, description = excluded.description, permissions = excluded.permissions,
-              is_system = true, status = 'active', updated_at = now()
-    "#).bind(role_id).bind(account_id).bind(code).bind(name).bind(description).bind(permissions).execute(&mut **tx).await?;
-    sqlx::query_scalar("select id from roles where business_account_id = $1 and code = $2").bind(account_id).bind(code).fetch_one(&mut **tx).await
+        insert into role_permissions (role_id, permission_id)
+        select $1, id from permissions where code = any($2)
+        on conflict do nothing
+    "#).bind(role_id).bind(permissions).execute(&mut **tx).await?;
+    Ok(role_id)
 }
 
-async fn upsert_membership(tx: &mut Transaction<'_, Postgres>, id: Uuid, user_id: Uuid, account_id: Uuid, role_id: Uuid, business_id: Option<Uuid>, business_unit_id: Option<Uuid>) -> Result<Uuid, sqlx::Error> {
-    sqlx::query(r#"
-        insert into memberships (id, user_id, business_account_id, role_id, business_id, business_unit_id, status)
+async fn upsert_membership(tx: &mut Transaction<'_, Postgres>, membership_id: Uuid, user_id: Uuid, account_id: Uuid, role_id: Uuid, business_id: Option<Uuid>, unit_id: Option<Uuid>) -> Result<Uuid, sqlx::Error> {
+    sqlx::query_scalar::<_, Uuid>(r#"
+        insert into memberships (id, user_id, business_account_id, business_id, business_unit_id, role_id, status)
         values ($1, $2, $3, $4, $5, $6, 'active')
-        on conflict (id) do update set user_id = excluded.user_id, business_account_id = excluded.business_account_id,
-          role_id = excluded.role_id, business_id = excluded.business_id, business_unit_id = excluded.business_unit_id,
-          status = 'active', updated_at = now()
-    "#).bind(id).bind(user_id).bind(account_id).bind(role_id).bind(business_id).bind(business_unit_id).execute(&mut **tx).await?;
-    Ok(id)
+        on conflict (id) do update
+          set user_id = excluded.user_id, business_account_id = excluded.business_account_id,
+              business_id = excluded.business_id, business_unit_id = excluded.business_unit_id,
+              role_id = excluded.role_id, status = 'active', updated_at = now()
+        returning id
+    "#).bind(membership_id).bind(user_id).bind(account_id).bind(business_id).bind(unit_id).bind(role_id).fetch_one(&mut **tx).await
 }
 
 async fn grant_business_scope(tx: &mut Transaction<'_, Postgres>, membership_id: Uuid, business_id: Uuid) -> Result<(), sqlx::Error> {
@@ -203,21 +208,43 @@ async fn grant_unit_scope(tx: &mut Transaction<'_, Postgres>, membership_id: Uui
     Ok(())
 }
 
-async fn seed_product(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, business_id: Uuid, unit_id: Uuid, name: &str, sku: &str, price: i64) -> Result<(), sqlx::Error> {
+async fn upsert_product(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, business_id: Uuid, unit_id: Uuid, product_id: Uuid, name: &str, sku: &str, category: &str, default_price: f64) -> Result<(), sqlx::Error> {
     sqlx::query(r#"
-        insert into products (id, business_account_id, business_id, business_unit_id, name, sku, category, default_price, available_quantity, status)
-        values (gen_random_uuid(), $1, $2, $3, $4, $5, 'test', $6, 25, 'active')
-        on conflict (business_unit_id, lower(sku)) where sku is not null and status = 'active'
-        do update set name = excluded.name, default_price = excluded.default_price,
-          available_quantity = excluded.available_quantity, updated_at = now()
-    "#).bind(account_id).bind(business_id).bind(unit_id).bind(name).bind(sku).bind(price).execute(&mut **tx).await?;
+        insert into products (
+          id, business_account_id, business_id, business_unit_id, name, sku,
+          category, available_quantity, low_stock_threshold, default_price, status
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, 50, 5, $8, 'active')
+        on conflict (id) do update
+          set business_account_id = excluded.business_account_id, business_id = excluded.business_id,
+              business_unit_id = excluded.business_unit_id, name = excluded.name, sku = excluded.sku,
+              category = excluded.category, default_price = excluded.default_price,
+              status = 'active', updated_at = now()
+    "#).bind(product_id).bind(account_id).bind(business_id).bind(unit_id).bind(name).bind(sku).bind(category).bind(default_price).execute(&mut **tx).await?;
     Ok(())
 }
 
-fn hash(password_value: &str) -> Result<String, sqlx::Error> {
-    password::hash(password_value).map_err(|error| sqlx::Error::Protocol(format!("development password hashing failed: {error}").into()))
-}
+async fn verify_fixture(tx: &mut Transaction<'_, Postgres>, account_id: Uuid, business_id: Uuid, user_ids: &[Uuid]) -> Result<(), sqlx::Error> {
+    let account_users = sqlx::query_scalar::<_, i64>("select count(*) from memberships where business_account_id = $1 and user_id = any($2) and status = 'active'")
+        .bind(account_id).bind(user_ids).fetch_one(&mut **tx).await?;
+    let units = sqlx::query_scalar::<_, i64>("select count(*) from business_units where business_account_id = $1 and business_id = $2 and status = 'active' and id = any($3)")
+        .bind(account_id).bind(business_id).bind(&[uuid(UNIT_ONE_ID), uuid(UNIT_TWO_ID)][..]).fetch_one(&mut **tx).await?;
+    let valid_profiles = sqlx::query_scalar::<_, i64>(r#"
+        select count(*)
+        from memberships m
+        join roles r on r.id = m.role_id and r.business_account_id = m.business_account_id
+        where m.business_account_id = $1
+          and m.user_id = any($2)
+          and m.status = 'active'
+          and (
+            (r.code = 'master_owner' and m.business_id is null and m.business_unit_id is null)
+            or (r.code = 'business_admin' and m.business_id = $3 and m.business_unit_id is null)
+            or (r.code in ('shop_manager', 'cashier') and m.business_id = $3 and m.business_unit_id is not null)
+          )
+    "#).bind(account_id).bind(user_ids).bind(business_id).fetch_one(&mut **tx).await?;
 
-fn uuid(value: &str) -> Uuid {
-    Uuid::parse_str(value).expect("development fixture UUID must be valid")
+    if account_users != 6 || units != 2 || valid_profiles != 6 {
+        return Err(sqlx::Error::Protocol(format!("development dashboard fixture invalid: memberships={account_users}, units={units}, profiles={valid_profiles}")));
+    }
+    Ok(())
 }
