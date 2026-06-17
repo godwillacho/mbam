@@ -123,6 +123,8 @@ export interface TeamMember {
   scopeLevel: ScopeLevel;
   businessId?: string;
   businessUnitId?: string;
+  businessIds?: string[];
+  businessUnitIds?: string[];
   status: "active" | "invited" | "disabled";
 }
 
