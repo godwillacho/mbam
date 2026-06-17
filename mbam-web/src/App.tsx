@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/app/AppShell";
 import ProtectedRoute from "./components/app/ProtectedRoute";
+import AccessBootstrapPage from "./pages/auth/AccessBootstrapPage";
 import AuthPage from "./pages/auth/AuthPage";
 import InviteAcceptancePage from "./pages/auth/InviteAcceptancePage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
@@ -21,10 +22,11 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/access" element={<AccessBootstrapPage />} />
         <Route path="/invite" element={<InviteAcceptancePage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<AppShell />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route index element={<Navigate to="/access" replace />} />
           <Route path="/dashboard" element={<MasterDashboard />} />
           <Route path="/dashboard/detail/:metricKey" element={<DashboardMetricDetailPage />} />
           <Route path="/dashboard/pending-payments" element={<Navigate to="/pending-payments" replace />} />
@@ -39,7 +41,7 @@ export default function App() {
           <Route path="/team" element={<ProtectedRoute routeKey="team"><TeamAccessPage /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute routeKey="reports"><ReportsPage /></ProtectedRoute>} />
         </Route>
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/access" replace />} />
       </Routes>
     </BrowserRouter>
   );
