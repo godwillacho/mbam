@@ -6,8 +6,14 @@ import AuthPage from "./pages/auth/AuthPage";
 import InviteAcceptancePage from "./pages/auth/InviteAcceptancePage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import BusinessStructurePage from "./pages/business/BusinessStructurePage";
+import {
+  BusinessAdminDashboard,
+  CashierDashboard,
+  MasterOwnerDashboard,
+  ShopManagerDashboard,
+} from "./pages/dashboard/BaselineDashboards";
 import DashboardMetricDetailPage from "./pages/dashboard/DashboardMetricDetailPage";
-import MasterDashboard from "./pages/dashboard/MasterDashboard";
+import { BaselineDashboardRoute, DashboardRouter } from "./pages/dashboard/DashboardRouter";
 import PendingPaymentsPage from "./pages/dashboard/PendingPaymentsPage";
 import ProductRevenuePage from "./pages/products/ProductRevenuePage";
 import ReportsPage from "./pages/reports/ReportsPage";
@@ -27,8 +33,12 @@ export default function App() {
         <Route path="/invite" element={<InviteAcceptancePage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<AppShell />}>
-          <Route index element={<Navigate to="/dashboard-picker" replace />} />
-          <Route path="/dashboard" element={<MasterDashboard />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardRouter />} />
+          <Route path="/dashboard/master" element={<BaselineDashboardRoute view="master"><MasterOwnerDashboard /></BaselineDashboardRoute>} />
+          <Route path="/dashboard/business" element={<BaselineDashboardRoute view="business"><BusinessAdminDashboard /></BaselineDashboardRoute>} />
+          <Route path="/dashboard/shop" element={<BaselineDashboardRoute view="shop"><ShopManagerDashboard /></BaselineDashboardRoute>} />
+          <Route path="/dashboard/personal" element={<BaselineDashboardRoute view="personal"><CashierDashboard /></BaselineDashboardRoute>} />
           <Route path="/dashboard/detail/:metricKey" element={<DashboardMetricDetailPage />} />
           <Route path="/dashboard/pending-payments" element={<Navigate to="/pending-payments" replace />} />
           <Route path="/dashboard/products" element={<Navigate to="/products" replace />} />
