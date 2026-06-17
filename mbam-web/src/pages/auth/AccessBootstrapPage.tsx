@@ -1,85 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
-import { workspace } from "../../data/mockWorkspace";
-import {
-  canAccessRoute,
-  getCurrentMember,
-  setCurrentMemberId,
-  type AppRouteKey,
-} from "../../security/accessControl";
+import { setCurrentMemberId } from "../../security/accessControl";
 import { getCurrentSession } from "../../services/authService";
 import { clearActiveSession } from "../../services/authSessionStore";
+import type { DashboardOption, DashboardProfile } from "../../services/teamService";
 import { hydrateCloudWorkspace } from "../../services/workspaceService";
-import type { TeamMember } from "../../types/workspace";
-
-interface DashboardOption {
-  routeKey?: AppRouteKey;
-  path: string;
-  label: string;
-  description: string;
-  primary?: boolean;
-}
-
-const routeKeyByPath: Array<{ test: (path: string) => boolean; routeKey: AppRouteKey }> = [
-  { test: (path) => path.startsWith("/transactions/new"), routeKey: "recordTransaction" },
-  { test: (path) => path.startsWith("/transactions/drafts"), routeKey: "transactionDrafts" },
-  { test: (path) => path.startsWith("/transactions"), routeKey: "transactions" },
-  { test: (path) => path.startsWith("/products"), routeKey: "products" },
-  { test: (path) => path.startsWith("/businesses"), routeKey: "businesses" },
-  { test: (path) => path.startsWith("/team"), routeKey: "team" },
-  { test: (path) => path.startsWith("/reports"), routeKey: "reports" },
-];
-
-const dashboardOptions: DashboardOption[] = [
-  {
-    path: "/dashboard",
-    label: "Role dashboard",
-    description: "Open the dashboard filtered by this role and assigned scope.",
-  },
-  {
-    routeKey: "recordTransaction",
-    path: "/transactions/new",
-    label: "Record sale",
-    description: "Create a sale for the assigned business or shop.",
-  },
-  {
-    routeKey: "transactionDrafts",
-    path: "/transactions/drafts",
-    label: "Drafts",
-    description: "Continue saved transaction drafts.",
-  },
-  {
-    routeKey: "transactions",
-    path: "/transactions",
-    label: "Transactions",
-    description: "Review transactions allowed by this role.",
-  },
-  {
-    routeKey: "products",
-    path: "/products",
-    label: "Products",
-    description: "View or manage products in assigned scope.",
-  },
-  {
-    routeKey: "businesses",
-    path: "/businesses",
-    label: "Business structure",
-    description: "Manage granted businesses and shop units.",
-  },
-  {
-    routeKey: "team",
-    path: "/team",
-    label: "Team access",
-    description: "Invite and manage employees where permitted.",
-  },
-  {
-    routeKey: "reports",
-    path: "/reports",
-    label: "Reports",
-    description: "Open reporting for the permitted scope.",
-  },
-];
 
 function requestedPath(searchParams: URLSearchParams): string | null {
   const next = searchParams.get("next") ?? sessionStorage.getItem("mbam-auth-next");
@@ -94,51 +20,35 @@ function requestedPath(searchParams: URLSearchParams): string | null {
   return next;
 }
 
-function canEnterRequestedPath(member: TeamMember, path: string): boolean {
+function pathIsAllowed(profile: DashboardProfile, path: string): boolean {
   if (path === "/" || path.startsWith("/dashboard")) return true;
-  const route = routeKeyByPath.find((entry) => entry.test(path));
-  return route ? canAccessRoute(member, route.routeKey) : false;
+  return profile.dashboards.some((dashboard) => path.startsWith(dashboard.path));
 }
 
-function optionsForMember(member: TeamMember, nextPath: string | null): DashboardOption[] {
-  const allowedOptions = dashboardOptions.filter((option) =>
-    option.routeKey ? canAccessRoute(member, option.routeKey) : true,
-  );
+function optionsForProfile(
+  profile: DashboardProfile,
+  nextPath: string | null,
+): DashboardOption[] {
+  const dashboards = [...profile.dashboards].sort((left, right) => {
+    if (left.is_baseline !== right.is_baseline) return left.is_baseline ? -1 : 1;
+    return left.label.localeCompare(right.label);
+  });
 
-  if (nextPath && canEnterRequestedPath(member, nextPath)) {
+  if (nextPath && pathIsAllowed(profile, nextPath)) {
     return [
       {
-        path: nextPath,
+        id: "continue",
         label: "Continue where you left off",
         description: "Open the page requested before sign-in.",
-        primary: true,
+        path: nextPath,
+        dashboard_type: "continue",
+        is_baseline: true,
       },
-      ...allowedOptions,
+      ...dashboards,
     ];
   }
 
-  const primaryPath = member.roleId === "role-cashier" && canAccessRoute(member, "recordTransaction")
-    ? "/transactions/new"
-    : "/dashboard";
-
-  return allowedOptions.map((option) => ({
-    ...option,
-    primary: option.path === primaryPath,
-  }));
-}
-
-function memberScopeLabel(member: TeamMember): string {
-  const unit = workspace.businessUnits.find((item) => item.id === member.businessUnitId);
-  const business = workspace.businesses.find(
-    (item) => item.id === (member.businessId ?? unit?.businessId),
-  );
-  if (business && unit) return `${business.name} / ${unit.name}`;
-  if (business) return business.name;
-  return "Workspace access";
-}
-
-function roleLabel(member: TeamMember): string {
-  return member.roleName ?? member.roleId.replace(/^role-/, "").replace(/-/g, " ");
+  return dashboards;
 }
 
 export default function AccessBootstrapPage() {
@@ -148,7 +58,7 @@ export default function AccessBootstrapPage() {
   const nextPath = useMemo(() => requestedPath(searchParams), [searchParams]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [memberships, setMemberships] = useState<TeamMember[]>([]);
+  const [profiles, setProfiles] = useState<DashboardProfile[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -157,18 +67,11 @@ export default function AccessBootstrapPage() {
     setIsLoading(true);
     setError("");
     void hydrateCloudWorkspace()
-      .then(() => {
+      .then((team) => {
         if (ignore) return;
         sessionStorage.removeItem("mbam-auth-next");
-        const sessionEmail = session.user.email.toLowerCase();
-        const matchingMemberships = workspace.teamMembers.filter(
-          (member) => member.email.toLowerCase() === sessionEmail && member.status === "active",
-        );
-        const availableMemberships = matchingMemberships.length > 0
-          ? matchingMemberships
-          : [getCurrentMember()].filter(Boolean);
-
-        setMemberships(availableMemberships);
+        const apiProfiles = team?.dashboard_profiles ?? [];
+        setProfiles(apiProfiles);
         setIsLoading(false);
       })
       .catch((loadError: unknown) => {
@@ -186,9 +89,9 @@ export default function AccessBootstrapPage() {
     return <Navigate to="/auth" replace />;
   }
 
-  const openDashboard = (member: TeamMember, path: string) => {
-    setCurrentMemberId(member.id);
-    navigate(path, { replace: true });
+  const openDashboard = (profile: DashboardProfile, option: DashboardOption) => {
+    setCurrentMemberId(profile.membership_id);
+    navigate(option.path, { replace: true });
   };
 
   const signInAgain = () => {
@@ -200,34 +103,34 @@ export default function AccessBootstrapPage() {
     <AuthLayout mode="login">
       <div className="verify-screen" role="status">
         <div className="verify-icon">✓</div>
-        <h2 className="verify-title">Dashboard picker</h2>
+        <h2 className="verify-title">Loading your access</h2>
         {isLoading && (
           <p className="verify-body">
-            Validating your token and loading your role permissions from the API...
+            Validating your token and loading your API-assigned dashboards...
           </p>
         )}
 
-        {!isLoading && memberships.length > 0 && (
+        {!isLoading && profiles.length > 0 && (
           <>
             <p className="verify-body">
-              Choose an access level. Each option below is built from your authenticated role and API permissions.
+              Your available dashboards are validated by the API from your role, scope, and custom permissions.
             </p>
             <div className="field-group">
-              {memberships.map((member) => {
-                const options = optionsForMember(member, nextPath);
+              {profiles.map((profile) => {
+                const options = optionsForProfile(profile, nextPath);
                 return (
-                  <section className="verify-screen" key={member.id}>
-                    <h3 className="verify-title">{roleLabel(member)}</h3>
-                    <p className="verify-body">{memberScopeLabel(member)}</p>
+                  <section className="field-group" key={profile.membership_id}>
+                    <h3 className="verify-title">{profile.role_name}</h3>
+                    <p className="verify-body">{profile.scope_label}</p>
                     {options.map((option) => (
                       <button
-                        key={`${member.id}-${option.path}-${option.label}`}
+                        key={`${profile.membership_id}-${option.id}-${option.path}`}
                         type="button"
-                        className={option.primary ? "submit-btn" : "forgot-link"}
-                        onClick={() => openDashboard(member, option.path)}
+                        className={option.is_baseline ? "submit-btn" : "forgot-link"}
+                        onClick={() => openDashboard(profile, option)}
                       >
-                        {option.label}
-                        <span className="verify-body">{option.description}</span>
+                        <strong>{option.label}</strong>
+                        <span>{option.description}</span>
                       </button>
                     ))}
                   </section>
@@ -251,10 +154,15 @@ export default function AccessBootstrapPage() {
           </>
         )}
 
-        {!isLoading && memberships.length === 0 && !error && (
-          <Link className="forgot-link" to="/auth" replace>
-            Return to sign in
-          </Link>
+        {!isLoading && profiles.length === 0 && !error && (
+          <>
+            <div className="alert alert-danger" role="alert">
+              No active dashboard access was returned by the API for this account.
+            </div>
+            <Link className="forgot-link" to="/auth" replace>
+              Return to sign in
+            </Link>
+          </>
         )}
       </div>
     </AuthLayout>
