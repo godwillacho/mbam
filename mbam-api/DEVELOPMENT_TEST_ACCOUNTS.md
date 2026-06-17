@@ -25,16 +25,45 @@ A business administrator is intentionally business-scoped. Unit-level
 administration uses the shop-manager baseline. The API rejects a business admin
 assigned directly to one unit.
 
-## Recreate Locally
+## Run Locally
 
-Pull `main` and restart the API. The seed resets passwords, memberships, scopes,
-and refresh tokens for these users every time the development API starts.
+Docker Compose manages PostgreSQL only. Run the API and web server directly on
+the host so code changes and logs remain visible in their local terminals.
 
-For a completely clean disposable database:
+Start the database from the repository root:
+
+```bash
+docker compose -f docker-compose.private.yml up -d db
+```
+
+Run the API in another terminal:
+
+```bash
+cd mbam-api
+APP_ENV=development \
+DATABASE_URL=postgres://mbam:mbam_private_password_change_me@localhost:5432/mbam \
+JWT_ACCESS_SECRET=local_development_access_secret \
+JWT_REFRESH_SECRET=local_development_refresh_secret \
+cargo run
+```
+
+Run the web server in another terminal:
+
+```bash
+cd mbam-web
+npm install
+npm run dev
+```
+
+The development seed resets passwords, memberships, scopes, and refresh tokens
+for these users whenever the API starts.
+
+For a completely clean disposable database, stop PostgreSQL and delete its
+volume before starting only the database again:
 
 ```bash
 docker compose -f docker-compose.private.yml down -v
-docker compose -f docker-compose.private.yml up --build
+docker compose -f docker-compose.private.yml up -d db
 ```
 
 `down -v` deletes the local PostgreSQL volume. Do not run it against data you
