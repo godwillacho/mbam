@@ -80,6 +80,17 @@ const routePermission: Record<AppRouteKey, string> = {
   products: "screen.products",
 };
 
+function baselineRoleId(roleId: string): string {
+  if (roleId.startsWith("role-custom-member-business-admin-")) return "role-business-admin";
+  if (roleId.startsWith("role-custom-member-shop-manager-")) return "role-shop-manager";
+  if (roleId.startsWith("role-custom-member-cashier-")) return "role-cashier";
+  return roleId;
+}
+
+function isCashierBaseline(member: TeamMember): boolean {
+  return baselineRoleId(member.roleId) === "role-cashier";
+}
+
 export function getCurrentMember(): TeamMember {
   const selectedMember = workspace.teamMembers.find(
     (member) => member.id === currentMemberId,
@@ -111,7 +122,7 @@ export function canAccessRoute(
     return member.permissions.includes(routePermission[routeKey]);
   }
   if (getActiveSession()) return false;
-  return (routeAccessByRole[member.roleId] ?? []).includes(routeKey);
+  return (routeAccessByRole[baselineRoleId(member.roleId)] ?? []).includes(routeKey);
 }
 
 export function canManageProducts(member: TeamMember): boolean {
@@ -122,7 +133,7 @@ export function canManageProducts(member: TeamMember): boolean {
     );
   }
   if (getActiveSession()) return false;
-  return productManagementRoles.has(member.roleId);
+  return productManagementRoles.has(baselineRoleId(member.roleId));
 }
 
 export function getScopedUnits(member: TeamMember): BusinessUnit[] {
@@ -160,7 +171,7 @@ export function getScopedTransactions(member: TeamMember): TransactionRecord[] {
       scopedUnitIds.has(transaction.businessUnitId),
   );
 
-  if (member.roleId === "role-cashier") {
+  if (isCashierBaseline(member)) {
     return transactions.filter(
       (transaction) => transaction.recordedBy === member.fullName,
     );
@@ -178,7 +189,7 @@ export function getScopedPendingPayments(
     scopedUnitIds.has(payment.businessUnitId),
   );
 
-  if (member.roleId === "role-cashier") {
+  if (isCashierBaseline(member)) {
     return payments.filter((payment) => payment.recordedBy === member.fullName);
   }
 
