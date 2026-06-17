@@ -1,17 +1,14 @@
 import { updateCloudWorkspace, workspace } from "../data/mockWorkspace";
 import { setCurrentMemberId } from "../security/accessControl";
-import type {
-  PaymentMethod,
-  ScopeLevel,
-  TeamMember,
-  TransactionStatus,
-} from "../types/workspace";
+import type { PaymentMethod, ScopeLevel, TeamMember, TransactionStatus } from "../types/workspace";
 import { listBusinesses, listBusinessUnits } from "./businessService";
 import { getCurrentSession } from "./authService";
 import { getValidOfflineAuthorizationSnapshot } from "./offlineAuthorizationSnapshotService";
 import { listProducts } from "./productService";
 import { loadTeamWorkspace, type TeamEmployee, type TeamWorkspace } from "./teamService";
 import { listCloudTransactions } from "./transactionService";
+
+let authorizationCache: { userId: string; team: TeamWorkspace } | undefined;
 
 function roleId(code: string): string {
   return `role-${code.replace(/_/g, "-")}`;
@@ -23,12 +20,7 @@ function scopeLevel(member: TeamEmployee): ScopeLevel {
   return "master";
 }
 
-function toTeamMember(
-  member: TeamEmployee,
-  permissions?: string[],
-  grantedBusinessIds?: string[],
-  grantedBusinessUnitIds?: string[],
-): TeamMember {
+function toTeamMember(member: TeamEmployee, permissions?: string[], grantedBusinessIds?: string[], grantedBusinessUnitIds?: string[]): TeamMember {
   return {
     id: member.id,
     fullName: member.full_name,
@@ -46,13 +38,7 @@ function toTeamMember(
 }
 
 function paymentMethod(value: string): PaymentMethod {
-  if (
-    value === "mobile_money" ||
-    value === "card" ||
-    value === "bank_transfer"
-  ) {
-    return value;
-  }
+  if (value === "mobile_money" || value === "card" || value === "bank_transfer") return value;
   return "cash";
 }
 
@@ -61,27 +47,8 @@ function transactionStatus(value: string): TransactionStatus {
   return "completed";
 }
 
-async function hydrateOfflineWorkspace(sessionUserId: string): Promise<TeamWorkspace | undefined> {
-  const snapshot = await getValidOfflineAuthorizationSnapshot(sessionUserId);
-  if (!snapshot) return undefined;
-  updateCloudWorkspace(snapshot.workspaceData);
-  setCurrentMemberId(snapshot.dashboardProfile.membership_id);
-  return snapshot.team;
-}
-
-export async function hydrateCloudWorkspace(): Promise<TeamWorkspace | undefined> {
-  const session = getCurrentSession();
-  if (!session) return undefined;
-
-  if (!session.accessToken) {
-    return hydrateOfflineWorkspace(session.user.id);
-  }
-
-  const team = await loadTeamWorkspace();
-  const sessionEmail = session.user.email.toLowerCase();
-  const permissionsByRoleId = new Map(
-    team.roles.map((role) => [role.id, role.permissions]),
-  );
+function applyTeamAuthorization(team: TeamWorkspace, sessionEmail: string): void {
+  const permissionsByRoleId = new Map(team.roles.map((role) => [role.id, role.permissions]));
   const grantedBusinessIds = team.businesses.map((business) => business.id);
   const grantedBusinessUnitIds = team.business_units.map((unit) => unit.id);
   const teamMembers = team.members.map((member) => {
@@ -93,32 +60,51 @@ export async function hydrateCloudWorkspace(): Promise<TeamWorkspace | undefined
       isSessionMember ? grantedBusinessUnitIds : undefined,
     );
   });
-  const sessionMember = teamMembers.find(
-    (member) => member.email.toLowerCase() === sessionEmail,
-  );
-
-  if (!sessionMember) {
-    throw new Error("authenticated_membership_not_found");
-  }
-
-  setCurrentMemberId(sessionMember.id);
+  const sessionMember = teamMembers.find((member) => member.email.toLowerCase() === sessionEmail);
+  if (!sessionMember) throw new Error("authenticated_membership_not_found");
+  if (sessionMember.status !== "active") throw new Error("authenticated_membership_inactive");
 
   updateCloudWorkspace({
-    roles: team.roles.map((role) => ({
-      id: roleId(role.code),
-      name: role.name,
-      permissions: role.permissions,
-    })),
+    roles: team.roles.map((role) => ({ id: roleId(role.code), name: role.name, permissions: role.permissions })),
     teamMembers,
   });
+  setCurrentMemberId(sessionMember.id);
+}
+
+async function hydrateOfflineWorkspace(sessionUserId: string): Promise<TeamWorkspace | undefined> {
+  const snapshot = await getValidOfflineAuthorizationSnapshot(sessionUserId);
+  if (!snapshot) return undefined;
+  updateCloudWorkspace(snapshot.workspaceData);
+  setCurrentMemberId(snapshot.dashboardProfile.membership_id);
+  return snapshot.team;
+}
+
+export async function hydrateAuthorizationWorkspace(): Promise<TeamWorkspace | undefined> {
+  const session = getCurrentSession();
+  if (!session) return undefined;
+  if (!session.accessToken) return hydrateOfflineWorkspace(session.user.id);
+
+  if (authorizationCache?.userId === session.user.id) {
+    applyTeamAuthorization(authorizationCache.team, session.user.email.toLowerCase());
+    return authorizationCache.team;
+  }
+
+  const team = await loadTeamWorkspace();
+  applyTeamAuthorization(team, session.user.email.toLowerCase());
+  authorizationCache = { userId: session.user.id, team };
+  return team;
+}
+
+export async function hydrateCloudWorkspace(authorizedTeam?: TeamWorkspace): Promise<TeamWorkspace | undefined> {
+  const session = getCurrentSession();
+  if (!session) return undefined;
+  const team = authorizedTeam ?? await hydrateAuthorizationWorkspace();
+  if (!team) return undefined;
 
   const businesses = await listBusinesses().catch(() => []);
   const businessUnits = (
-    await Promise.all(
-      businesses.map((business) => listBusinessUnits(business.id).catch(() => [])),
-    )
+    await Promise.all(businesses.map((business) => listBusinessUnits(business.id).catch(() => [])))
   ).flat();
-
   const [productResult, cloudTransactions] = await Promise.all([
     listProducts([]).catch(() => ({ products: [], source: "fallback" as const })),
     listCloudTransactions().catch(() => []),
@@ -148,6 +134,5 @@ export async function hydrateCloudWorkspace(): Promise<TeamWorkspace | undefined
     customers: [],
     pendingPayments: [],
   });
-
   return team;
 }
