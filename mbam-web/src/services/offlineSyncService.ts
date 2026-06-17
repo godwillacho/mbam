@@ -74,9 +74,14 @@ function operationAssociatedData(operationId: string): string {
 export async function queueOfflineOperation<T>(
   input: QueueOperationInput<T>,
 ): Promise<OfflineOperation<T>> {
+  const binding = await getDeviceBinding();
+  if (input.deviceId !== binding.deviceId) {
+    throw new Error("offline_device_binding_mismatch");
+  }
+
   const operation: OfflineOperation<T> = {
     operationId: createId(),
-    deviceId: input.deviceId,
+    deviceId: binding.deviceId,
     userId: input.userId,
     businessId: input.businessId,
     businessUnitId: input.businessUnitId,
