@@ -46,7 +46,7 @@ function selectedPath(profile: DashboardProfile, nextPath: string | null): strin
 export default function AccessBootstrapPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const session = getCurrentSession();
+  const session = useMemo(() => getCurrentSession(), []);
   const nextPath = useMemo(() => requestedPath(searchParams), [searchParams]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -61,7 +61,9 @@ export default function AccessBootstrapPage() {
       .then(async (team) => {
         if (ignore) return;
         sessionStorage.removeItem("mbam-auth-next");
-        const profile = team?.dashboard_profiles[0];
+        const profile = team?.dashboard_profiles.find(
+          (candidate) => candidate.user_id === session.user.id,
+        );
         if (!profile) {
           setError("no_active_dashboard_profile");
           setIsLoading(false);
