@@ -54,10 +54,13 @@ const navItems: Array<{
 
 const isDevEnvironment = import.meta.env.DEV;
 
+type HydrationState = "loading" | "ready" | "failed";
+
 export default function AppShell() {
   const { t } = useTranslation();
   const [currentMember, setCurrentMember] = useState(() => getCurrentMember());
   const [authLocked, setAuthLocked] = useState(false);
+  const [hydrationState, setHydrationState] = useState<HydrationState>("loading");
   const [, setWorkspaceVersion] = useState(0);
   const visibleNavItems = navItems.filter(
     (item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey),
@@ -83,13 +86,24 @@ export default function AppShell() {
   }, []);
 
   useEffect(() => {
+    let ignore = false;
     const refreshWorkspace = () => {
       setCurrentMember(getCurrentMember());
       setWorkspaceVersion((version) => version + 1);
     };
     window.addEventListener(WORKSPACE_CHANGE_EVENT, refreshWorkspace);
-    void hydrateCloudWorkspace().catch(() => undefined);
+    setHydrationState("loading");
+    void hydrateCloudWorkspace()
+      .then(() => {
+        if (ignore) return;
+        refreshWorkspace();
+        setHydrationState("ready");
+      })
+      .catch(() => {
+        if (!ignore) setHydrationState("failed");
+      });
     return () => {
+      ignore = true;
       window.removeEventListener(WORKSPACE_CHANGE_EVENT, refreshWorkspace);
     };
   }, []);
@@ -109,6 +123,35 @@ export default function AppShell() {
 
   if (authLocked || !getCurrentSession()) {
     return <Navigate to="/auth" replace />;
+  }
+
+  if (hydrationState === "loading") {
+    return (
+      <div className="app-shell app-shell-loading">
+        <main className="main-panel">
+          <section className="page-grid">
+            <p className="card-muted">Loading your access...</p>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  if (hydrationState === "failed") {
+    return (
+      <div className="app-shell app-shell-loading">
+        <main className="main-panel">
+          <section className="page-grid">
+            <article className="card">
+              <h2>Could not load your access</h2>
+              <p className="card-muted">
+                Please sign in again. The app could not load your assigned role and shop scope.
+              </p>
+            </article>
+          </section>
+        </main>
+      </div>
+    );
   }
 
   return (
