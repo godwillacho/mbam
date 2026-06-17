@@ -149,7 +149,7 @@ export async function registerInvitation(
 ): Promise<void> {
   await postJson("/api/v1/invites/register", {
     token,
-    full_name: FullName,
+    full_name: fullName,
     password,
   });
 }
