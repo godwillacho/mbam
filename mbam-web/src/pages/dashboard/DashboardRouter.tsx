@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { Navigate } from "react-router-dom";
 import { getCurrentMember } from "../../security/accessControl";
-import type { DashboardView } from "./dashboardPermissions";
+import { normalizeDashboardView, type DashboardView } from "./dashboardPermissions";
 import {
   baselineDashboardPath,
   baselineDashboardView,
@@ -23,7 +23,7 @@ export function BaselineDashboardRoute({ view, children }: BaselineDashboardRout
   const baseline = baselineDashboardView(member);
 
   if (!baseline) return <Navigate to="/auth" replace />;
-  if (baseline !== view) {
+  if (normalizeDashboardView(view, member) !== view) {
     return <Navigate to={dashboardPathForView(baseline)} replace />;
   }
   return children;
