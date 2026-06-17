@@ -19,8 +19,8 @@ import type { AuthSession } from "../../types/auth";
 
 export type AuthMode = "login" | "signup";
 
-function accessPath(nextPath: string | null): string {
-  return nextPath ? `/access?next=${encodeURIComponent(nextPath)}` : "/access";
+function dashboardPickerPath(nextPath: string | null): string {
+  return nextPath ? `/dashboard-picker?next=${encodeURIComponent(nextPath)}` : "/dashboard-picker";
 }
 
 export default function AuthPage() {
@@ -45,14 +45,15 @@ export default function AuthPage() {
   const nextPath =
     requestedNextPath?.startsWith("/") &&
     !requestedNextPath.startsWith("/auth") &&
-    !requestedNextPath.startsWith("/access")
+    !requestedNextPath.startsWith("/access") &&
+    !requestedNextPath.startsWith("/dashboard-picker")
       ? requestedNextPath
       : null;
 
   const completeSignIn = (authenticatedSession: AuthSession) => {
     setSession(authenticatedSession);
     if (switchingAccount) {
-      window.location.assign(accessPath(nextPath));
+      window.location.assign(dashboardPickerPath(nextPath));
     }
   };
 
@@ -69,7 +70,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (session && nextPath) {
-      navigate(accessPath(nextPath), { replace: true });
+      navigate(dashboardPickerPath(nextPath), { replace: true });
     }
   }, [navigate, nextPath, session]);
 
@@ -78,7 +79,7 @@ export default function AuthPage() {
     setOfflineError("");
     try {
       await unlockOfflineSession(passphrase);
-      navigate(accessPath(nextPath), { replace: true });
+      navigate(dashboardPickerPath(nextPath), { replace: true });
     } catch {
       setOfflineError(t("auth.offlineUnlockError"));
     } finally {
@@ -93,7 +94,7 @@ export default function AuthPage() {
     try {
       await enableOfflineAccess(session, passphrase);
       await synchronizeOfflineChanges(createApiSyncTransport());
-      navigate(accessPath(nextPath), { replace: true });
+      navigate(dashboardPickerPath(nextPath), { replace: true });
     } catch {
       setOfflineError(t("auth.offlineSetupError"));
     } finally {
@@ -102,7 +103,7 @@ export default function AuthPage() {
   };
 
   if (session && !session.offlineGrant) {
-    return <Navigate to={accessPath(nextPath)} replace />;
+    return <Navigate to={dashboardPickerPath(nextPath)} replace />;
   }
 
   if (session) {
@@ -143,7 +144,7 @@ export default function AuthPage() {
           ) : (
             <p className="verify-body">{t("auth.offlineUnavailable")}</p>
           )}
-          <Link className="forgot-link" replace to={accessPath(nextPath)}>
+          <Link className="forgot-link" replace to={dashboardPickerPath(nextPath)}>
             {t("auth.continueOnline")}
           </Link>
         </div>
