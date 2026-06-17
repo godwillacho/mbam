@@ -17,6 +17,7 @@ import {
   loadTeamWorkspace,
   updateEmployee,
   type TeamEmployee,
+  type TeamRole,
   type TeamWorkspace,
 } from "../../services/teamService";
 import { markRolePolicyChanged } from "../../services/localSync/localSyncClient";
@@ -25,6 +26,7 @@ import "./TeamAccessPage.css";
 const emptyInvite = { email: "", roleId: "", businessId: "", unitId: "" };
 const customRoleValue = "__custom__";
 const customRolePrefix = "custom_member_";
+const customBaselineRoleCodes = ["cashier", "shop_manager", "business_admin"];
 
 const screenAccessOptions = [
   {
@@ -124,6 +126,7 @@ export default function TeamAccessPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [roleSelection, setRoleSelection] = useState("");
+  const [customBaseRoleId, setCustomBaseRoleId] = useState("");
   const [customScreens, setCustomScreens] = useState<Set<string>>(new Set());
 
   const reload = useCallback(async () => {
@@ -160,6 +163,16 @@ export default function TeamAccessPage() {
     );
   }, [reload, t]);
 
+  const standardRoles = useMemo(
+    () => workspace?.roles.filter((role) => !role.code.startsWith(customRolePrefix)) ?? [],
+    [workspace],
+  );
+
+  const baselineRoles = useMemo(
+    () => standardRoles.filter((role) => isCustomBaseRole(role.code)),
+    [standardRoles],
+  );
+
   const visibleMembers = useMemo(() => {
     if (!workspace) return [];
     if (!businessFilter) return workspace.members;
@@ -179,22 +192,38 @@ export default function TeamAccessPage() {
     (member) => member.id === selectedId,
   );
 
+  const customBaseRole = baselineRoles.find((role) => role.id === customBaseRoleId);
+  const baselineScreenIds = useMemo(
+    () => new Set(
+      screenAccessOptions
+        .filter((option) => customBaseRole?.permissions.includes(option.permission))
+        .map((option) => option.id),
+    ),
+    [customBaseRole],
+  );
+
   useEffect(() => {
     if (!selected || !workspace) return;
     const role = workspace.roles.find((item) => item.id === selected.role_id);
+    const baseRoleId = resolveCustomBaseRoleId(selected, baselineRoles);
+    const baseRole = baselineRoles.find((item) => item.id === baseRoleId);
     setRoleSelection(
       selected.role_code.startsWith(customRolePrefix)
         ? customRoleValue
         : selected.role_id,
     );
+    setCustomBaseRoleId(baseRoleId);
     setCustomScreens(
       new Set(
         screenAccessOptions
-          .filter((option) => role?.permissions.includes(option.permission))
+          .filter((option) =>
+            role?.permissions.includes(option.permission) &&
+            !baseRole?.permissions.includes(option.permission),
+          )
           .map((option) => option.id),
       ),
     );
-  }, [selected, workspace]);
+  }, [baselineRoles, selected, workspace]);
 
   const submitInvite = async (event: FormEvent) => {
     event.preventDefault();
@@ -228,7 +257,10 @@ export default function TeamAccessPage() {
     try {
       await updateEmployee(selected.id, {
         ...(roleSelection === customRoleValue
-          ? { custom_permissions: customPermissions(customScreens) }
+          ? {
+              role_id: customBaseRoleId,
+              custom_permissions: customPermissions(customScreens),
+            }
           : { role_id: roleSelection }),
         business_id: String(form.get("businessId")) || null,
         business_unit_id: String(form.get("unitId")) || null,
@@ -397,15 +429,22 @@ export default function TeamAccessPage() {
               <select
                 id="employee-role"
                 value={roleSelection}
-                onChange={(event) => setRoleSelection(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setRoleSelection(value);
+                  if (value !== customRoleValue) {
+                    setCustomBaseRoleId(value);
+                    setCustomScreens(new Set());
+                  } else if (!customBaseRoleId) {
+                    setCustomBaseRoleId(resolveCustomBaseRoleId(selected, baselineRoles));
+                  }
+                }}
               >
-                {workspace.roles
-                  .filter((role) => !role.code.startsWith(customRolePrefix))
-                  .map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
+                {standardRoles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                  </option>
+                ))}
                 <option value={customRoleValue}>{t("team.customRole")}</option>
               </select>
             </div>
@@ -459,9 +498,38 @@ export default function TeamAccessPage() {
                 <h4>{t("team.customScreenTitle")}</h4>
                 <p className="card-muted">{t("team.customScreenHint")}</p>
               </div>
+              <div className="form-field full">
+                <label htmlFor="custom-base-role">Baseline role</label>
+                <select
+                  id="custom-base-role"
+                  required
+                  value={customBaseRoleId}
+                  onChange={(event) => {
+                    setCustomBaseRoleId(event.target.value);
+                    const nextBaseRole = baselineRoles.find((role) => role.id === event.target.value);
+                    const nextBaselineScreens = new Set(
+                      screenAccessOptions
+                        .filter((option) => nextBaseRole?.permissions.includes(option.permission))
+                        .map((option) => option.id),
+                    );
+                    setCustomScreens((current) =>
+                      new Set(Array.from(current).filter((screenId) => !nextBaselineScreens.has(screenId))),
+                    );
+                  }}
+                >
+                  <option value="">Select baseline role</option>
+                  {baselineRoles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+                <small>Custom menus are added on top of this baseline.</small>
+              </div>
               <div className="permission-toggle-grid">
                 {screenAccessOptions.map((option) => {
-                  const enabled = customScreens.has(option.id);
+                  const baseline = baselineScreenIds.has(option.id);
+                  const enabled = baseline || customScreens.has(option.id);
                   return (
                     <label
                       className={
@@ -473,6 +541,7 @@ export default function TeamAccessPage() {
                     >
                       <input
                         checked={enabled}
+                        disabled={baseline}
                         type="checkbox"
                         onChange={() =>
                           setCustomScreens((current) => {
@@ -486,9 +555,11 @@ export default function TeamAccessPage() {
                       <span>
                         <strong>{t(`team.screens.${option.id}`)}</strong>
                         <small>
-                          {enabled
-                            ? t("team.permissionEnabled")
-                            : t("team.permissionDisabled")}
+                          {baseline
+                            ? "Baseline access"
+                            : enabled
+                              ? t("team.permissionEnabled")
+                              : t("team.permissionDisabled")}
                         </small>
                       </span>
                     </label>
@@ -503,7 +574,7 @@ export default function TeamAccessPage() {
             disabled={
               saving ||
               !roleSelection ||
-              (roleSelection === customRoleValue && customScreens.size === 0)
+              (roleSelection === customRoleValue && !customBaseRoleId)
             }
             type="submit"
           >
@@ -530,6 +601,40 @@ function customPermissions(screenIds: Set<string>): string[] {
         .flatMap((option) => option.grants),
     ),
   );
+}
+
+function isCustomBaseRole(roleCode: string): boolean {
+  return customBaselineRoleCodes.includes(roleCode);
+}
+
+function customBaselineRoleCode(roleCode: string): string | undefined {
+  const customCode = roleCode.startsWith(customRolePrefix)
+    ? roleCode.slice(customRolePrefix.length)
+    : "";
+  if (customCode.startsWith("business_admin_")) return "business_admin";
+  if (customCode.startsWith("shop_manager_")) return "shop_manager";
+  if (customCode.startsWith("cashier_")) return "cashier";
+  return undefined;
+}
+
+function resolveCustomBaseRoleId(member: TeamEmployee, roles: TeamRole[]): string {
+  const customBaseCode = customBaselineRoleCode(member.role_code);
+  if (customBaseCode) {
+    return roles.find((role) => role.code === customBaseCode)?.id ?? "";
+  }
+  if (isCustomBaseRole(member.role_code)) return member.role_id;
+  if (member.business_id && !member.business_unit_id) {
+    return roles.find((role) => role.code === "business_admin")?.id ?? "";
+  }
+  if (member.business_unit_id) {
+    return roles.find((role) => role.code === "cashier")?.id
+      ?? roles.find((role) => role.code === "shop_manager")?.id
+      ?? "";
+  }
+  return roles.find((role) => role.code === "cashier")?.id
+    ?? roles.find((role) => role.code === "shop_manager")?.id
+    ?? roles.find((role) => role.code === "business_admin")?.id
+    ?? "";
 }
 
 function ScopeFields({
