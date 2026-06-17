@@ -495,15 +495,18 @@ pub async fn upsert_custom_role(
     account_id: Uuid,
     membership_id: Uuid,
     member_name: &str,
+    baseline_code: &str,
+    baseline_name: &str,
     permissions: &[String],
 ) -> Result<Uuid, sqlx::Error> {
     let mut tx = db.begin().await?;
-    let code = format!("custom_member_{}", membership_id.simple());
-    let name = format!("Custom - {member_name}");
+    let code = format!("custom_member_{}_{}", baseline_code, membership_id.simple());
+    let name = format!("Custom {baseline_name} - {member_name}");
+    let description = format!("Custom access based on {baseline_name}");
     let role_id = sqlx::query_scalar::<_, Uuid>(
         r#"
         insert into roles (business_account_id, code, name, description, is_system_role)
-        values ($1, $2, $3, 'Custom screen access for one employee', false)
+        values ($1, $2, $3, $4, false)
         on conflict (business_account_id, code)
         do update set name = excluded.name, description = excluded.description
         returning id
@@ -512,6 +515,7 @@ pub async fn upsert_custom_role(
     .bind(account_id)
     .bind(code)
     .bind(name)
+    .bind(description)
     .fetch_one(&mut *tx)
     .await?;
     sqlx::query("delete from role_permissions where role_id = $1")
