@@ -19,6 +19,10 @@ import type { AuthSession } from "../../types/auth";
 
 export type AuthMode = "login" | "signup";
 
+function accessPath(nextPath: string | null): string {
+  return nextPath ? `/access?next=${encodeURIComponent(nextPath)}` : "/access";
+}
+
 export default function AuthPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -39,16 +43,16 @@ export default function AuthPage() {
       ? null
       : sessionStorage.getItem("mbam-auth-next"));
   const nextPath =
-    requestedNextPath?.startsWith("/") && !requestedNextPath.startsWith("/auth")
+    requestedNextPath?.startsWith("/") &&
+    !requestedNextPath.startsWith("/auth") &&
+    !requestedNextPath.startsWith("/access")
       ? requestedNextPath
       : null;
 
   const completeSignIn = (authenticatedSession: AuthSession) => {
     setSession(authenticatedSession);
     if (switchingAccount) {
-      const destination = nextPath ?? "/dashboard";
-      sessionStorage.setItem("mbam-auth-next", destination);
-      window.location.assign(destination);
+      window.location.assign(accessPath(nextPath));
     }
   };
 
@@ -65,8 +69,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (session && nextPath) {
-      sessionStorage.removeItem("mbam-auth-next");
-      navigate(nextPath, { replace: true });
+      navigate(accessPath(nextPath), { replace: true });
     }
   }, [navigate, nextPath, session]);
 
@@ -75,7 +78,7 @@ export default function AuthPage() {
     setOfflineError("");
     try {
       await unlockOfflineSession(passphrase);
-      navigate(nextPath ?? "/dashboard", { replace: true });
+      navigate(accessPath(nextPath), { replace: true });
     } catch {
       setOfflineError(t("auth.offlineUnlockError"));
     } finally {
@@ -90,7 +93,7 @@ export default function AuthPage() {
     try {
       await enableOfflineAccess(session, passphrase);
       await synchronizeOfflineChanges(createApiSyncTransport());
-      navigate(nextPath ?? "/dashboard", { replace: true });
+      navigate(accessPath(nextPath), { replace: true });
     } catch {
       setOfflineError(t("auth.offlineSetupError"));
     } finally {
@@ -99,7 +102,7 @@ export default function AuthPage() {
   };
 
   if (session && !session.offlineGrant) {
-    return <Navigate to={nextPath ?? "/dashboard"} replace />;
+    return <Navigate to={accessPath(nextPath)} replace />;
   }
 
   if (session) {
@@ -140,7 +143,7 @@ export default function AuthPage() {
           ) : (
             <p className="verify-body">{t("auth.offlineUnavailable")}</p>
           )}
-          <Link className="forgot-link" replace to={nextPath ?? "/dashboard"}>
+          <Link className="forgot-link" replace to={accessPath(nextPath)}>
             {t("auth.continueOnline")}
           </Link>
         </div>
