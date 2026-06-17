@@ -57,31 +57,44 @@ function roleBaselineView(member: TeamMember): DashboardView {
   return "custom";
 }
 
+function hasPermission(member: TeamMember, permission: string): boolean {
+  return member.permissions?.includes(permission) === true;
+}
+
 function permissionAllows(member: TeamMember, metricKey: DashboardMetricKey): boolean {
-  if (!member.permissions) return true;
-  return metricPermissionClauses[metricKey].some((permission) => member.permissions?.includes(permission));
+  return metricPermissionClauses[metricKey].some((permission) => hasPermission(member, permission));
+}
+
+function canOpenAdditionalView(member: TeamMember, requested: DashboardView): boolean {
+  const baseline = roleBaselineView(member);
+  if (requested === baseline) return true;
+
+  return baseline === "personal" && requested === "shop" && (
+    hasPermission(member, "screen.reports") ||
+    hasPermission(member, "report.view") ||
+    hasPermission(member, "worker.view")
+  );
 }
 
 export function normalizeDashboardView(value: string | null, member: TeamMember): DashboardView {
+  const baseline = roleBaselineView(member);
   const requested = value === "master" || value === "business" || value === "shop" || value === "personal" || value === "custom"
     ? value
-    : roleBaselineView(member);
+    : baseline;
 
-  if (requested === "master" && member.scopeLevel !== "master") return roleBaselineView(member);
-  if (requested === "business" && member.scopeLevel === "unit" && roleBaselineView(member) !== "business") return roleBaselineView(member);
-  if (requested === "shop" && member.scopeLevel === "master") return roleBaselineView(member);
-  return requested;
+  return canOpenAdditionalView(member, requested) ? requested : baseline;
 }
 
 export function getDashboardMetricsForMember(
   member: TeamMember,
   view: DashboardView = roleBaselineView(member),
 ): DashboardMetricKey[] {
-  const baseline = baselineMetricAccess[view] ?? [];
+  const authorizedView = normalizeDashboardView(view, member);
+  const baseline = baselineMetricAccess[authorizedView] ?? [];
   const customMetrics = Object.keys(metricPermissionClauses).filter((metricKey) =>
     permissionAllows(member, metricKey as DashboardMetricKey),
   ) as DashboardMetricKey[];
-  const candidates = view === "custom" ? customMetrics : baseline;
+  const candidates = authorizedView === "custom" ? customMetrics : baseline;
   return candidates.filter((metricKey) => permissionAllows(member, metricKey));
 }
 
