@@ -91,6 +91,10 @@ export async function hydrateCloudWorkspace(): Promise<void> {
     teamMembers.unshift(workspace.teamMembers[0]);
   }
 
+  if (sessionMember) {
+    setCurrentMemberId(sessionMember.id);
+  }
+
   updateCloudWorkspace({
     roles: team.roles.map((role) => ({
       id: roleId(role.code),
@@ -99,10 +103,6 @@ export async function hydrateCloudWorkspace(): Promise<void> {
     })),
     teamMembers,
   });
-
-  if (sessionMember) {
-    setCurrentMemberId(sessionMember.id);
-  }
 
   const businesses = await listBusinesses();
   const businessUnits = (
