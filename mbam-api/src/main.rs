@@ -8,6 +8,7 @@
 
 mod config;
 mod db;
+mod dev_seed;
 mod error;
 mod modules;
 mod routes;
@@ -43,6 +44,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run migrations on startup for the early development stage.
     // Later, production deployments should run migrations as a separate step.
     sqlx::migrate!("./migrations").run(&pool).await?;
+
+    if config.app_env == "development" {
+        if let Err(error) = dev_seed::seed_test_accounts(&pool).await {
+            tracing::warn!(?error, "development test account seed failed");
+        }
+    }
 
     let state = AppState::new(config.clone(), pool);
     let app = build_router(state);
