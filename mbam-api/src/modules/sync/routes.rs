@@ -5,6 +5,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{error::ApiError, security::tokens, state::AppState};
@@ -48,10 +49,26 @@ async fn push(
 ) -> Result<Json<Vec<super::model::SyncPushResult>>, ApiError> {
     let user_id = authenticated_user_id(&headers, &state)?;
     let device_id = request_device_id(&headers)?;
-    if payload.device_id != Some(device_id) {
+    if payload.device_id != Some(device_id)
+        || payload
+            .operations
+            .iter()
+            .any(|operation| !operation_bound_to_session(operation, user_id, device_id))
+    {
         return Err(ApiError::Unauthorized);
     }
     Ok(Json(service::push(&state.db, user_id, payload).await?))
+}
+
+fn operation_bound_to_session(operation: &Value, user_id: Uuid, device_id: Uuid) -> bool {
+    operation
+        .get("userId")
+        .and_then(Value::as_str)
+        .is_some_and(|value| value == user_id.to_string())
+        && operation
+            .get("deviceId")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value == device_id.to_string())
 }
 
 fn request_device_id(headers: &HeaderMap) -> Result<Uuid, ApiError> {
