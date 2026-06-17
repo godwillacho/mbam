@@ -32,22 +32,32 @@ pub async fn permitted_account_id(
           on business.id = $2
          and business.business_account_id = membership.business_account_id
          and business.status = 'active'
+        left join business_units unit
+          on unit.id = $3
+         and unit.business_id = business.id
+         and unit.status = 'active'
         join role_permissions role_permission on role_permission.role_id = membership.role_id
         join permissions granted on granted.id = role_permission.permission_id
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = membership.id
+         and business_scope.business_id = business.id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = membership.id
+         and unit_scope.business_unit_id = unit.id
         where membership.user_id = $1 and membership.status = 'active'
-          and (membership.business_id is null or membership.business_id = $2)
-          and (
-            membership.business_unit_id is null
-            or ($3::uuid is not null and membership.business_unit_id = $3)
-          )
           and granted.code = $4
           and (
-            $3::uuid is null
-            or exists(
-              select 1 from business_units unit
-              where unit.id = $3 and unit.business_id = $2 and unit.status = 'active'
-            )
+            membership.business_id is null
+            or membership.business_id = business.id
+            or business_scope.business_id is not null
           )
+          and (
+            $3::uuid is null
+            or membership.business_unit_id is null
+            or membership.business_unit_id = $3
+            or unit_scope.business_unit_id is not null
+          )
+          and ($3::uuid is null or unit.id is not null)
         limit 1
         "#,
     )
@@ -322,16 +332,27 @@ pub async fn list_for_user(
         join users user_record on user_record.id = transaction.recorded_by_user_id
         join memberships membership
           on membership.business_account_id = transaction.business_account_id
-         and (membership.business_id is null or membership.business_id = transaction.business_id)
-         and (
-           membership.business_unit_id is null
-           or membership.business_unit_id = transaction.business_unit_id
-         )
         join roles role on role.id = membership.role_id
         join role_permissions role_permission on role_permission.role_id = membership.role_id
         join permissions granted
           on granted.id = role_permission.permission_id and granted.code = 'sale.view'
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = membership.id
+         and business_scope.business_id = transaction.business_id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = membership.id
+         and unit_scope.business_unit_id = transaction.business_unit_id
         where membership.user_id = $1 and membership.status = 'active'
+          and (
+            membership.business_id is null
+            or membership.business_id = transaction.business_id
+            or business_scope.business_id is not null
+          )
+          and (
+            membership.business_unit_id is null
+            or membership.business_unit_id = transaction.business_unit_id
+            or unit_scope.business_unit_id is not null
+          )
           and (role.code <> 'cashier' or transaction.recorded_by_user_id = $1)
         order by transaction.created_at desc
         "#
@@ -355,17 +376,28 @@ pub async fn find_by_id(
         join users user_record on user_record.id = transaction.recorded_by_user_id
         join memberships membership
           on membership.business_account_id = transaction.business_account_id
-         and (membership.business_id is null or membership.business_id = transaction.business_id)
-         and (
-           membership.business_unit_id is null
-           or membership.business_unit_id = transaction.business_unit_id
-         )
         join roles role on role.id = membership.role_id
         join role_permissions role_permission on role_permission.role_id = membership.role_id
         join permissions granted
           on granted.id = role_permission.permission_id and granted.code = 'sale.view'
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = membership.id
+         and business_scope.business_id = transaction.business_id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = membership.id
+         and unit_scope.business_unit_id = transaction.business_unit_id
         where membership.user_id = $1 and membership.status = 'active'
           and transaction.id = $2
+          and (
+            membership.business_id is null
+            or membership.business_id = transaction.business_id
+            or business_scope.business_id is not null
+          )
+          and (
+            membership.business_unit_id is null
+            or membership.business_unit_id = transaction.business_unit_id
+            or unit_scope.business_unit_id is not null
+          )
           and (role.code <> 'cashier' or transaction.recorded_by_user_id = $1)
         limit 1
         "#
