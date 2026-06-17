@@ -16,6 +16,8 @@ use super::{
     repository,
 };
 
+const CUSTOM_ROLE_PREFIX: &str = "custom_member_";
+
 pub async fn workspace(db: &PgPool, user_id: Uuid) -> Result<TeamWorkspaceResponse, ApiError> {
     repository::ensure_standard_roles(db, user_id).await?;
     let members = repository::list_members(db, user_id).await?;
@@ -119,12 +121,35 @@ fn has_permission(permissions: &[String], permission: &str) -> bool {
     permissions.iter().any(|value| value == permission)
 }
 
+fn custom_baseline_role_code(role_code: &str) -> Option<&'static str> {
+    let custom_code = role_code.strip_prefix(CUSTOM_ROLE_PREFIX)?;
+    if custom_code.starts_with("business_admin_") {
+        Some("business_admin")
+    } else if custom_code.starts_with("shop_manager_") {
+        Some("shop_manager")
+    } else if custom_code.starts_with("cashier_") {
+        Some("cashier")
+    } else {
+        None
+    }
+}
+
+fn baseline_role_code(role_code: &str) -> &str {
+    custom_baseline_role_code(role_code).unwrap_or(role_code)
+}
+
+fn is_custom_baseline_role(role_code: &str) -> bool {
+    matches!(role_code, "business_admin" | "shop_manager" | "cashier")
+}
+
 fn dashboards_for_member(
     member: &TeamMemberResponse,
     permissions: &[String],
 ) -> Vec<DashboardOptionResponse> {
     let mut dashboards = Vec::new();
-    match member.role_code.as_str() {
+    let baseline_code = baseline_role_code(&member.role_code);
+
+    match baseline_code {
         "business_admin" => dashboards.push(dashboard(
             "business_dashboard",
             "Business dashboard",
@@ -164,7 +189,7 @@ fn dashboards_for_member(
         _ => dashboards.push(dashboard(
             "custom_dashboard",
             "Custom dashboard",
-            "Dashboard assembled from this user's custom permissions.",
+            "Dashboard assembled from this user's validated custom permissions.",
             "/dashboard?view=custom",
             "custom",
             None,
@@ -172,7 +197,7 @@ fn dashboards_for_member(
         )),
     }
 
-    if member.role_code == "cashier"
+    if baseline_code == "cashier"
         && member.business_unit_id.is_some()
         && (has_permission(permissions, "screen.reports")
             || has_permission(permissions, "report.view")
@@ -189,7 +214,7 @@ fn dashboards_for_member(
         ));
     }
 
-    if (member.business_id.is_some() || member.role_code == "business_admin")
+    if (member.business_id.is_some() || baseline_code == "business_admin")
         && has_permission(permissions, "screen.businesses")
     {
         dashboards.push(dashboard(
@@ -214,7 +239,7 @@ fn dashboards_for_member(
             "/transactions/new",
             "workflow",
             Some("recordTransaction"),
-            member.role_code == "cashier",
+            false,
         ),
     );
     add_if_allowed(
@@ -492,11 +517,6 @@ pub async fn update_member(
     let business_id = payload.business_id.unwrap_or(current.business_id);
     let unit_id = payload.business_unit_id.unwrap_or(current.business_unit_id);
     let role_was_selected = payload.role_id.is_some();
-    if role_was_selected && payload.custom_permissions.is_some() {
-        return Err(ApiError::BadRequest(
-            "choose a standard role or custom permissions, not both".to_string(),
-        ));
-    }
     let mut role_id = payload.role_id.unwrap_or(current.role_id);
     let status = payload.status.as_deref().unwrap_or(&current.status);
     if !matches!(status, "active" | "disabled") {
@@ -527,12 +547,28 @@ pub async fn update_member(
         return Err(ApiError::Forbidden);
     }
     if let Some(custom_permissions) = payload.custom_permissions {
-        if custom_permissions.is_empty() {
+        let baseline_role_id = payload.role_id.unwrap_or(current.role_id);
+        let roles = repository::list_roles(db, actor_id).await?;
+        let baseline_role = roles
+            .iter()
+            .find(|role| role.id == baseline_role_id)
+            .ok_or(ApiError::Forbidden)?;
+        if !is_custom_baseline_role(&baseline_role.code) {
             return Err(ApiError::BadRequest(
-                "select at least one screen for a custom role".to_string(),
+                "custom roles must start from cashier, shop manager, or business admin".to_string(),
             ));
         }
-        let mut permissions = custom_permissions;
+        if !repository::role_is_assignable(db, account_id, baseline_role.id).await? {
+            return Err(ApiError::Forbidden);
+        }
+        if !repository::validate_role_scope(db, account_id, baseline_role.id, business_id, unit_id)
+            .await?
+        {
+            return Err(ApiError::Forbidden);
+        }
+
+        let mut permissions = baseline_role.permissions.clone();
+        permissions.extend(custom_permissions);
         permissions.sort();
         permissions.dedup();
         if !repository::can_assign_permissions(db, actor_id, account_id, &permissions).await? {
@@ -543,6 +579,8 @@ pub async fn update_member(
             account_id,
             membership_id,
             &current.full_name,
+            &baseline_role.code,
+            &baseline_role.name,
             &permissions,
         )
         .await?;
