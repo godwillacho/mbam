@@ -40,7 +40,16 @@ const metricPermissionClauses: Record<DashboardMetricKey, string[]> = {
   products: ["product.view", "screen.products"],
 };
 
+function customBaselineView(roleId: string): DashboardView | null {
+  if (roleId.startsWith("role-custom-member-business-admin-")) return "business";
+  if (roleId.startsWith("role-custom-member-shop-manager-")) return "shop";
+  if (roleId.startsWith("role-custom-member-cashier-")) return "personal";
+  return null;
+}
+
 function roleBaselineView(member: TeamMember): DashboardView {
+  const customBaseline = customBaselineView(member.roleId);
+  if (customBaseline) return customBaseline;
   if (member.roleId === "role-master-owner" || member.scopeLevel === "master") return "master";
   if (member.roleId === "role-business-admin" || member.scopeLevel === "business") return "business";
   if (member.roleId === "role-shop-manager") return "shop";
@@ -59,7 +68,7 @@ export function normalizeDashboardView(value: string | null, member: TeamMember)
     : roleBaselineView(member);
 
   if (requested === "master" && member.scopeLevel !== "master") return roleBaselineView(member);
-  if (requested === "business" && member.scopeLevel === "unit" && member.roleId !== "role-business-admin") return roleBaselineView(member);
+  if (requested === "business" && member.scopeLevel === "unit" && roleBaselineView(member) !== "business") return roleBaselineView(member);
   if (requested === "shop" && member.scopeLevel === "master") return roleBaselineView(member);
   return requested;
 }
@@ -78,7 +87,8 @@ export function getDashboardMetricsForMember(
 
 export function getDashboardMetricsForRole(roleId: string): DashboardMetricKey[] {
   return baselineMetricAccess[
-    roleId === "role-master-owner"
+    customBaselineView(roleId) ??
+    (roleId === "role-master-owner"
       ? "master"
       : roleId === "role-business-admin"
         ? "business"
@@ -86,7 +96,7 @@ export function getDashboardMetricsForRole(roleId: string): DashboardMetricKey[]
           ? "shop"
           : roleId === "role-cashier"
             ? "personal"
-            : "custom"
+            : "custom")
   ];
 }
 
