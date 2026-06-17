@@ -57,11 +57,20 @@ function roleBaselineView(member: TeamMember): DashboardView {
   return "custom";
 }
 
+function isValidatedMaster(member: TeamMember): boolean {
+  return (
+    member.status === "active" &&
+    member.scopeLevel === "master" &&
+    member.roleId === "role-master-owner"
+  );
+}
+
 function hasPermission(member: TeamMember, permission: string): boolean {
   return member.permissions?.includes(permission) === true;
 }
 
 function permissionAllows(member: TeamMember, metricKey: DashboardMetricKey): boolean {
+  if (!member.permissions && isValidatedMaster(member)) return true;
   return metricPermissionClauses[metricKey].some((permission) => hasPermission(member, permission));
 }
 
