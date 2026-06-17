@@ -55,7 +55,7 @@ export interface DashboardOption {
   description: string;
   path: string;
   dashboard_type: string;
-  route_key?: string;
+  route_key: string | null;
   is_baseline: boolean;
 }
 
@@ -149,7 +149,7 @@ export async function registerInvitation(
 ): Promise<void> {
   await postJson("/api/v1/invites/register", {
     token,
-    full_name: fullName,
+    full_name: FullName,
     password,
   });
 }
