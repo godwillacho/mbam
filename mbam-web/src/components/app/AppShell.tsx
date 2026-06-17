@@ -47,6 +47,7 @@ const navItems: Array<{
     routeKey: "transactions",
   },
   { to: "/businesses", labelKey: "app.nav.businesses", routeKey: "businesses" },
+  { to: "/team", labelKey: "app.nav.team", routeKey: "team" },
   { to: "/products", labelKey: "app.nav.products", routeKey: "products" },
   { to: "/reports", labelKey: "app.nav.reports", routeKey: "reports" },
 ];
