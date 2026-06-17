@@ -49,12 +49,35 @@ export interface TeamBusinessUnit {
   name: string;
 }
 
+export interface DashboardOption {
+  id: string;
+  label: string;
+  description: string;
+  path: string;
+  dashboard_type: string;
+  route_key?: string;
+  is_baseline: boolean;
+}
+
+export interface DashboardProfile {
+  membership_id: string;
+  user_id: string;
+  role_code: string;
+  role_name: string;
+  scope_level: "master" | "business" | "unit";
+  scope_label: string;
+  base_dashboard_id: string;
+  permissions: string[];
+  dashboards: DashboardOption[];
+}
+
 export interface TeamWorkspace {
   members: TeamEmployee[];
   invitations: TeamInvitation[];
   roles: TeamRole[];
   businesses: TeamBusiness[];
   business_units: TeamBusinessUnit[];
+  dashboard_profiles: DashboardProfile[];
   authorization_version: number;
 }
 
