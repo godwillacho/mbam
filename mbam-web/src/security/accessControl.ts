@@ -103,6 +103,17 @@ export function canManageProducts(member: TeamMember): boolean {
 
 export function getScopedUnits(member: TeamMember): BusinessUnit[] {
   if (member.scopeLevel === "master") return workspace.businessUnits;
+
+  const grantedUnitIds = new Set(member.businessUnitIds ?? []);
+  const grantedBusinessIds = new Set(member.businessIds ?? []);
+  if (grantedUnitIds.size > 0 || grantedBusinessIds.size > 0) {
+    return workspace.businessUnits.filter(
+      (unit) =>
+        grantedUnitIds.has(unit.id) ||
+        grantedBusinessIds.has(unit.businessId),
+    );
+  }
+
   if (member.scopeLevel === "business" && member.businessId) {
     return workspace.businessUnits.filter(
       (unit) => unit.businessId === member.businessId,
