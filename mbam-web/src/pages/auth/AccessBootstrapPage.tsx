@@ -25,30 +25,17 @@ function pathIsAllowed(profile: DashboardProfile, path: string): boolean {
   return profile.dashboards.some((dashboard) => path.startsWith(dashboard.path));
 }
 
-function optionsForProfile(
-  profile: DashboardProfile,
-  nextPath: string | null,
-): DashboardOption[] {
-  const dashboards = [...profile.dashboards].sort((left, right) => {
-    if (left.is_baseline !== right.is_baseline) return left.is_baseline ? -1 : 1;
-    return left.label.localeCompare(right.label);
-  });
+function baselineOption(profile: DashboardProfile): DashboardOption | undefined {
+  return (
+    profile.dashboards.find((dashboard) => dashboard.id === profile.base_dashboard_id) ??
+    profile.dashboards.find((dashboard) => dashboard.is_baseline) ??
+    profile.dashboards[0]
+  );
+}
 
-  if (nextPath && pathIsAllowed(profile, nextPath)) {
-    return [
-      {
-        id: "continue",
-        label: "Continue where you left off",
-        description: "Open the page requested before sign-in.",
-        path: nextPath,
-        dashboard_type: "continue",
-        is_baseline: true,
-      },
-      ...dashboards,
-    ];
-  }
-
-  return dashboards;
+function selectedPath(profile: DashboardProfile, nextPath: string | null): string | null {
+  if (nextPath && pathIsAllowed(profile, nextPath)) return nextPath;
+  return baselineOption(profile)?.path ?? null;
 }
 
 export default function AccessBootstrapPage() {
@@ -58,7 +45,6 @@ export default function AccessBootstrapPage() {
   const nextPath = useMemo(() => requestedPath(searchParams), [searchParams]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [profiles, setProfiles] = useState<DashboardProfile[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -70,9 +56,22 @@ export default function AccessBootstrapPage() {
       .then((team) => {
         if (ignore) return;
         sessionStorage.removeItem("mbam-auth-next");
-        const apiProfiles = team?.dashboard_profiles ?? [];
-        setProfiles(apiProfiles);
-        setIsLoading(false);
+        const profile = team?.dashboard_profiles[0];
+        if (!profile) {
+          setError("no_active_dashboard_profile");
+          setIsLoading(false);
+          return;
+        }
+
+        const path = selectedPath(profile, nextPath);
+        if (!path) {
+          setError("no_allowed_dashboard_target");
+          setIsLoading(false);
+          return;
+        }
+
+        setCurrentMemberId(profile.membership_id);
+        navigate(path, { replace: true });
       })
       .catch((loadError: unknown) => {
         if (ignore) return;
@@ -83,16 +82,11 @@ export default function AccessBootstrapPage() {
     return () => {
       ignore = true;
     };
-  }, [nextPath, session]);
+  }, [navigate, nextPath, session]);
 
   if (!session) {
     return <Navigate to="/auth" replace />;
   }
-
-  const openDashboard = (profile: DashboardProfile, option: DashboardOption) => {
-    setCurrentMemberId(profile.membership_id);
-    navigate(option.path, { replace: true });
-  };
 
   const signInAgain = () => {
     clearActiveSession();
@@ -106,38 +100,8 @@ export default function AccessBootstrapPage() {
         <h2 className="verify-title">Loading your access</h2>
         {isLoading && (
           <p className="verify-body">
-            Validating your token and loading your API-assigned dashboards...
+            Validating your token, role, scope, and API-assigned dashboard...
           </p>
-        )}
-
-        {!isLoading && profiles.length > 0 && (
-          <>
-            <p className="verify-body">
-              Your available dashboards are validated by the API from your role, scope, and custom permissions.
-            </p>
-            <div className="field-group">
-              {profiles.map((profile) => {
-                const options = optionsForProfile(profile, nextPath);
-                return (
-                  <section className="field-group" key={profile.membership_id}>
-                    <h3 className="verify-title">{profile.role_name}</h3>
-                    <p className="verify-body">{profile.scope_label}</p>
-                    {options.map((option) => (
-                      <button
-                        key={`${profile.membership_id}-${option.id}-${option.path}`}
-                        type="button"
-                        className={option.is_baseline ? "submit-btn" : "forgot-link"}
-                        onClick={() => openDashboard(profile, option)}
-                      >
-                        <strong>{option.label}</strong>
-                        <span>{option.description}</span>
-                      </button>
-                    ))}
-                  </section>
-                );
-              })}
-            </div>
-          </>
         )}
 
         {!isLoading && error && (
@@ -154,15 +118,10 @@ export default function AccessBootstrapPage() {
           </>
         )}
 
-        {!isLoading && profiles.length === 0 && !error && (
-          <>
-            <div className="alert alert-danger" role="alert">
-              No active dashboard access was returned by the API for this account.
-            </div>
-            <Link className="forgot-link" to="/auth" replace>
-              Return to sign in
-            </Link>
-          </>
+        {!isLoading && !error && (
+          <Link className="forgot-link" to="/auth" replace>
+            Return to sign in
+          </Link>
         )}
       </div>
     </AuthLayout>
