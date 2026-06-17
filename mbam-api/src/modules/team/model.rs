@@ -57,12 +57,37 @@ pub struct UnitScopeResponse {
 }
 
 #[derive(Debug, Serialize)]
+pub struct DashboardOptionResponse {
+    pub id: String,
+    pub label: String,
+    pub description: String,
+    pub path: String,
+    pub dashboard_type: String,
+    pub route_key: Option<String>,
+    pub is_baseline: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DashboardProfileResponse {
+    pub membership_id: Uuid,
+    pub user_id: Uuid,
+    pub role_code: String,
+    pub role_name: String,
+    pub scope_level: String,
+    pub scope_label: String,
+    pub base_dashboard_id: String,
+    pub permissions: Vec<String>,
+    pub dashboards: Vec<DashboardOptionResponse>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct TeamWorkspaceResponse {
     pub members: Vec<TeamMemberResponse>,
     pub invitations: Vec<PendingInvitationResponse>,
     pub roles: Vec<RoleResponse>,
     pub businesses: Vec<BusinessScopeResponse>,
     pub business_units: Vec<UnitScopeResponse>,
+    pub dashboard_profiles: Vec<DashboardProfileResponse>,
     pub authorization_version: i64,
 }
 
