@@ -21,7 +21,7 @@ const baselineMetricAccess: Record<DashboardView, DashboardMetricKey[]> = {
   master: ["totalRevenue", "businesses", "units", "pendingCustomers", "transactions", "products"],
   business: ["businessRevenue", "units", "pendingCustomers", "transactions", "products"],
   shop: ["unitRevenue", "queued", "pendingCustomers", "transactions", "products"],
-  personal: ["ownSales", "ownTransactions"],
+  personal: ["ownSales", "ownTransactions", "products"],
   custom: [],
 };
 
@@ -58,11 +58,7 @@ function roleBaselineView(member: TeamMember): DashboardView {
 }
 
 function isValidatedMaster(member: TeamMember): boolean {
-  return (
-    member.status === "active" &&
-    member.scopeLevel === "master" &&
-    member.roleId === "role-master-owner"
-  );
+  return member.status === "active" && member.scopeLevel === "master" && member.roleId === "role-master-owner";
 }
 
 function hasPermission(member: TeamMember, permission: string): boolean {
@@ -77,11 +73,8 @@ function permissionAllows(member: TeamMember, metricKey: DashboardMetricKey): bo
 function canOpenAdditionalView(member: TeamMember, requested: DashboardView): boolean {
   const baseline = roleBaselineView(member);
   if (requested === baseline) return true;
-
   return baseline === "personal" && requested === "shop" && (
-    hasPermission(member, "screen.reports") ||
-    hasPermission(member, "report.view") ||
-    hasPermission(member, "worker.view")
+    hasPermission(member, "screen.reports") || hasPermission(member, "report.view") || hasPermission(member, "worker.view")
   );
 }
 
@@ -90,14 +83,10 @@ export function normalizeDashboardView(value: string | null, member: TeamMember)
   const requested = value === "master" || value === "business" || value === "shop" || value === "personal" || value === "custom"
     ? value
     : baseline;
-
   return canOpenAdditionalView(member, requested) ? requested : baseline;
 }
 
-export function getDashboardMetricsForMember(
-  member: TeamMember,
-  view: DashboardView = roleBaselineView(member),
-): DashboardMetricKey[] {
+export function getDashboardMetricsForMember(member: TeamMember, view: DashboardView = roleBaselineView(member)): DashboardMetricKey[] {
   const authorizedView = normalizeDashboardView(view, member);
   const baseline = baselineMetricAccess[authorizedView] ?? [];
   const customMetrics = Object.keys(metricPermissionClauses).filter((metricKey) =>
@@ -110,15 +99,7 @@ export function getDashboardMetricsForMember(
 export function getDashboardMetricsForRole(roleId: string): DashboardMetricKey[] {
   return baselineMetricAccess[
     customBaselineView(roleId) ??
-    (roleId === "role-master-owner"
-      ? "master"
-      : roleId === "role-business-admin"
-        ? "business"
-        : roleId === "role-shop-manager"
-          ? "shop"
-          : roleId === "role-cashier"
-            ? "personal"
-            : "custom")
+    (roleId === "role-master-owner" ? "master" : roleId === "role-business-admin" ? "business" : roleId === "role-shop-manager" ? "shop" : roleId === "role-cashier" ? "personal" : "custom")
   ];
 }
 
