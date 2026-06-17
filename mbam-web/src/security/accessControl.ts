@@ -87,6 +87,14 @@ function baselineRoleId(roleId: string): string {
   return roleId;
 }
 
+function isValidatedMaster(member: TeamMember): boolean {
+  return (
+    member.status === "active" &&
+    member.scopeLevel === "master" &&
+    baselineRoleId(member.roleId) === "role-master-owner"
+  );
+}
+
 function isCashierBaseline(member: TeamMember): boolean {
   return baselineRoleId(member.roleId) === "role-cashier";
 }
@@ -121,7 +129,9 @@ export function canAccessRoute(
   if (member.permissions) {
     return member.permissions.includes(routePermission[routeKey]);
   }
-  if (getActiveSession()) return false;
+  if (getActiveSession()) {
+    return isValidatedMaster(member) && routeAccessByRole["role-master-owner"].includes(routeKey);
+  }
   return (routeAccessByRole[baselineRoleId(member.roleId)] ?? []).includes(routeKey);
 }
 
@@ -132,7 +142,7 @@ export function canManageProducts(member: TeamMember): boolean {
       member.permissions.includes("product.update")
     );
   }
-  if (getActiveSession()) return false;
+  if (getActiveSession()) return isValidatedMaster(member);
   return productManagementRoles.has(baselineRoleId(member.roleId));
 }
 
