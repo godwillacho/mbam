@@ -17,7 +17,18 @@ export type AppRouteKey =
   | "products";
 
 export const CURRENT_MEMBER_CHANGE_EVENT = "mbam-current-member-change";
-let currentMemberId = workspace.teamMembers[0]?.id;
+let currentMemberId: string | undefined;
+
+const noAccessMember: TeamMember = {
+  id: "member-no-access",
+  fullName: "No access loaded",
+  email: "",
+  roleId: "role-no-access",
+  roleName: "No access loaded",
+  permissions: [],
+  scopeLevel: "unit",
+  status: "disabled",
+};
 
 const routeAccessByRole: Record<string, AppRouteKey[]> = {
   "role-master-owner": [
@@ -81,12 +92,14 @@ export function getCurrentMember(): TeamMember {
         (member) => member.email.toLowerCase() === sessionEmail,
       )
     : undefined;
-  return sessionMember ?? workspace.teamMembers[0];
+  if (sessionMember) return sessionMember;
+
+  return getActiveSession() ? noAccessMember : workspace.teamMembers[0] ?? noAccessMember;
 }
 
 export function setCurrentMemberId(memberId: string): void {
-  if (typeof window === "undefined") return;
   currentMemberId = memberId;
+  if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(CURRENT_MEMBER_CHANGE_EVENT));
 }
 
@@ -97,6 +110,7 @@ export function canAccessRoute(
   if (member.permissions) {
     return member.permissions.includes(routePermission[routeKey]);
   }
+  if (getActiveSession()) return false;
   return (routeAccessByRole[member.roleId] ?? []).includes(routeKey);
 }
 
@@ -107,6 +121,7 @@ export function canManageProducts(member: TeamMember): boolean {
       member.permissions.includes("product.update")
     );
   }
+  if (getActiveSession()) return false;
   return productManagementRoles.has(member.roleId);
 }
 
