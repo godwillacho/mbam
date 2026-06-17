@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardProfile } from "../../services/teamService";
 import type { TeamMember } from "../../types/workspace";
-import {
-  baselineDashboardPath,
-  profileBaselineDashboardPath,
-} from "./dashboardRoutes";
+import { baselineDashboardPath, profileBaselineDashboardPath } from "./dashboardRoutes";
 
 function member(overrides: Partial<TeamMember>): TeamMember {
   return {
@@ -42,15 +39,16 @@ function profile(overrides: Partial<DashboardProfile>): DashboardProfile {
 }
 
 describe("baseline dashboard routing", () => {
-  it("routes each system role to its fixed baseline UI", () => {
+  it("routes each active system role to its fixed baseline UI", () => {
     expect(baselineDashboardPath(member({ roleId: "role-master-owner", scopeLevel: "master" }))).toBe("/dashboard/master");
     expect(baselineDashboardPath(member({ roleId: "role-business-admin", scopeLevel: "business" }))).toBe("/dashboard/business");
     expect(baselineDashboardPath(member({ roleId: "role-shop-manager" }))).toBe("/dashboard/shop");
     expect(baselineDashboardPath(member({ roleId: "role-cashier" }))).toBe("/dashboard/personal");
   });
 
-  it("does not infer unit-level access for an unknown role", () => {
-    expect(baselineDashboardPath(member({ roleId: "role-unknown", scopeLevel: "unit" }))).toBeNull();
+  it("does not infer access from scope for an unknown or inactive role", () => {
+    expect(baselineDashboardPath(member({ roleId: "role-unknown", scopeLevel: "master" }))).toBeNull();
+    expect(baselineDashboardPath(member({ roleId: "role-cashier", status: "disabled" }))).toBeNull();
   });
 
   it("uses only an API-provided baseline dashboard", () => {
