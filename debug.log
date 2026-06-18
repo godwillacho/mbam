@@ -9,6 +9,10 @@ React: Added a centralized redacting logger, browser console output, IndexedDB o
 Verification: cargo check passed; cargo test passed 6 tests; focused frontend logging tests passed 3 tests; TypeScript type-check passed; production frontend build passed; changed frontend files passed ESLint; changed Rust files passed rustfmt checks.
 
 2026-06-18
-Change: Added the initial Keycloak integration scaffold.
-Details: Added a backend authentication boundary directory, documented role-baseline mapping, and linked the migration guide from the API README.
-Verification: Reviewed current auth, team, security, and README files through GitHub before patching; verified the new module is registered in main.rs.
+Change: Added the initial identity integration scaffold.
+Details: Added a backend boundary directory, documented role-baseline mapping, and linked the migration guide from the API README.
+Verification: Reviewed current team and README files through GitHub before patching; verified the new module is registered in main.rs.
+
+2026-06-18
+Change: Expanded the identity boundary with a provider module and README details.
+Verification: Confirmed the provider module is exposed and public functions include use comments.
