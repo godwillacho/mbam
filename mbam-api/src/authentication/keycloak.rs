@@ -1,4 +1,7 @@
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    time::Duration,
+};
 
 use serde::Deserialize;
 
@@ -59,12 +62,13 @@ struct RoleContainer {
 }
 
 impl KeycloakAuthenticator {
-    /// Creates a reusable Keycloak authentication client without making a network request.
+    /// Creates a reusable Keycloak client with a bounded authentication timeout.
     pub fn new(config: KeycloakConfig) -> Self {
-        Self {
-            client: reqwest::Client::new(),
-            config,
-        }
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(8))
+            .build()
+            .expect("Keycloak HTTP client configuration must be valid");
+        Self { client, config }
     }
 
     /// Introspects a bearer token and returns only validated identity claims.
@@ -94,18 +98,12 @@ impl KeycloakAuthenticator {
             return Err(ApiError::Unauthorized);
         }
 
-        let claims = response
-            .json::<IntrospectionResponse>()
-            .await
-            .map_err(|_| ApiError::Unauthorized)?;
+        let claims = response.json::<IntrospectionResponse>().await.map_err(|_| ApiError::Unauthorized)?;
         if !claims.active || !audience_contains(claims.aud.as_ref(), &self.config.audience) {
             return Err(ApiError::Unauthorized);
         }
 
-        let subject = claims
-            .sub
-            .filter(|value| !value.trim().is_empty())
-            .ok_or(ApiError::Unauthorized)?;
+        let subject = claims.sub.filter(|value| !value.trim().is_empty()).ok_or(ApiError::Unauthorized)?;
         let mut roles = claims.realm_access.roles.into_iter().collect::<BTreeSet<_>>();
         if let Some(client_roles) = claims.resource_access.get(&self.config.role_client_id) {
             roles.extend(client_roles.roles.iter().cloned());
