@@ -1,0 +1,3 @@
+2026-06-18
+Change: Added the repository-wide debug and error logging rule.
+Verification: Confirmed AGENTS.md requires root debug.log, root error.log, and a structured engineering log entry for every code update.

@@ -1,0 +1,3 @@
+2026-06-18
+Encountered: AGENTS.md conflicted while integrating concurrent remote logging-rule updates.
+Resolution: Preserved the remote structured logging requirements and added the explicit root debug.log and error.log requirements.
