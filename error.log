@@ -15,3 +15,9 @@ Encountered: Strict Clippy reports the existing dev_seed.rs upsert_product funct
 Resolution: Standard Clippy completes with that pre-existing warning; logging code introduces no Clippy warnings.
 Encountered: Rustfmt traversed module children and reformatted unrelated Rust files.
 Resolution: Reverted only the accidental formatting changes and verified the intended Rust files independently.
+
+2026-06-18
+Encountered: The first environment example update was blocked by the safety layer because the file contains secret-related placeholder fields.
+Resolution: Left the environment example unchanged and documented Keycloak migration settings in the dedicated authentication-layer README and API README.
+Encountered: The first debug log update was blocked by the safety layer because the wording referenced sensitive authentication material.
+Resolution: Rewrote the debug entry as a non-sensitive implementation summary.
