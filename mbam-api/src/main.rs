@@ -1,11 +1,7 @@
 #![allow(dead_code)]
 //! Mbam API entrypoint.
-//!
-//! The backend is currently in scaffold mode. Several modules define models,
-//! repositories, and helpers before the real route handlers call them. The
-//! temporary `dead_code` allowance keeps `cargo check` readable during this
-//! setup phase and should be removed once the auth and business flows are wired.
 
+mod authentication;
 mod config;
 mod db;
 mod dev_seed;
@@ -20,30 +16,33 @@ use axum::{
     http::{header, HeaderName, HeaderValue, Method},
     Router,
 };
-use std::net::SocketAddr;
+use std::{io, net::SocketAddr};
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::{config::Config, db::pool::connect_database, state::AppState};
+use crate::{
+    authentication::AuthenticationLayer,
+    config::Config,
+    db::pool::connect_database,
+    state::AppState,
+};
 
 /// Starts the Mbam API server.
 ///
-/// The entrypoint keeps startup concerns in one place:
-/// configuration loading, logging, database connection, migrations, route mounting,
-/// and HTTP serving.
+/// The entrypoint validates authentication configuration before accepting any
+/// requests, preventing a partially configured Keycloak mode from starting.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     init_tracing();
 
     let config = Config::from_env()?;
+    let authentication = AuthenticationLayer::from_config(&config).map_err(io::Error::other)?;
     let pool = connect_database(&config.database_url).await?;
 
-    // Run migrations on startup for the early development stage.
-    // Later, production deployments should run migrations as a separate step.
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     if config.app_env == "development" {
@@ -53,24 +52,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     tracing::warn!(?error, "development test account seed failed");
                 }
             }
-            Err(error) => {
-                tracing::warn!(
-                    ?error,
-                    "development test account cleanup failed; seed skipped to avoid stale access"
-                );
-            }
+            Err(error) => tracing::warn!(
+                ?error,
+                "development test account cleanup failed; seed skipped to avoid stale access"
+            ),
         }
     }
 
-    let state = AppState::new(config.clone(), pool);
+    let state = AppState::new(config.clone(), pool, authentication);
     let app = build_router(state);
 
     let addr: SocketAddr = format!("{}:{}", config.api_host, config.api_port).parse()?;
-    tracing::info!(%addr, "starting Mbam API");
+    tracing::info!(%addr, auth_provider = %config.auth_provider, "starting Mbam API");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
-
     Ok(())
 }
 
@@ -99,15 +95,9 @@ fn build_router(state: AppState) -> Router {
         .nest("/api/v1/businesses", business_router)
         .nest("/api/v1/products", modules::products::routes::router())
         .nest("/api/v1/team-members", modules::team::routes::team_router())
-        .nest(
-            "/api/v1/invites",
-            modules::team::routes::invitation_router(),
-        )
+        .nest("/api/v1/invites", modules::team::routes::invitation_router())
         .nest("/api/v1/sync", modules::sync::routes::router())
-        .nest(
-            "/api/v1/transactions",
-            modules::transactions::routes::router(),
-        )
+        .nest("/api/v1/transactions", modules::transactions::routes::router())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
