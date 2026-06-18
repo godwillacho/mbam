@@ -18,6 +18,44 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-06-18 - Persistent Repository Logging Rule
+
+**Related change:** `0b8194d294148e9b3400cd7010200aaa6038ba71`
+
+**Requested behavior:** Make debug and error logging a mandatory repository rule
+for every code update.
+
+**Engineering reason:** The logging convention previously existed only inside
+this log file. Agents and contributors need to see the requirement before they
+start editing code, so it belongs in the root repository instructions.
+
+**Files changed:**
+
+- `AGENTS.md`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Changes:**
+
+- Added a mandatory same-change-set log requirement to `AGENTS.md`.
+- Defined the minimum fields required for each entry.
+- Defined the sensitive-data exclusion and redaction requirements.
+- Clarified when documentation-only changes require an entry.
+
+**Verification:**
+
+- Fetched and preserved the existing repository workflow rules.
+- Confirmed the new rule references the correct engineering log path.
+
+**Errors encountered:**
+
+- GitHub code search did not return the existing `AGENTS.md`.
+- The first create request failed because the file already existed; the file was
+  then fetched directly and updated without replacing existing instructions.
+
+**Remaining checks:**
+
+- None. This is an operational documentation rule and has no executable test.
+
 ## 2026-06-18 - Custom Role Screen ID Type Failure
 
 **Commit:** `78d8c97fdda48030cc02ae05a69dc0848ad14e35`
