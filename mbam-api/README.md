@@ -17,6 +17,7 @@ The API is the security boundary between the React frontend and PostgreSQL. The 
 - `src/db/` contains database connection helpers.
 - `src/routes/` contains top-level API routes.
 - `src/security/` contains password hashing and token helpers.
+- `src/authentication_layer/` contains the Keycloak migration boundary for external identity, baseline roles, and least-privilege permission mapping.
 - `src/modules/` contains domain modules for auth, users, accounts, businesses, units, roles, permissions, memberships, and sync.
 
 ## Local development with Docker PostgreSQL
@@ -69,15 +70,20 @@ The API defaults to `127.0.0.1:8080`. If the full Compose stack is already runni
 Logging and optional Sentry configuration are documented in
 [`../docs/observability.md`](../docs/observability.md).
 
+## Keycloak authentication migration
+
+The long-term authentication and role-management target is Keycloak. The initial authentication boundary is documented in [`src/authentication_layer/README.md`](src/authentication_layer/README.md).
+
+Current state:
+
+- The Keycloak layer exists as a safe scaffold.
+- Live routes still use Mbam's local JWT verification until Keycloak issuer, audience, and JWKS verification are configured.
+- Baseline roles must be anchored in Keycloak as `mbam_master_owner`, `mbam_business_admin`, `mbam_shop_manager`, or `mbam_cashier`.
+- Custom roles are additive open clauses only and must not grant access without a baseline role.
+
 ## Full Compose stack
 
-To run PostgreSQL, the Rust API, and the web application together:
-
-```bash
-docker compose -f docker-compose.private.yml up --build
-```
-
-In this mode, open the application through `http://localhost:8080`. The API is reached through the Nginx `/api` proxy and connects to PostgreSQL using the internal hostname `db`.
+The private Compose file is intentionally database-only for local development. Run the API and web server directly on the host.
 
 ## Google sign-in
 
