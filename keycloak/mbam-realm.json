@@ -1,0 +1,75 @@
+{
+  "realm": "mbam",
+  "enabled": true,
+  "displayName": "Mbam",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "master_owner",
+        "description": "Mbam master account owner"
+      },
+      {
+        "name": "business_admin",
+        "description": "Mbam business administrator"
+      },
+      {
+        "name": "shop_manager",
+        "description": "Mbam shop manager"
+      },
+      {
+        "name": "cashier",
+        "description": "Mbam cashier"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "mbam-api",
+      "name": "Mbam API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "mbam-local-client-secret-change-me",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": true
+    },
+    {
+      "clientId": "mbam-web",
+      "name": "Mbam Web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+      ],
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "mbam-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "mbam-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,12 +1,12 @@
 use axum::{
     extract::{Path, State},
-    http::{header, HeaderMap},
+    http::HeaderMap,
     routing::patch,
     Json, Router,
 };
 use uuid::Uuid;
 
-use crate::{error::ApiError, security::tokens, state::AppState};
+use crate::{error::ApiError, state::AppState};
 
 use super::{
     model::{BusinessUnit, UpdateBusinessUnitRequest},
@@ -23,27 +23,11 @@ async fn update(
     Path((business_id, unit_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdateBusinessUnitRequest>,
 ) -> Result<Json<BusinessUnit>, ApiError> {
+    let user_id = state
+        .authentication
+        .authenticate_user_id(&headers, &state.db)
+        .await?;
     Ok(Json(
-        service::update(
-            &state.db,
-            authenticated_user_id(&headers, &state)?,
-            business_id,
-            unit_id,
-            payload,
-        )
-        .await?,
+        service::update(&state.db, user_id, business_id, unit_id, payload).await?,
     ))
-}
-
-fn authenticated_user_id(headers: &HeaderMap, state: &AppState) -> Result<Uuid, ApiError> {
-    let authorization = headers
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .ok_or(ApiError::Unauthorized)?;
-    let token = authorization
-        .strip_prefix("Bearer ")
-        .ok_or(ApiError::Unauthorized)?;
-    tokens::verify_access_token(token, &state.config.jwt_access_secret)
-        .map(|claims| claims.sub)
-        .map_err(|_| ApiError::Unauthorized)
 }

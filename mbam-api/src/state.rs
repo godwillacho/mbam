@@ -1,20 +1,25 @@
 use sqlx::PgPool;
 
-use crate::config::Config;
+use crate::{authentication::AuthenticationLayer, config::Config};
 
 /// Shared application state injected into route handlers by Axum.
 ///
-/// State currently contains configuration and the PostgreSQL pool. As the API
-/// grows, service clients that are safe to share can be added here.
+/// Authentication is constructed once at startup so every protected route uses
+/// the same provider configuration and validation policy.
 #[derive(Clone)]
 pub struct AppState {
     pub config: Config,
     pub db: PgPool,
+    pub authentication: AuthenticationLayer,
 }
 
 impl AppState {
-    /// Creates a new application state object.
-    pub fn new(config: Config, db: PgPool) -> Self {
-        Self { config, db }
+    /// Creates application state from validated configuration and shared services.
+    pub fn new(config: Config, db: PgPool, authentication: AuthenticationLayer) -> Self {
+        Self {
+            config,
+            db,
+            authentication,
+        }
     }
 }

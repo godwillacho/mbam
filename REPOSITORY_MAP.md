@@ -31,7 +31,8 @@ Rust API
 | --- | --- |
 | `AGENTS.md` | Mandatory repository workflow and logging rules |
 | `REPOSITORY_MAP.md` | This living navigation map |
-| `docker-compose.private.yml` | Local PostgreSQL only |
+| `docker-compose.private.yml` | Local PostgreSQL and Keycloak |
+| `keycloak/mbam-realm.json` | Reproducible local realm, clients, audience, and baseline roles |
 | `docs/` | Security, observability, testing, and future-product documents |
 | `debug.log`, `error.log` | Required engineering change records |
 | `.github/workflows/` | API, security, and integration automation |
@@ -75,9 +76,9 @@ Users, business accounts, memberships, roles, and permissions are relational
 concepts handled by `auth/` and `team/`; they intentionally do not have empty
 parallel modules.
 
-The planned Keycloak provider boundary is documented in
-`docs/keycloak-authentication-migration.md`. It is intentionally not compiled
-until JWKS verification and live route integration are implemented.
+The active Keycloak provider boundary lives in `src/authentication/`. It
+validates tokens by confidential-client introspection and maps verified subjects
+to local users before domain authorization runs.
 
 ### Database
 

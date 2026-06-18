@@ -18,6 +18,120 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-06-18 - Keycloak Authentication Boundary And Local Runtime
+
+**Branch:** `codex/keycloak-auth-layer`
+
+**Requested behavior:** Refactor authentication and baseline role validation
+toward Keycloak, create a dedicated authentication directory with detailed
+documentation, comment every function in that layer, and start a configured
+Keycloak service whenever the local database stack is started.
+
+**Root cause:** Protected route modules independently parsed and verified Mbam
+JWTs. Login, OAuth, refresh, device context, identity mapping, and role decisions
+were spread across modules. This duplicated security policy and allowed route
+behavior to drift.
+
+**Files changed:**
+
+- `mbam-api/src/authentication/README.md`
+- `mbam-api/src/authentication/mod.rs`
+- `mbam-api/src/authentication/keycloak.rs`
+- `mbam-api/src/authentication/principal.rs`
+- `mbam-api/src/authentication/repository.rs`
+- `mbam-api/src/config.rs`
+- `mbam-api/src/state.rs`
+- `mbam-api/src/main.rs`
+- `mbam-api/src/modules/businesses/routes.rs`
+- `mbam-api/src/modules/business_units/routes.rs`
+- `mbam-api/src/modules/products/routes.rs`
+- `mbam-api/src/modules/team/routes.rs`
+- `mbam-api/src/modules/transactions/routes.rs`
+- `mbam-api/src/modules/sync/routes.rs`
+- `mbam-api/.env.example`
+- `docker-compose.private.yml`
+- `docker-compose.private.env.example`
+- `keycloak/mbam-realm.json`
+- `mbam-api/README.md`
+- `REPOSITORY_MAP.md`
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Changes:**
+
+- Added `AUTH_PROVIDER=legacy|keycloak` provider selection.
+- Added Keycloak confidential-client token introspection with an eight-second
+  request timeout, active-token checks, and strict API audience validation.
+- Added immutable Keycloak `sub` mapping through `auth_identities`.
+- Added optional verified-email linking for controlled migrations only.
+- Required Keycloak to contain every recognized baseline role represented by
+  active local memberships.
+- Rejected unknown local roles, empty memberships, identity mismatches, and
+  partial role coverage.
+- Replaced duplicated bearer parsing in all identified protected route modules
+  with the shared `AuthenticationLayer`.
+- Added migration architecture, configuration, provisioning, security model,
+  validation scenarios, and remaining phases to the authentication README.
+- Added Rust unit tests for audience parsing and role-alignment edge cases.
+- Added a pinned Keycloak container, persistent local data, automatic realm
+  import, admin configuration, and host-only port publishing.
+- Added an `mbam-api` confidential client, an `mbam-web` public client, the four
+  baseline roles, and the required API audience mapper.
+- Made both full-stack Compose startup and the historical targeted `db` startup
+  bring up Keycloak.
+
+**Verification:**
+
+- Directly reviewed each protected route module because GitHub code search did
+  not reliably index the duplicated helper.
+- Confirmed application state constructs one authentication provider at startup.
+- Confirmed incomplete Keycloak settings prevent startup.
+- Confirmed Keycloak failures do not fall back to legacy token validation.
+- Confirmed every function created in `src/authentication` has a documentation
+  comment describing its use.
+- Confirmed no access token, client secret, authorization header, or complete
+  introspection response is written to logs.
+- `docker compose -f docker-compose.private.yml config`
+- `cargo fmt --all -- --check`
+- `cargo check`
+- `cargo test` (9 passed)
+- `git diff --check`
+- `docker compose -f docker-compose.private.yml up -d db`
+- Confirmed both `mbam-private-db` and `mbam-private-keycloak` are running.
+- Confirmed Keycloak imported the `mbam` realm without errors.
+- Confirmed the realm discovery endpoint responds on `127.0.0.1:8180`.
+- Confirmed the confidential `mbam-api` client can call token introspection.
+- Started the API with `AUTH_PROVIDER=keycloak` on a temporary local port and
+  confirmed `/health` returned successfully.
+
+**Errors encountered:**
+
+- GitHub code search returned no results for known authentication helpers.
+- Two updates returned HTTP 409 because create-file responses did not expose the
+  current content blob SHA; the files were re-fetched and updated safely.
+- The private repository archive could not be downloaded into the execution
+  workspace and returned HTTP 403.
+
+**Checks not run:**
+
+- Browser Authorization Code with PKCE flow
+- End-to-end protected-route request with a provisioned Keycloak user and local
+  `auth_identities` mapping
+
+**Remaining risks and follow-up:**
+
+- Browser login still uses the legacy Mbam authentication UI. Authorization Code
+  with PKCE is Phase 2 and must be completed before enabling Keycloak in production.
+- Baseline role edits still mutate local records. Keycloak Admin API synchronization
+  requires a transactional outbox and is Phase 3; an unsafe direct dual write was
+  intentionally not introduced.
+- Legacy JWT secrets remain required during migration because device context and
+  offline grant behavior still depend on existing code.
+- Token introspection makes Keycloak availability part of online API availability.
+- Provision test-user Keycloak subjects and execute cross-unit denial tests
+  before enabling Keycloak in a production release.
+
 ## 2026-06-18 - Persistent Repository Logging Rule
 
 **Related change:** `0b8194d294148e9b3400cd7010200aaa6038ba71`

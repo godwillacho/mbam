@@ -3,6 +3,7 @@
 //! The backend exposes authenticated business, team, product, transaction, and
 //! synchronization APIs over PostgreSQL.
 
+mod authentication;
 mod config;
 mod db;
 mod dev_seed;
@@ -14,32 +15,32 @@ mod routes;
 mod security;
 mod state;
 
-use crate::{config::Config, db::pool::connect_database, state::AppState};
+use crate::{
+    authentication::AuthenticationLayer, config::Config, db::pool::connect_database,
+    state::AppState,
+};
 use axum::{
     http::{header, HeaderName, HeaderValue, Method, Request},
     Router,
 };
-use std::net::SocketAddr;
+use std::{io, net::SocketAddr};
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
-
 /// Starts the Mbam API server.
 ///
-/// The entrypoint keeps startup concerns in one place:
-/// configuration loading, logging, database connection, migrations, route mounting,
-/// and HTTP serving.
+/// The entrypoint validates authentication configuration before accepting any
+/// requests, preventing a partially configured Keycloak mode from starting.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     let _observability_guards = observability::init()?;
 
     let config = Config::from_env()?;
+    let authentication = AuthenticationLayer::from_config(&config).map_err(io::Error::other)?;
     let pool = connect_database(&config.database_url).await?;
 
-    // Run migrations on startup for the early development stage.
-    // Later, production deployments should run migrations as a separate step.
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     if config.app_env == "development" {
@@ -49,24 +50,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     tracing::warn!(?error, "development test account seed failed");
                 }
             }
-            Err(error) => {
-                tracing::warn!(
-                    ?error,
-                    "development test account cleanup failed; seed skipped to avoid stale access"
-                );
-            }
+            Err(error) => tracing::warn!(
+                ?error,
+                "development test account cleanup failed; seed skipped to avoid stale access"
+            ),
         }
     }
 
-    let state = AppState::new(config.clone(), pool);
+    let state = AppState::new(config.clone(), pool, authentication);
     let app = build_router(state);
 
     let addr: SocketAddr = format!("{}:{}", config.api_host, config.api_port).parse()?;
-    tracing::info!(%addr, "starting Mbam API");
+    tracing::info!(%addr, auth_provider = %config.auth_provider, "starting Mbam API");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
-
     Ok(())
 }
 

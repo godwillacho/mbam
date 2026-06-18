@@ -11,6 +11,13 @@ pub struct Config {
     pub api_host: String,
     pub api_port: u16,
     pub database_url: String,
+    pub auth_provider: String,
+    pub keycloak_issuer_url: Option<String>,
+    pub keycloak_client_id: Option<String>,
+    pub keycloak_client_secret: Option<String>,
+    pub keycloak_audience: Option<String>,
+    pub keycloak_role_client_id: Option<String>,
+    pub keycloak_allow_email_linking: bool,
     pub jwt_access_secret: String,
     pub access_token_minutes: i64,
     pub refresh_token_days: i64,
@@ -55,6 +62,13 @@ impl Config {
             api_host: read_or_default("API_HOST", "127.0.0.1"),
             api_port: parse_positive("API_PORT", "8080")?,
             database_url: required_var("DATABASE_URL")?,
+            auth_provider: read_or_default("AUTH_PROVIDER", "legacy").to_lowercase(),
+            keycloak_issuer_url: optional_var("KEYCLOAK_ISSUER_URL"),
+            keycloak_client_id: optional_var("KEYCLOAK_CLIENT_ID"),
+            keycloak_client_secret: optional_var("KEYCLOAK_CLIENT_SECRET"),
+            keycloak_audience: optional_var("KEYCLOAK_AUDIENCE"),
+            keycloak_role_client_id: optional_var("KEYCLOAK_ROLE_CLIENT_ID"),
+            keycloak_allow_email_linking: read_bool("KEYCLOAK_ALLOW_EMAIL_LINKING", false),
             jwt_access_secret,
             access_token_minutes: parse_positive("ACCESS_TOKEN_MINUTES", "15")?,
             refresh_token_days: parse_positive("REFRESH_TOKEN_DAYS", "30")?,
@@ -101,6 +115,15 @@ where
     Ok(value)
 }
 
+/// Reads a boolean environment variable with a deterministic fallback.
+fn read_bool(key: &str, default_value: bool) -> bool {
+    env::var(key)
+        .ok()
+        .and_then(|value| value.parse::<bool>().ok())
+        .unwrap_or(default_value)
+}
+
+/// Reads a trimmed optional environment variable and rejects placeholders.
 fn optional_var(key: &str) -> Option<String> {
     env::var(key)
         .ok()

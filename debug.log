@@ -28,3 +28,16 @@ Verification: Confirmed the provider module is exposed and public functions incl
 2026-06-18
 Change: Reconciled the repository cleanup with concurrent Keycloak provider-boundary work.
 Details: Preserved the Keycloak migration design as documentation and removed both non-runtime scaffold implementations, which otherwise produced 22 dead-code warnings.
+
+2026-06-18
+Change: Introduced mbam-api/src/authentication as the centralized authentication boundary.
+Debugging: Mapped duplicated JWT parsing in business, business-unit, product, team, transaction, and sync routes.
+Implementation: Added legacy/keycloak provider selection, Keycloak token introspection, audience validation, immutable subject mapping, verified-email migration linking, and complete baseline-role alignment.
+Verification: Confirmed all identified protected route modules call AuthenticationLayer::authenticate_user_id and no longer contain their own bearer-token verifier.
+Tests added: Audience scalar/array checks, custom baseline normalization, multiple-role coverage, unknown-role denial, and empty-membership denial.
+Security review: Keycloak roles grant no domain access without active local memberships; missing configuration and role mismatches fail closed.
+
+2026-06-18
+Change: Finished the local Keycloak runtime and reconciled the authentication merge with the stricter configuration and observability implementation.
+Implementation: Added a pinned Keycloak Compose service, persistent data, automatic Mbam realm import, API/web clients, audience mapping, baseline roles, and startup coupling with the database service.
+Verification: Compose configuration rendered successfully; Rust formatting, compile checks, all 9 backend tests, and whitespace validation passed. Targeted database startup also started Keycloak, the realm import completed, discovery and confidential-client introspection responded, and the API started in Keycloak mode with a healthy endpoint.

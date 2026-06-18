@@ -20,21 +20,26 @@ The API is the security boundary between the React frontend and PostgreSQL. The 
 - `src/modules/` contains the active auth, business, unit, product, team,
   transaction, and sync domains.
 
-## Local development with Docker PostgreSQL
+## Local development with Docker PostgreSQL and Keycloak
 
 Run these commands from the repository root:
 
 ```bash
 cp docker-compose.private.env.example .env
-docker compose -f docker-compose.private.yml up -d db
+docker compose -f docker-compose.private.yml up -d
 docker compose -f docker-compose.private.yml ps
 ```
 
-Verify PostgreSQL before starting the API:
+This starts PostgreSQL and Keycloak together. Running the historical targeted
+command `docker compose -f docker-compose.private.yml up -d db` also starts
+Keycloak because the database service declares it as a startup dependency.
+
+Verify both services before starting the API:
 
 ```bash
 docker exec mbam-private-db pg_isready -U mbam -d mbam
 docker exec mbam-private-db psql -U mbam -d mbam -c "select current_database(), current_user;"
+curl --fail http://127.0.0.1:8180/realms/mbam/.well-known/openid-configuration
 ```
 
 Run the API directly on the host:
@@ -47,7 +52,11 @@ cargo run
 
 The host API must use `127.0.0.1:${POSTGRES_HOST_PORT}` because Docker publishes PostgreSQL to the Mac. The default host port is `5432`; set `POSTGRES_HOST_PORT=5433` in the root `.env` when another local PostgreSQL service already owns `5432`. An API running inside Compose must use `db:5432`; `db` is only resolvable on the Compose network.
 
-The database name, user, and password in `mbam-api/.env` must match `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` in the root `.env`.
+The database name, user, and password in `mbam-api/.env` must match
+`POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` in the root `.env`.
+For local Keycloak mode, copy the Keycloak values from
+`mbam-api/.env.example`; the imported realm uses the matching development-only
+`mbam-api` client secret.
 
 PostgreSQL initialization variables apply only when the data volume is created. If `POSTGRES_PASSWORD` was changed after the first startup, either restore the old value or update the existing role without deleting data:
 
@@ -60,7 +69,7 @@ For disposable test data only, the alternative is to recreate the volume:
 
 ```bash
 docker compose -f docker-compose.private.yml down -v
-docker compose -f docker-compose.private.yml up -d db
+docker compose -f docker-compose.private.yml up -d
 ```
 
 `down -v` permanently deletes the local database.
@@ -70,21 +79,29 @@ The API defaults to `127.0.0.1:8080`.
 Logging and optional Sentry configuration are documented in
 [`../docs/observability.md`](../docs/observability.md).
 
-## Keycloak authentication migration
+## Keycloak authentication
 
-The long-term authentication and role-management target is Keycloak. The
-migration design is documented in
-[`../docs/keycloak-authentication-migration.md`](../docs/keycloak-authentication-migration.md).
+Protected API routes now use the centralized authentication layer. Set
+`AUTH_PROVIDER=keycloak` to validate access tokens through the imported `mbam`
+realm, or retain `AUTH_PROVIDER=legacy` during staged migration.
 
-Current state:
+The local realm is imported from `keycloak/mbam-realm.json` and includes:
 
-- Live routes still use Mbam's local JWT verification until Keycloak issuer, audience, and JWKS verification are configured.
-- Baseline roles must be anchored in Keycloak as `mbam_master_owner`, `mbam_business_admin`, `mbam_shop_manager`, or `mbam_cashier`.
-- Custom roles are additive open clauses only and must not grant access without a baseline role.
+- the confidential `mbam-api` introspection client;
+- the public `mbam-web` Authorization Code client;
+- the `master_owner`, `business_admin`, `shop_manager`, and `cashier` roles;
+- an audience mapper that places `mbam-api` in web access tokens.
+
+Keycloak identity and role claims never replace Mbam's PostgreSQL scope checks.
+Each accepted Keycloak subject must map to an active local user, and its roles
+must cover every active local membership baseline. See
+[`src/authentication/README.md`](src/authentication/README.md) for provisioning
+and migration details.
 
 ## Full Compose stack
 
-The private Compose file is intentionally database-only for local development. Run the API and web server directly on the host.
+The private Compose file manages PostgreSQL and Keycloak. Run the API and web
+server directly on the host.
 ## Google sign-in
 
 Create an OAuth 2.0 Client ID for a **Web application** in Google Cloud Console.

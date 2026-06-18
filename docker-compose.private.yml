@@ -1,7 +1,7 @@
-# Local PostgreSQL for Mbam development.
+# Local PostgreSQL and Keycloak for Mbam development.
 #
 # Run the Rust API and Vite web server directly on the host. This compose file
-# intentionally manages only the database.
+# starts the database and identity provider together.
 
 services:
   db:
@@ -21,6 +21,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    depends_on:
+      keycloak:
+        condition: service_started
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    container_name: mbam-private-keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-change_this_local_admin_password}
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - mbam_private_keycloak_data:/opt/keycloak/data
+      - ./keycloak/mbam-realm.json:/opt/keycloak/data/import/mbam-realm.json:ro
+    ports:
+      - "127.0.0.1:${KEYCLOAK_HOST_PORT:-8180}:8080"
 
 volumes:
   mbam_private_pgdata:
+  mbam_private_keycloak_data:
