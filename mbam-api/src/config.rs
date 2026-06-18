@@ -10,6 +10,13 @@ pub struct Config {
     pub api_host: String,
     pub api_port: u16,
     pub database_url: String,
+    pub auth_provider: String,
+    pub keycloak_issuer_url: Option<String>,
+    pub keycloak_client_id: Option<String>,
+    pub keycloak_client_secret: Option<String>,
+    pub keycloak_audience: Option<String>,
+    pub keycloak_role_client_id: Option<String>,
+    pub keycloak_allow_email_linking: bool,
     pub jwt_access_secret: String,
     pub jwt_refresh_secret: String,
     pub access_token_minutes: i64,
@@ -39,20 +46,19 @@ impl Config {
             api_host: read_or_default("API_HOST", "127.0.0.1"),
             api_port: read_or_default("API_PORT", "8080").parse().unwrap_or(8080),
             database_url: env::var("DATABASE_URL")?,
+            auth_provider: read_or_default("AUTH_PROVIDER", "legacy").to_lowercase(),
+            keycloak_issuer_url: optional_var("KEYCLOAK_ISSUER_URL"),
+            keycloak_client_id: optional_var("KEYCLOAK_CLIENT_ID"),
+            keycloak_client_secret: optional_var("KEYCLOAK_CLIENT_SECRET"),
+            keycloak_audience: optional_var("KEYCLOAK_AUDIENCE"),
+            keycloak_role_client_id: optional_var("KEYCLOAK_ROLE_CLIENT_ID"),
+            keycloak_allow_email_linking: read_bool("KEYCLOAK_ALLOW_EMAIL_LINKING", false),
             jwt_access_secret: env::var("JWT_ACCESS_SECRET")?,
             jwt_refresh_secret: env::var("JWT_REFRESH_SECRET")?,
-            access_token_minutes: read_or_default("ACCESS_TOKEN_MINUTES", "15")
-                .parse()
-                .unwrap_or(15),
-            refresh_token_days: read_or_default("REFRESH_TOKEN_DAYS", "30")
-                .parse()
-                .unwrap_or(30),
-            offline_grant_private_key_pem: env::var("OFFLINE_GRANT_PRIVATE_KEY_PEM")
-                .ok()
-                .map(|value| value.replace("\\n", "\n")),
-            offline_grant_days: read_or_default("OFFLINE_GRANT_DAYS", "7")
-                .parse()
-                .unwrap_or(7),
+            access_token_minutes: read_or_default("ACCESS_TOKEN_MINUTES", "15").parse().unwrap_or(15),
+            refresh_token_days: read_or_default("REFRESH_TOKEN_DAYS", "30").parse().unwrap_or(30),
+            offline_grant_private_key_pem: env::var("OFFLINE_GRANT_PRIVATE_KEY_PEM").ok().map(|value| value.replace("\\n", "\n")),
+            offline_grant_days: read_or_default("OFFLINE_GRANT_DAYS", "7").parse().unwrap_or(7),
             web_origin: read_or_default("WEB_ORIGIN", "http://localhost:5173"),
             google_oauth_client_id: optional_var("GOOGLE_OAUTH_CLIENT_ID"),
             google_oauth_client_secret: optional_var("GOOGLE_OAUTH_CLIENT_SECRET"),
@@ -75,6 +81,15 @@ fn read_or_default(key: &str, default_value: &str) -> String {
     env::var(key).unwrap_or_else(|_| default_value.to_string())
 }
 
+/// Reads a boolean environment variable with a deterministic fallback.
+fn read_bool(key: &str, default_value: bool) -> bool {
+    env::var(key)
+        .ok()
+        .and_then(|value| value.parse::<bool>().ok())
+        .unwrap_or(default_value)
+}
+
+/// Reads a trimmed optional environment variable and rejects placeholders.
 fn optional_var(key: &str) -> Option<String> {
     env::var(key)
         .ok()
