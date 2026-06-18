@@ -7,3 +7,4 @@
 //! rules.
 
 pub mod keycloak;
+pub mod provider;
