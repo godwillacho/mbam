@@ -8,3 +8,8 @@
   GitHub remote, and confirm local and remote `main` are identical and clean.
 - Never force-push, reset destructively, or leave completed changes uncommitted
   unless the user explicitly asks to keep the work local or incomplete.
+- For every code update, create or update `debug.log` and `error.log` in the
+  repository root. Record implementation and verification details in
+  `debug.log`, and record encountered errors in `error.log`; keep `error.log`
+  present even when no errors occur. Never write secrets, credentials, tokens,
+  personal data, or other sensitive values to either log.
