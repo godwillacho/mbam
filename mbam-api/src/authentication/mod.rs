@@ -120,14 +120,21 @@ fn required(value: &Option<String>, name: &str) -> Result<String, String> {
     value.clone().ok_or_else(|| format!("{name} is required when AUTH_PROVIDER=keycloak"))
 }
 
-/// Confirms that Keycloak contains every baseline role required by active local memberships.
+/// Confirms that Keycloak contains every recognized active local baseline role.
 fn roles_align(keycloak_roles: &BTreeSet<String>, local_roles: &[String]) -> bool {
-    let required_roles = local_roles
-        .iter()
-        .filter_map(|role| baseline_role(role))
-        .collect::<BTreeSet<_>>();
-    !required_roles.is_empty()
-        && required_roles.iter().all(|role| keycloak_roles.contains(*role))
+    if local_roles.is_empty() {
+        return false;
+    }
+
+    let mut required_roles = BTreeSet::new();
+    for local_role in local_roles {
+        let Some(role) = baseline_role(local_role) else {
+            return false;
+        };
+        required_roles.insert(role);
+    }
+
+    required_roles.iter().all(|role| keycloak_roles.contains(*role))
 }
 
 /// Reduces a standard or custom local role code to its least-privilege baseline role.
@@ -159,6 +166,7 @@ mod tests {
         assert!(roles_align(&cashier_only, &["custom_member_cashier_senior".to_string()]));
         assert!(!roles_align(&cashier_only, &["cashier".to_string(), "shop_manager".to_string()]));
         assert!(!roles_align(&cashier_only, &["unknown".to_string()]));
+        assert!(!roles_align(&cashier_only, &[]));
 
         let cashier_and_manager = BTreeSet::from(["cashier".to_string(), "shop_manager".to_string()]);
         assert!(roles_align(
