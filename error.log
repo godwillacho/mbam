@@ -1,3 +1,15 @@
 2026-06-18
 Encountered: AGENTS.md conflicted while integrating concurrent remote logging-rule updates.
 Resolution: Preserved the remote structured logging requirements and added the explicit root debug.log and error.log requirements.
+
+2026-06-18
+Encountered: GitHub code search did not index the duplicated authenticated_user_id helpers reliably.
+Resolution: Fetched and reviewed each known protected route file directly before replacing the helpers.
+
+2026-06-18
+Encountered: Two sequential GitHub updates returned 409 because create-file responses did not provide reusable content blob SHAs.
+Resolution: Re-fetched the branch files and repeated the updates using their current blob SHAs.
+
+2026-06-18
+Encountered: Cargo check and integration tests could not be executed because the execution workspace has no repository checkout or Rust toolchain, and private archive download returned HTTP 403.
+Resolution: Added focused Rust unit tests and documented the required local verification commands. No successful compile is claimed.
