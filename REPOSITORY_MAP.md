@@ -75,6 +75,10 @@ Users, business accounts, memberships, roles, and permissions are relational
 concepts handled by `auth/` and `team/`; they intentionally do not have empty
 parallel modules.
 
+The planned Keycloak provider boundary is documented in
+`docs/keycloak-authentication-migration.md`. It is intentionally not compiled
+until JWKS verification and live route integration are implemented.
+
 ### Database
 
 `migrations/0001...0009` are ordered schema history. Never edit an applied

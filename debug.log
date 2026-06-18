@@ -15,3 +15,16 @@ Organization: Added REPOSITORY_MAP.md, rewrote active module documentation, and 
 Security: Removed unused refresh-secret configuration, removed secret-bearing Debug support from Config, added strict positive environment parsing, enforced a 32-character production access-token secret, retained direct-API security boundaries, and fixed the reported npm form-data vulnerability.
 Verification: Rust check/tests/strict Clippy passed; frontend type-check/lint/all 29 tests/production build passed; Knip reports no unused files, exports, types, or dependencies; npm audit reports zero vulnerabilities; git diff check passed.
 Final scope: 101 files changed, with 5,237 lines removed and 923 lines added after formatting, mapping, and required log updates.
+
+2026-06-18
+Change: Added the initial identity integration scaffold.
+Details: Added a backend boundary directory, documented role-baseline mapping, and linked the migration guide from the API README.
+Verification: Reviewed current team and README files through GitHub before patching; verified the new module is registered in main.rs.
+
+2026-06-18
+Change: Expanded the identity boundary with a provider module and README details.
+Verification: Confirmed the provider module is exposed and public functions include use comments.
+
+2026-06-18
+Change: Reconciled the repository cleanup with concurrent Keycloak provider-boundary work.
+Details: Preserved the Keycloak migration design as documentation and removed both non-runtime scaffold implementations, which otherwise produced 22 dead-code warnings.

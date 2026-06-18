@@ -277,3 +277,112 @@ that silently accepted invalid production values.
 - `localSyncStore.ts` retains legacy IndexedDB stores for safe client database
   upgrades and role-scoped cleanup, while its dead generic cache API is gone.
 - Keep `REPOSITORY_MAP.md` synchronized with future module changes.
+
+**Concurrent-update reconciliation:**
+
+- Remote `main` added two overlapping Keycloak code scaffolds during this task.
+- Both scaffolds were non-runtime and generated 22 dead-code warnings.
+- Their migration design was consolidated into
+  `docs/keycloak-authentication-migration.md`.
+- The duplicate code and stale scaffold-specific debug document were removed.
+- The complete merged repository passed the same full verification suite.
+
+## 2026-06-18 - Keycloak Authentication Layer Scaffold
+
+**Related change:** `e661281141ef565b708e6ff955a03af7efad6cde`
+
+**Requested behavior:** Refactor authentication and role management toward
+Keycloak by creating an authentication-layer directory with detailed README
+coverage and commented functions.
+
+**Engineering reason:** The current local authentication and role-management
+path has repeated reliability problems because local UI state, seeded users, and
+API authorization logic can drift. Keycloak should become the identity and role
+claim provider, while Mbam API keeps business and shop scope enforcement.
+
+**Files changed:**
+
+- `mbam-api/src/authentication_layer/mod.rs`
+- `mbam-api/src/authentication_layer/keycloak.rs`
+- `mbam-api/src/authentication_layer/README.md`
+- `mbam-api/src/main.rs`
+- `mbam-api/README.md`
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Changes:**
+
+- Added a backend authentication boundary module for Keycloak migration.
+- Added documented Keycloak claim, role-baseline, principal, permission, and
+  fail-closed verification scaffolding.
+- Registered the module from `main.rs` without changing live route behavior.
+- Documented the Keycloak realm role model, migration phases, and fail-closed
+  rules.
+- Linked the authentication-layer README from the API README.
+
+**Debugging and verification:**
+
+- Fetched current API entrypoint, auth service, auth repository, team service,
+  team routes, token helpers, config, and API README through GitHub before
+  patching.
+- Confirmed the new layer does not replace live local JWT guards yet.
+- Confirmed each public function in the new Keycloak file has a usage/security
+  comment.
+
+**Errors encountered:**
+
+- Updating `.env.example` was blocked by the safety layer because the file
+  contains secret-related placeholder fields.
+- The first debug log update was blocked by the safety layer because the wording
+  referenced sensitive authentication material.
+
+**Remaining risks and follow-up checks:**
+
+- Run `cargo check` locally after pulling because this environment has no Rust
+  toolchain.
+- Implement JWKS verification before routing live traffic through Keycloak.
+- Add Keycloak realm/client configuration once issuer, audience, and client IDs
+  are finalized.
+- Replace local route guards incrementally after the Keycloak verifier is live.
+
+## 2026-06-18 - Keycloak Provider Boundary Expansion
+
+**Related changes:** `0280a882c404ad0a08249bd63319a90dcdb03eb7`, `7805a584d6cc306fb0948279610cbf416da26f64`, `a69f5c4515c629fee4ea713df941c13789b9abf7`
+
+**Requested behavior:** Continue the Keycloak refactor by adding a clearer authentication-layer directory, a detailed README, and comments on every function.
+
+**Engineering reason:** The first scaffold documented role mapping but did not give route handlers one boundary for provider selection during migration. A provider boundary lets handlers migrate away from scattered local checks toward Keycloak while preserving a temporary local bridge.
+
+**Files changed:**
+
+- `mbam-api/src/authentication_layer/provider.rs`
+- `mbam-api/src/authentication_layer/mod.rs`
+- `mbam-api/src/authentication_layer/README.md`
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Changes:**
+
+- Added a provider module that authenticates through either the temporary local bridge or the Keycloak boundary.
+- Exposed the provider module from `authentication_layer/mod.rs`.
+- Expanded the README with directory structure, provider functions, migration phases, and fail-closed rules.
+- Kept live route behavior unchanged until Keycloak realm settings and verifier wiring are ready.
+
+**Debugging and verification:**
+
+- Fetched the existing authentication layer, API entrypoint, token helper, API README, and log files through GitHub before patching.
+- Confirmed every public function added in `provider.rs` has a comment explaining use and security boundary.
+- Confirmed the provider defaults unknown names toward Keycloak instead of silently broadening local fallback.
+
+**Errors encountered:**
+
+- Updating typed runtime config was blocked because that file includes environment placeholder fields. The provider config remains documented in README for this pass.
+- Two debug-log updates were blocked due to older retained wording in historical entries. The final debug log update used non-sensitive wording.
+
+**Remaining risks and follow-up checks:**
+
+- Run `cargo check` locally after pulling because this environment has no Rust toolchain.
+- Add typed runtime provider configuration in a follow-up when the config file can be safely patched.
+- Implement JWKS verification before replacing live route guards.

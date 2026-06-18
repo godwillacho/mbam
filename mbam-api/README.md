@@ -17,7 +17,8 @@ The API is the security boundary between the React frontend and PostgreSQL. The 
 - `src/db/` contains database connection helpers.
 - `src/routes/` contains top-level API routes.
 - `src/security/` contains password hashing and token helpers.
-- `src/modules/` contains domain modules for auth, users, accounts, businesses, units, roles, permissions, memberships, and sync.
+- `src/modules/` contains the active auth, business, unit, product, team,
+  transaction, and sync domains.
 
 ## Local development with Docker PostgreSQL
 
@@ -69,6 +70,21 @@ The API defaults to `127.0.0.1:8080`.
 Logging and optional Sentry configuration are documented in
 [`../docs/observability.md`](../docs/observability.md).
 
+## Keycloak authentication migration
+
+The long-term authentication and role-management target is Keycloak. The
+migration design is documented in
+[`../docs/keycloak-authentication-migration.md`](../docs/keycloak-authentication-migration.md).
+
+Current state:
+
+- Live routes still use Mbam's local JWT verification until Keycloak issuer, audience, and JWKS verification are configured.
+- Baseline roles must be anchored in Keycloak as `mbam_master_owner`, `mbam_business_admin`, `mbam_shop_manager`, or `mbam_cashier`.
+- Custom roles are additive open clauses only and must not grant access without a baseline role.
+
+## Full Compose stack
+
+The private Compose file is intentionally database-only for local development. Run the API and web server directly on the host.
 ## Google sign-in
 
 Create an OAuth 2.0 Client ID for a **Web application** in Google Cloud Console.
