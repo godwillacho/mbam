@@ -1,3 +1,11 @@
 2026-06-18
 Change: Added the repository-wide debug and error logging rule.
 Verification: Confirmed AGENTS.md requires root debug.log, root error.log, and a structured engineering log entry for every code update.
+
+2026-06-18
+Change: Introduced mbam-api/src/authentication as the centralized authentication boundary.
+Debugging: Mapped duplicated JWT parsing in business, business-unit, product, team, transaction, and sync routes.
+Implementation: Added legacy/keycloak provider selection, Keycloak token introspection, audience validation, immutable subject mapping, verified-email migration linking, and complete baseline-role alignment.
+Verification: Confirmed all identified protected route modules call AuthenticationLayer::authenticate_user_id and no longer contain their own bearer-token verifier.
+Tests added: Audience scalar/array checks, custom baseline normalization, multiple-role coverage, unknown-role denial, and empty-membership denial.
+Security review: Keycloak roles grant no domain access without active local memberships; missing configuration and role mismatches fail closed.
