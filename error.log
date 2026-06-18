@@ -61,3 +61,11 @@ Encountered: The first formatting check reported style differences in the incomi
 Resolution: Applied rustfmt to the Rust workspace and repeated the checks successfully.
 Encountered: The first local discovery request ran inside the restricted sandbox and could not reach the host-published Keycloak port.
 Resolution: Repeated the harmless localhost request with approved host access; realm discovery, client introspection, and API health verification succeeded.
+
+2026-06-18
+Encountered: The initial authorization-context compile found a missing employee invitation type import and required Axum's async-trait annotation on custom extractors.
+Resolution: Added the missing import and annotated both extractors; strict Clippy and all backend tests now pass.
+Encountered: The local shell does not provide the timeout utility used in the first API startup attempt.
+Resolution: Ran the API in an interactive session, verified health and migrations, and stopped it explicitly.
+Encountered: One live denial check reused an expired short-lived development access token and returned 401.
+Resolution: Re-authenticated without logging credentials or token values and confirmed the intended shop-manager role-elevation attempt returns 403.

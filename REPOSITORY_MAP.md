@@ -65,6 +65,7 @@ contains request/response/database contracts.
 | Module | Routes / ownership |
 | --- | --- |
 | `modules/auth/` | Signup, login, refresh, logout, OAuth, reset, offline grants |
+| `modules/authorization/` | Current-user authorization bootstrap and server-approved routes |
 | `modules/businesses/` | Scoped business listing and creation |
 | `modules/business_units/` | Scoped shop/unit listing, creation, update |
 | `modules/products/` | Scoped catalogue CRUD and product sync records |
@@ -77,8 +78,9 @@ concepts handled by `auth/` and `team/`; they intentionally do not have empty
 parallel modules.
 
 The active Keycloak provider boundary lives in `src/authentication/`. It
-validates tokens by confidential-client introspection and maps verified subjects
-to local users before domain authorization runs.
+validates tokens by confidential-client introspection, maps verified subjects
+to active local users, loads membership-scoped grants, rejects baseline-role
+conflicts, and provides the reusable request authorization context.
 
 ### Database
 
@@ -116,6 +118,7 @@ migration; add a new numbered migration.
 | `security/accessControl.ts` | Client-side navigation/display restrictions |
 | `services/apiClient.ts` | Authenticated HTTP, device headers, safe errors |
 | `services/auth*.ts` | Sessions and cloud/offline authentication |
+| `services/authorizationService.ts` | Sole online authorization bootstrap adapter |
 | `services/deviceBindingService.ts` | Browser device identity |
 | `services/encryptionService.ts` | Web Crypto encryption and key wrapping |
 | `services/offlineVaultService.ts` | In-memory unlocked data key |

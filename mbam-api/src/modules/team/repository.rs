@@ -351,23 +351,10 @@ pub async fn list_units(db: &PgPool, user_id: Uuid) -> Result<Vec<UnitScopeRespo
 }
 
 pub async fn authorization_version(db: &PgPool, user_id: Uuid) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar(
-        r#"
-        select coalesce((extract(epoch from max(changed_at)) * 1000)::bigint, 0)
-        from (
-          select updated_at as changed_at from memberships where user_id = $1
-          union all
-          select r.created_at from roles r join memberships m on m.role_id = r.id where m.user_id = $1
-          union all
-          select mbs.created_at from membership_business_scopes mbs join memberships m on m.id = mbs.membership_id where m.user_id = $1
-          union all
-          select mbus.created_at from membership_business_unit_scopes mbus join memberships m on m.id = mbus.membership_id where m.user_id = $1
-        ) changes
-        "#,
-    )
-    .bind(user_id)
-    .fetch_one(db)
-    .await
+    sqlx::query_scalar("select authorization_version from users where id = $1")
+        .bind(user_id)
+        .fetch_one(db)
+        .await
 }
 
 pub async fn permitted_scope(

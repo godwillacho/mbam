@@ -120,7 +120,7 @@ export default function AppShell() {
       </aside>
       <main className="main-panel">
         <header className="topbar">
-          <div><span className="eyebrow">{t("app.workspaceLabel")}</span><h1>{workspaceName}</h1></div>
+          <div><span className="eyebrow">{currentMember.roleName ?? t(`roles.${currentMember.roleId}`)}</span><h1>{currentMember.fullName}</h1></div>
           <div className="topbar-actions">
             {isDevEnvironment && isDemoWorkspace() && (
               <label className="dev-account-switcher"><span>{t("app.devAccount")}</span><select value={currentMember.id} onChange={(event) => { setCurrentMemberId(event.target.value); setCurrentMember(getCurrentMember()); }}>

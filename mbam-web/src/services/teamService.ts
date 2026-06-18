@@ -20,6 +20,7 @@ export interface TeamEmployee {
   business_account_id: string;
   business_id?: string;
   business_unit_id?: string;
+  authorized_route_keys?: string[];
   status: "active" | "disabled";
   updated_at: string;
 }

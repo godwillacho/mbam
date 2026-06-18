@@ -48,6 +48,17 @@ describe("product management access", () => {
 });
 
 describe("custom screen access", () => {
+  it("uses the server-authorized route list before local permissions", () => {
+    const shopManager = member("role-shop-manager", [
+      "screen.businesses",
+      "screen.team",
+    ]);
+    shopManager.authorizedRouteKeys = ["team"];
+
+    expect(canAccessRoute(shopManager, "team")).toBe(true);
+    expect(canAccessRoute(shopManager, "businesses")).toBe(false);
+  });
+
   it("allows only explicitly granted screens", () => {
     const customMember = member("role-custom", [
       "screen.transactions",

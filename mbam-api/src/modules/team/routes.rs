@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::{delete, get, patch, post},
     Json, Router,
 };
@@ -8,7 +8,11 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::{error::ApiError, state::AppState};
+use crate::{
+    authentication::{AuthenticatedPrincipal, AuthorizationContext},
+    error::ApiError,
+    state::AppState,
+};
 
 use super::{
     model::{CreateInvitationRequest, RegisterInvitationRequest, UpdateTeamMemberRequest},
@@ -38,27 +42,19 @@ pub fn invitation_router() -> Router<AppState> {
 
 async fn workspace(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
 ) -> Result<Json<super::model::TeamWorkspaceResponse>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
-    Ok(Json(service::workspace(&state.db, user_id).await?))
+    Ok(Json(service::workspace(&state.db, &authorization).await?))
 }
 
 async fn create_invitation(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Json(payload): Json<CreateInvitationRequest>,
 ) -> Result<(StatusCode, Json<super::model::CreateInvitationResponse>), ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
     Ok((
         StatusCode::CREATED,
-        Json(service::create_invitation(&state.db, &state.config, user_id, payload).await?),
+        Json(service::create_invitation(&state.db, &state.config, &authorization, payload).await?),
     ))
 }
 
@@ -73,15 +69,11 @@ async fn invitation_details(
 
 async fn accept_invitation(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    principal: AuthenticatedPrincipal,
     Json(payload): Json<TokenPayload>,
 ) -> Result<Json<super::model::TeamMemberResponse>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
     Ok(Json(
-        service::accept_invitation(&state.db, user_id, &payload.token).await?,
+        service::accept_invitation(&state.db, principal.user_id, &payload.token).await?,
     ))
 }
 
@@ -95,42 +87,30 @@ async fn register_invitation(
 
 async fn update_member(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Path(membership_id): Path<Uuid>,
     Json(payload): Json<UpdateTeamMemberRequest>,
 ) -> Result<Json<super::model::TeamMemberResponse>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
     Ok(Json(
-        service::update_member(&state.db, user_id, membership_id, payload).await?,
+        service::update_member(&state.db, &authorization, membership_id, payload).await?,
     ))
 }
 
 async fn delete_member(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Path(membership_id): Path<Uuid>,
 ) -> Result<Json<super::model::TeamMemberResponse>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
     Ok(Json(
-        service::delete_member(&state.db, user_id, membership_id).await?,
+        service::delete_member(&state.db, &authorization, membership_id).await?,
     ))
 }
 
 async fn cancel_invitation(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Path(invitation_id): Path<Uuid>,
 ) -> Result<Json<Value>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
-    service::cancel_invitation(&state.db, user_id, invitation_id).await?;
+    service::cancel_invitation(&state.db, &authorization, invitation_id).await?;
     Ok(Json(json!({ "message": "invitation cancelled" })))
 }

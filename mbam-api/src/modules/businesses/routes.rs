@@ -1,12 +1,13 @@
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::get,
     Json, Router,
 };
 use uuid::Uuid;
 
 use crate::{
+    authentication::AuthorizationContext,
     error::ApiError,
     modules::business_units::{
         model::{BusinessUnit, CreateBusinessUnitRequest},
@@ -28,52 +29,38 @@ pub fn router() -> Router<AppState> {
 
 async fn list(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
 ) -> Result<Json<Vec<Business>>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
-    Ok(Json(service::list(&state.db, user_id).await?))
+    Ok(Json(service::list(&state.db, authorization.user_id).await?))
 }
 
 async fn create(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Json(payload): Json<CreateBusinessRequest>,
 ) -> Result<(StatusCode, Json<Business>), ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
-    let business = service::create(&state.db, user_id, payload).await?;
+    let business = service::create(&state.db, authorization.user_id, payload).await?;
     Ok((StatusCode::CREATED, Json(business)))
 }
 
 async fn list_units(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Path(business_id): Path<Uuid>,
 ) -> Result<Json<Vec<BusinessUnit>>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
     Ok(Json(
-        business_unit_service::list(&state.db, user_id, business_id).await?,
+        business_unit_service::list(&state.db, authorization.user_id, business_id).await?,
     ))
 }
 
 async fn create_unit(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Path(business_id): Path<Uuid>,
     Json(payload): Json<CreateBusinessUnitRequest>,
 ) -> Result<(StatusCode, Json<BusinessUnit>), ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
-    let unit = business_unit_service::create(&state.db, user_id, business_id, payload).await?;
+    let unit =
+        business_unit_service::create(&state.db, authorization.user_id, business_id, payload)
+            .await?;
     Ok((StatusCode::CREATED, Json(unit)))
 }

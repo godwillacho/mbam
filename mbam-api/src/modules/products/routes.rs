@@ -1,12 +1,12 @@
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::{get, patch, post},
     Json, Router,
 };
 use uuid::Uuid;
 
-use crate::{error::ApiError, state::AppState};
+use crate::{authentication::AuthorizationContext, error::ApiError, state::AppState};
 
 use super::{
     model::{BulkCreateProductsRequest, Product, ProductWriteRequest},
@@ -22,70 +22,50 @@ pub fn router() -> Router<AppState> {
 
 async fn list(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
 ) -> Result<Json<Vec<Product>>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
-    Ok(Json(service::list(&state.db, user_id).await?))
+    Ok(Json(service::list(&state.db, authorization.user_id).await?))
 }
 
 async fn create(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Json(payload): Json<ProductWriteRequest>,
 ) -> Result<(StatusCode, Json<Product>), ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
     Ok((
         StatusCode::CREATED,
-        Json(service::create(&state.db, user_id, payload).await?),
+        Json(service::create(&state.db, authorization.user_id, payload).await?),
     ))
 }
 
 async fn create_bulk(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Json(payload): Json<BulkCreateProductsRequest>,
 ) -> Result<(StatusCode, Json<Vec<Product>>), ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
     Ok((
         StatusCode::CREATED,
-        Json(service::create_bulk(&state.db, user_id, payload).await?),
+        Json(service::create_bulk(&state.db, authorization.user_id, payload).await?),
     ))
 }
 
 async fn update(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Path(product_id): Path<Uuid>,
     Json(payload): Json<ProductWriteRequest>,
 ) -> Result<Json<Product>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
     Ok(Json(
-        service::update(&state.db, user_id, product_id, payload).await?,
+        service::update(&state.db, authorization.user_id, product_id, payload).await?,
     ))
 }
 
 async fn disable(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    authorization: AuthorizationContext,
     Path(product_id): Path<Uuid>,
 ) -> Result<Json<Product>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
     Ok(Json(
-        service::disable(&state.db, user_id, product_id).await?,
+        service::disable(&state.db, authorization.user_id, product_id).await?,
     ))
 }

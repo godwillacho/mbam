@@ -2,13 +2,15 @@ import { updateCloudWorkspace, workspace } from "../data/mockWorkspace";
 import { setCurrentMemberId } from "../security/accessControl";
 import type { PaymentMethod, ScopeLevel, TeamMember, TransactionStatus } from "../types/workspace";
 import { listBusinesses, listBusinessUnits } from "./businessService";
+import {
+  authorizationBootstrapToTeamWorkspace,
+  loadAuthorizationBootstrap,
+} from "./authorizationService";
 import { getCurrentSession } from "./authService";
 import { getValidOfflineAuthorizationSnapshot } from "./offlineAuthorizationSnapshotService";
 import { listProducts } from "./productService";
-import { loadTeamWorkspace, type TeamEmployee, type TeamWorkspace } from "./teamService";
+import type { TeamEmployee, TeamWorkspace } from "./teamService";
 import { listCloudTransactions } from "./transactionService";
-
-let authorizationCache: { userId: string; team: TeamWorkspace } | undefined;
 
 function roleId(code: string): string {
   return `role-${code.replace(/_/g, "-")}`;
@@ -33,6 +35,9 @@ function toTeamMember(member: TeamEmployee, permissions?: string[], grantedBusin
     businessUnitId: member.business_unit_id,
     ...(grantedBusinessIds ? { businessIds: grantedBusinessIds } : {}),
     ...(grantedBusinessUnitIds ? { businessUnitIds: grantedBusinessUnitIds } : {}),
+    ...(member.authorized_route_keys
+      ? { authorizedRouteKeys: member.authorized_route_keys }
+      : {}),
     status: member.status,
   };
 }
@@ -47,12 +52,16 @@ function transactionStatus(value: string): TransactionStatus {
   return "completed";
 }
 
-function applyTeamAuthorization(team: TeamWorkspace, sessionEmail: string): void {
+function applyTeamAuthorization(
+  team: TeamWorkspace,
+  sessionUserId: string,
+  sessionEmail: string,
+): void {
   const permissionsByRoleId = new Map(team.roles.map((role) => [role.id, role.permissions]));
   const grantedBusinessIds = team.businesses.map((business) => business.id);
   const grantedBusinessUnitIds = team.business_units.map((unit) => unit.id);
   const teamMembers = team.members.map((member) => {
-    const isSessionMember = member.email.toLowerCase() === sessionEmail;
+    const isSessionMember = member.user_id === sessionUserId;
     return toTeamMember(
       member,
       permissionsByRoleId.get(member.role_id),
@@ -60,7 +69,11 @@ function applyTeamAuthorization(team: TeamWorkspace, sessionEmail: string): void
       isSessionMember ? grantedBusinessUnitIds : undefined,
     );
   });
-  const sessionMember = teamMembers.find((member) => member.email.toLowerCase() === sessionEmail);
+  const sessionMember = team.members.find(
+    (member) =>
+      member.user_id === sessionUserId &&
+      member.email.toLowerCase() === sessionEmail,
+  );
   if (!sessionMember) throw new Error("authenticated_membership_not_found");
   if (sessionMember.status !== "active") throw new Error("authenticated_membership_inactive");
 
@@ -84,14 +97,14 @@ export async function hydrateAuthorizationWorkspace(): Promise<TeamWorkspace | u
   if (!session) return undefined;
   if (!session.accessToken) return hydrateOfflineWorkspace(session.user.id);
 
-  if (authorizationCache?.userId === session.user.id) {
-    applyTeamAuthorization(authorizationCache.team, session.user.email.toLowerCase());
-    return authorizationCache.team;
-  }
-
-  const team = await loadTeamWorkspace();
-  applyTeamAuthorization(team, session.user.email.toLowerCase());
-  authorizationCache = { userId: session.user.id, team };
+  const team = authorizationBootstrapToTeamWorkspace(
+    await loadAuthorizationBootstrap(),
+  );
+  applyTeamAuthorization(
+    team,
+    session.user.id,
+    session.user.email.toLowerCase(),
+  );
   return team;
 }
 

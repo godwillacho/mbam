@@ -500,3 +500,115 @@ claim provider, while Mbam API keeps business and shop scope enforcement.
 - Run `cargo check` locally after pulling because this environment has no Rust toolchain.
 - Add typed runtime provider configuration in a follow-up when the config file can be safely patched.
 - Implement JWKS verification before replacing live route guards.
+
+## 2026-06-18 - Normalized Authorization Context And Bootstrap
+
+**Related change:** `codex/authorization-context-bootstrap`
+
+**Requested behavior:** Implement the first secure increment of the authentication,
+authorization, employee-management, navigation, and offline-revocation refactor:
+centralized authorization context, fail-closed guards, a current-user bootstrap,
+shop-manager role ceilings, and authorization-version invalidation.
+
+**Root cause / engineering reason:** The existing provider boundary validated
+tokens but returned only a local user ID. Domain routes repeated authentication
+calls, the frontend used the broad employee workspace as its online
+authorization bootstrap, and top-level permission/scope unions could not safely
+prove that a permission and resource scope came from the same membership.
+Employee responses also depended on permissive repository queries and frontend
+role controls, which did not enforce the shop-manager cashier-only ceiling.
+
+**Files changed:**
+
+- `mbam-api/migrations/0010_authorization_versions.sql`
+- `mbam-api/src/authentication/`
+- `mbam-api/src/modules/authorization/`
+- protected API route modules and team service/repository
+- `mbam-web/src/services/authorizationService.ts`
+- `mbam-web/src/services/workspaceService.ts`
+- frontend access-control, employee labels, header, types, and tests
+- authentication, API, migration, and repository documentation
+- `debug.log`, `error.log`, and this engineering log
+
+**Implementation:**
+
+- Added `AuthorizationContext` with identity, one baseline role, effective
+  permissions, active memberships, business-account/business/unit scope, and a
+  durable authorization version.
+- Kept private membership-scoped grants so permission and resource scope must
+  match on the same membership instead of being cross-combined.
+- Added reusable baseline-role, permission, business, unit, transaction-owner,
+  and employee-management guards with 401/403/404 fail-closed behavior.
+- Required Keycloak to assert exactly one baseline role matching all active
+  local memberships; missing, unknown, or conflicting role data returns 401.
+- Replaced protected route bearer handling with Axum authorization extractors.
+- Added `GET /api/v1/me/authorization` and switched the frontend's online
+  authorization bootstrap to that endpoint only.
+- Preserved only server-approved route keys in frontend navigation; stale local
+  screen permissions cannot restore a denied structural page.
+- Restricted employee lists, invitations, assignable roles, updates, disables,
+  and cancellations by baseline role and validated scope. Shop managers see and
+  manage only cashiers in assigned units; cashiers receive 403.
+- Added a monotonic per-user authorization version and database triggers for
+  membership, structural scope, role-permission, permission-code, and
+  baseline-role-definition changes.
+- Renamed the navigation/page presentation from Team access to Employees and
+  changed the workspace header to the authenticated user's name and role.
+
+**Debugging and verification:**
+
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --locked --all-targets -- -D warnings` passed.
+- `cargo test --locked` passed all 18 backend tests.
+- `npm run type-check` and `npm run lint` passed.
+- `npm test` passed all 32 frontend tests.
+- `npm run build` produced the production PWA.
+- `git diff --check` passed.
+- A clean disposable PostgreSQL database applied migration 0010, reported the
+  authorization-version column and triggers, and started the API with a healthy
+  endpoint.
+- A rolled-back database mutation increased a test user's authorization version
+  from one value to the next, confirming trigger invalidation.
+- Live synthetic seeded-account checks confirmed:
+  - shop-manager bootstrap contains one assigned shop and no Businesses route;
+  - shop-manager employee results and assignable roles contain cashiers only;
+  - shop-manager business-admin invitation attempts return 403;
+  - cashier bootstrap omits Employees and cashier employee requests return 403.
+
+**Errors encountered:**
+
+- Initial compilation required the missing pending-invitation import and Axum
+  async-trait annotations for custom request extractors.
+- The local shell did not provide the `timeout` utility; API verification used
+  an interactive process instead.
+- One live denial check reused an expired development token; re-authentication
+  confirmed the expected 403 result.
+
+**Checks not run:**
+
+- Browser-level end-to-end UI automation was not run.
+- Keycloak browser PKCE login was not added or exercised in this increment.
+- Keycloak Admin API role synchronization and transactional outbox behavior were
+  not implemented or tested.
+
+**Remaining risks:**
+
+- Legacy authentication and local credential flows remain for migration
+  compatibility and must be removed only after PKCE migration tests pass.
+- Existing role writes are still local-authoritative; Keycloak mismatch fails
+  closed, but reconciliation/outbox work remains.
+- Offline snapshots already carry authorization versions, but server-confirmed
+  expiry, synchronization-time queued-operation revalidation, and complete
+  role-change revocation tests remain future increments.
+- Reporting aggregation endpoints, chart indexes, dashboard metrics, and scoped
+  graph pages remain intentionally deferred until authorization APIs are fully
+  exercised.
+
+**Follow-up checks:**
+
+- Add database-backed API integration tests for cross-business, cross-shop, and
+  transaction ownership denials in CI.
+- Implement the Keycloak role-management outbox and visible reconciliation
+  status before enabling role edits in Keycloak mode.
+- Add strict offline snapshot expiry and queued-operation revalidation tests.
+- Build reporting aggregation endpoints and indexes before chart-heavy UI work.

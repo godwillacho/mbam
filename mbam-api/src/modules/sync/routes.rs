@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{error::ApiError, state::AppState};
+use crate::{authentication::AuthorizationContext, error::ApiError, state::AppState};
 
 use super::{model::SyncPushRequest, service};
 
@@ -29,13 +29,11 @@ pub fn router() -> Router<AppState> {
 
 async fn pull(
     State(state): State<AppState>,
+    authorization: AuthorizationContext,
     headers: HeaderMap,
     Query(query): Query<PullQuery>,
 ) -> Result<Json<super::model::SyncPullResult>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
+    let user_id = authorization.user_id;
     let device_id = request_device_id(&headers)?;
     if query.device_id != Some(device_id) {
         return Err(ApiError::Unauthorized);
@@ -47,13 +45,11 @@ async fn pull(
 
 async fn push(
     State(state): State<AppState>,
+    authorization: AuthorizationContext,
     headers: HeaderMap,
     Json(payload): Json<SyncPushRequest>,
 ) -> Result<Json<Vec<super::model::SyncPushResult>>, ApiError> {
-    let user_id = state
-        .authentication
-        .authenticate_user_id(&headers, &state.db)
-        .await?;
+    let user_id = authorization.user_id;
     let device_id = request_device_id(&headers)?;
     if payload.device_id != Some(device_id)
         || payload

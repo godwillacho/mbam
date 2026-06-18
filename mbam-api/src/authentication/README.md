@@ -6,11 +6,19 @@ Mbam-issued tokens to Keycloak-issued OpenID Connect access tokens.
 
 ## Current Status
 
-Phase 1 is implemented: every protected API route now uses this authentication
-layer and can validate Keycloak access tokens when `AUTH_PROVIDER=keycloak`.
-Legacy browser login and local role-editing screens still exist for migration
-compatibility. Do not enable Keycloak mode in production until browser PKCE login
-and Keycloak Admin API role synchronization are completed and tested.
+The API resource-server boundary and normalized authorization context are
+implemented. Protected domain routes extract `AuthorizationContext`; route
+handlers no longer parse bearer tokens or resolve users independently.
+
+`GET /api/v1/me/authorization` is the sole online frontend authorization
+bootstrap. It returns only the current identity, one validated baseline role,
+effective and custom permissions, active membership IDs, authorized businesses
+and units, dashboard type, authorized routes, and authorization version.
+
+Legacy browser login and local role-editing screens remain only for staged
+migration compatibility. Do not enable Keycloak mode in production until
+browser PKCE login and the Keycloak role-management outbox are completed and
+tested.
 
 ## Ownership Model
 
@@ -30,17 +38,26 @@ Mbam owns:
 - Transactions, products, reporting, and offline synchronization
 - Offline authorization snapshots and their authorization version
 
-A Keycloak role never creates Mbam business access by itself. A request succeeds
-only when the token is valid and every baseline role represented by active local
-memberships is present in the token. Extra Keycloak roles grant nothing without
-an active Mbam membership.
+A Keycloak role never creates Mbam business access by itself. A protected
+request succeeds only when the token is valid, the subject maps to an active
+local user, at least one active local membership exists, all active memberships
+reduce to one baseline role, and Keycloak asserts exactly that baseline.
+
+Permissions remain attached to individual membership grants. The context keeps
+top-level union sets for display, but scope-aware guards require permission and
+resource scope to occur on the same membership. This prevents a permission from
+one business being combined with scope from another business.
 
 ## Directory Layout
 
 - `mod.rs`: provider selection and the public authentication API.
 - `keycloak.rs`: confidential-client token introspection and claim extraction.
-- `principal.rs`: normalized authenticated principal and bearer parsing.
-- `repository.rs`: Keycloak-subject mapping to active local users and roles.
+- `principal.rs`: identity-only extraction for pre-membership flows and bearer parsing.
+- `context.rs`: normalized authorization context and reusable fail-closed guards.
+- `repository.rs`: subject mapping plus active membership-grant loading.
+
+The authorization bootstrap route lives in `src/modules/authorization/` so
+identity validation stays separate from response presentation.
 
 Every function in this directory has a Rust documentation comment describing
 its purpose and security behavior.
@@ -75,9 +92,10 @@ Create these realm roles or client roles under `KEYCLOAK_ROLE_CLIENT_ID`:
 - `shop_manager`
 - `cashier`
 
-Custom roles should be composite roles that include exactly one baseline role.
-For example, `senior_cashier` should include `cashier` plus separately reviewed
-optional permissions. Do not make `cashier` composite with a broader role.
+Custom Keycloak roles may be composite roles but must include exactly one
+baseline role. Mbam custom permissions are still loaded from the local
+membership role and are never inferred from arbitrary Keycloak role names. Do
+not make one baseline role composite with another.
 
 The API accepts roles from `realm_access.roles` and from
 `resource_access[KEYCLOAK_ROLE_CLIENT_ID].roles`. Configure protocol mappers so
@@ -114,18 +132,58 @@ change and may be reassigned.
 2. The browser sends the token as `Authorization: Bearer <token>`.
 3. `AuthenticationLayer` validates the token through Keycloak introspection.
 4. The Keycloak `sub` is resolved to a local active user.
-5. Keycloak baseline roles are compared with all active local membership roles.
-6. Domain services apply business, unit, and object-level authorization.
+5. Active memberships are loaded as separate permission-and-scope grants.
+6. All local memberships must resolve to one baseline role.
+7. Keycloak must assert exactly the same baseline role.
+8. The request receives a normalized `AuthorizationContext`.
+9. Route guards and domain services apply permission, business, unit, ownership,
+   and employee-management checks.
 
 Any missing token, inactive token, audience mismatch, unknown identity, inactive
-membership, unknown local role, or role mismatch returns `401 Unauthorized`
-without falling back to a broader role or the legacy validator.
+or absent membership, unknown local role, multiple conflicting baselines, or
+Keycloak/Mbam role mismatch returns `401 Unauthorized` without falling back to
+a broader role or the legacy validator.
+
+Recognized identities lacking a required feature receive `403 Forbidden`.
+Resource-scoped guards use `404 Not Found` when confirming existence would leak
+another tenant's business, unit, employee, or transaction.
+
+## Authorization Context
+
+The context contains:
+
+- local user ID and optional Keycloak subject during legacy migration;
+- full name and email for the current-user bootstrap only;
+- one validated baseline role;
+- effective permissions;
+- active membership IDs;
+- authorized business-account, business, and unit IDs;
+- durable authorization version;
+- private membership-scoped grants used by guards.
+
+Reusable guards cover baseline roles, permissions, business scope, unit scope,
+transaction ownership, and employee-management ceilings. Domain repositories
+still filter by membership, permission, and scope; route guards are defense in
+depth, not the sole authorization layer.
+
+## Authorization Versioning
+
+Migration `0010_authorization_versions.sql` adds a monotonic user
+`authorization_version`. Database triggers increment it when memberships,
+membership scopes, business/unit status, role permissions, permission codes, or
+role baseline definitions change. Online authorization is fetched without a
+cross-session client cache, and offline snapshots must compare this version and
+discard stale state during synchronization.
+
+The version is not a bearer credential and does not replace token revocation.
 
 ## Migration Plan
 
 ### Phase 1: API Resource Server
 
 - Centralize all protected-route authentication in this directory. Completed.
+- Normalize membership-scoped authorization and remove route bearer parsing. Completed.
+- Add the current-user authorization bootstrap. Completed.
 - Enable `AUTH_PROVIDER=keycloak` in a non-production environment.
 - Provision Keycloak subjects for the existing test users.
 - Validate baseline dashboards and cross-unit denial tests.
@@ -146,6 +204,11 @@ without falling back to a broader role or the legacy validator.
   queries and offline snapshots.
 - Reject or quarantine synchronization mismatches.
 
+Until this phase is complete, Mbam membership writes remain authoritative for
+domain scope, local role edits are migration-only, and any Keycloak/Mbam
+baseline mismatch fails visibly with `401`. No request silently repairs a
+mismatch or performs an unsafe direct dual write.
+
 ### Phase 4: Legacy Removal
 
 - Disable `AUTH_PROVIDER=legacy`.
@@ -156,29 +219,36 @@ without falling back to a broader role or the legacy validator.
 
 ## Operational Notes
 
-Token introspection is intentionally used for the first migration phase because
-it gives immediate session and role revocation semantics and avoids maintaining
-a local signing-key cache. Requests have an eight-second upper bound. Keycloak
-availability is therefore part of online API availability. A later optimization
-may use issuer and audience-validated JWT verification with cached JWKS plus a
-short revocation window.
+Token introspection is intentionally used for the first migration phase.
+Keycloak validates token signature, issuer ownership, expiry, session state,
+and revocation before returning `active=true`; Mbam separately requires the
+configured API audience, stable subject, and one matching baseline role.
+Requests have an eight-second upper bound. Keycloak unavailability, timeout,
+malformed responses, missing claims, and inactive tokens all fail closed.
+
+A later optimization may use explicit issuer/audience JWT verification with
+cached JWKS plus a bounded revocation window.
 
 Never log access tokens, refresh tokens, client secrets, authorization headers,
 or complete introspection responses.
 
 ## Validation Scenarios
 
-- Valid token, linked user, complete role coverage: allowed.
+- Valid token, linked user, one matching baseline, active grants: allowed.
 - Valid token with wrong audience: denied.
 - Valid token with no baseline role: denied.
-- Token missing one of multiple active local baseline roles: denied.
+- Token with multiple baseline roles: denied.
+- Local memberships with conflicting baseline roles: denied.
 - Cashier token with shop-manager local membership: denied.
-- Disabled local membership with valid Keycloak session: denied by domain access.
+- Missing or disabled local membership with valid Keycloak session: denied.
 - Disabled Keycloak user with active local membership: denied by introspection.
 - Unknown Keycloak subject with email linking disabled: denied.
 - Unknown subject with verified matching email during controlled linking: linked.
 - Unknown subject with unverified email: denied.
 - Unknown local role without a recognized baseline: denied.
+- Permission from one membership plus scope from another: denied.
+- Shop manager assigning any role above cashier: denied.
+- Cashier opening employee management: denied.
 - Network failure or Keycloak timeout: denied; never fall back to legacy.
 
 ## Official References

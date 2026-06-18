@@ -125,6 +125,7 @@ export interface TeamMember {
   businessUnitId?: string;
   businessIds?: string[];
   businessUnitIds?: string[];
+  authorizedRouteKeys?: string[];
   status: "active" | "invited" | "disabled";
 }
 

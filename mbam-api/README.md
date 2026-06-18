@@ -17,8 +17,8 @@ The API is the security boundary between the React frontend and PostgreSQL. The 
 - `src/db/` contains database connection helpers.
 - `src/routes/` contains top-level API routes.
 - `src/security/` contains password hashing and token helpers.
-- `src/modules/` contains the active auth, business, unit, product, team,
-  transaction, and sync domains.
+- `src/modules/` contains the active auth, authorization-bootstrap, business,
+  unit, product, team, transaction, and sync domains.
 
 ## Local development with Docker PostgreSQL and Keycloak
 
@@ -93,10 +93,21 @@ The local realm is imported from `keycloak/mbam-realm.json` and includes:
 - an audience mapper that places `mbam-api` in web access tokens.
 
 Keycloak identity and role claims never replace Mbam's PostgreSQL scope checks.
-Each accepted Keycloak subject must map to an active local user, and its roles
-must cover every active local membership baseline. See
+Each accepted Keycloak subject must map to an active local user with active
+memberships that resolve to exactly one matching baseline role. Permissions and
+resource scope are checked on the same membership grant. See
 [`src/authentication/README.md`](src/authentication/README.md) for provisioning
 and migration details.
+
+The frontend's sole online authorization bootstrap is:
+
+```text
+GET /api/v1/me/authorization
+```
+
+It returns only the current user's validated identity, role, permissions,
+business/shop scope, dashboard, authorized routes, and authorization version.
+It never returns the employee directory, invitations, or role definitions.
 
 ## Full Compose stack
 
@@ -205,3 +216,7 @@ DELETE /api/v1/invites/:invitation_id
 Role and scope changes are never queued offline. `GET /api/v1/sync/pull`
 returns a server-filtered authorization snapshot and allowed entity keys.
 Every push and pull attempt is recorded in `sync_runs`.
+
+The employee endpoint applies maximum role ceilings independently of frontend
+controls. Shop managers see and manage only cashiers in assigned shops; cashiers
+receive `403` for employee-management requests.

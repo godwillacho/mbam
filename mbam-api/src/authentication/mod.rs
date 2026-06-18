@@ -3,24 +3,21 @@
 //! Identity-provider token validation belongs here. Business and shop scope
 //! authorization remains in the domain services and database memberships.
 
+mod context;
 mod keycloak;
 mod principal;
 mod repository;
 
-use std::collections::BTreeSet;
-
 use axum::http::HeaderMap;
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::{config::Config, error::ApiError, security::tokens};
 
+pub use context::{AuthorizationContext, BaselineRole};
 pub use principal::AuthenticatedPrincipal;
 
 use keycloak::{KeycloakAuthenticator, KeycloakConfig};
 use principal::bearer_token;
-
-const BASELINE_ROLES: [&str; 4] = ["master_owner", "business_admin", "shop_manager", "cashier"];
 
 /// Selects the token validator used by protected API routes.
 #[derive(Clone)]
@@ -35,7 +32,13 @@ enum AuthenticationProvider {
 }
 
 impl AuthenticationLayer {
-    /// Builds the configured authentication provider and rejects incomplete Keycloak settings.
+    /// Builds the configured authentication provider from validated runtime settings.
+    ///
+    /// Input is the typed application configuration and output is one immutable
+    /// authentication layer. Unsupported providers or missing Keycloak settings
+    /// return a startup error so the API never accepts traffic in a partial
+    /// security mode. This function does not validate a request, connect to
+    /// Keycloak, or authorize business data.
     pub fn from_config(config: &Config) -> Result<Self, String> {
         match config.auth_provider.as_str() {
             "legacy" => Ok(Self {
@@ -69,10 +72,14 @@ impl AuthenticationLayer {
         }
     }
 
-    /// Authenticates an HTTP request and resolves it to a local Mbam user.
+    /// Authenticates an HTTP request and resolves it to a local Mbam identity.
     ///
-    /// Keycloak mode requires both a valid external token and complete coverage
-    /// of every baseline role represented by the user's active local memberships.
+    /// Inputs are request headers and the database pool; output is a verified
+    /// principal containing the local user ID and, in Keycloak mode, immutable
+    /// subject and asserted roles. Missing, invalid, inactive, wrongly scoped, or
+    /// unmapped tokens return `401` and never fall back to another provider.
+    /// This function intentionally does not require active membership or
+    /// authorize permissions and scope; `authorize` performs that next step.
     pub async fn authenticate(
         &self,
         headers: &HeaderMap,
@@ -85,6 +92,8 @@ impl AuthenticationLayer {
                     .map_err(|_| ApiError::Unauthorized)?;
                 Ok(AuthenticatedPrincipal {
                     user_id: claims.sub,
+                    keycloak_subject: None,
+                    asserted_keycloak_roles: None,
                 })
             }
             AuthenticationProvider::Keycloak(authenticator) => {
@@ -97,23 +106,41 @@ impl AuthenticationLayer {
                     authenticator.allow_verified_email_linking(),
                 )
                 .await?;
-                let local_roles = repository::active_role_codes(db, user_id).await?;
-                if !roles_align(&identity.roles, &local_roles) {
-                    tracing::warn!(user_id = %user_id, "Keycloak roles do not cover active Mbam membership roles");
-                    return Err(ApiError::Unauthorized);
-                }
-                Ok(AuthenticatedPrincipal { user_id })
+                Ok(AuthenticatedPrincipal {
+                    user_id,
+                    keycloak_subject: Some(identity.subject),
+                    asserted_keycloak_roles: Some(identity.roles),
+                })
             }
         }
     }
 
-    /// Authenticates a request and returns the local user identifier expected by domain services.
-    pub async fn authenticate_user_id(
+    /// Authenticates a request and returns the normalized Mbam authorization context.
+    ///
+    /// Inputs are request headers and the database pool; output contains the
+    /// verified identity, one local baseline role, active memberships,
+    /// permissions, scopes, and authorization version. Invalid tokens, inactive
+    /// users, missing memberships, unknown roles, and Keycloak/Mbam role
+    /// mismatches return `401`. This function does not authorize any particular
+    /// domain operation; routes and services must still apply permission, scope,
+    /// and ownership checks.
+    pub async fn authorize(
         &self,
         headers: &HeaderMap,
         db: &PgPool,
-    ) -> Result<Uuid, ApiError> {
-        Ok(self.authenticate(headers, db).await?.user_id)
+    ) -> Result<AuthorizationContext, ApiError> {
+        let principal = self.authenticate(headers, db).await?;
+        let user = repository::authorization_user(db, principal.user_id).await?;
+        let grants = repository::authorization_grants(db, principal.user_id).await?;
+        AuthorizationContext::new(
+            user.id,
+            principal.keycloak_subject,
+            user.full_name,
+            user.email,
+            user.authorization_version,
+            grants,
+            principal.asserted_keycloak_roles.as_ref(),
+        )
     }
 }
 
@@ -124,70 +151,20 @@ fn required(value: &Option<String>, name: &str) -> Result<String, String> {
         .ok_or_else(|| format!("{name} is required when AUTH_PROVIDER=keycloak"))
 }
 
-/// Confirms that Keycloak contains every recognized active local baseline role.
-fn roles_align(keycloak_roles: &BTreeSet<String>, local_roles: &[String]) -> bool {
-    if local_roles.is_empty() {
-        return false;
-    }
-
-    let mut required_roles = BTreeSet::new();
-    for local_role in local_roles {
-        let Some(role) = baseline_role(local_role) else {
-            return false;
-        };
-        required_roles.insert(role);
-    }
-
-    required_roles
-        .iter()
-        .all(|role| keycloak_roles.contains(*role))
-}
-
-/// Reduces a standard or custom local role code to its least-privilege baseline role.
-fn baseline_role(role_code: &str) -> Option<&'static str> {
-    BASELINE_ROLES.iter().copied().find(|baseline| {
-        role_code == *baseline || role_code.starts_with(&format!("custom_member_{baseline}_"))
-    })
-}
-
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use super::BaselineRole;
 
-    use super::{baseline_role, roles_align};
-
-    /// Verifies that custom roles inherit only their encoded baseline role.
     #[test]
-    fn normalizes_custom_roles_to_their_baseline() {
-        assert_eq!(baseline_role("cashier"), Some("cashier"));
+    fn normalizes_only_recognized_local_role_baselines() {
         assert_eq!(
-            baseline_role("custom_member_shop_manager_senior"),
-            Some("shop_manager")
+            BaselineRole::from_local_role_code("cashier"),
+            Some(BaselineRole::Cashier)
         );
-        assert_eq!(baseline_role("unknown"), None);
-    }
-
-    /// Verifies that Keycloak must cover all active local baseline roles.
-    #[test]
-    fn requires_complete_keycloak_role_alignment() {
-        let cashier_only = BTreeSet::from(["cashier".to_string()]);
-        assert!(roles_align(&cashier_only, &["cashier".to_string()]));
-        assert!(roles_align(
-            &cashier_only,
-            &["custom_member_cashier_senior".to_string()]
-        ));
-        assert!(!roles_align(
-            &cashier_only,
-            &["cashier".to_string(), "shop_manager".to_string()]
-        ));
-        assert!(!roles_align(&cashier_only, &["unknown".to_string()]));
-        assert!(!roles_align(&cashier_only, &[]));
-
-        let cashier_and_manager =
-            BTreeSet::from(["cashier".to_string(), "shop_manager".to_string()]);
-        assert!(roles_align(
-            &cashier_and_manager,
-            &["cashier".to_string(), "shop_manager".to_string()],
-        ));
+        assert_eq!(
+            BaselineRole::from_local_role_code("custom_member_shop_manager_senior"),
+            Some(BaselineRole::ShopManager)
+        );
+        assert_eq!(BaselineRole::from_local_role_code("unknown"), None);
     }
 }

@@ -92,6 +92,7 @@ fn build_router(state: AppState) -> Router {
     Router::new()
         .merge(routes::router())
         .nest("/api/v1/auth", modules::auth::routes::router())
+        .nest("/api/v1/me", modules::authorization::routes::router())
         .nest("/api/v1/businesses", business_router)
         .nest("/api/v1/products", modules::products::routes::router())
         .nest("/api/v1/team-members", modules::team::routes::team_router())

@@ -126,6 +126,9 @@ export function canAccessRoute(
   member: TeamMember,
   routeKey: AppRouteKey,
 ): boolean {
+  if (member.authorizedRouteKeys) {
+    return member.authorizedRouteKeys.includes(routeKey);
+  }
   if (member.permissions) {
     return member.permissions.includes(routePermission[routeKey]);
   }

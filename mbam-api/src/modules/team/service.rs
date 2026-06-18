@@ -4,25 +4,47 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::{config::Config, error::ApiError, modules::auth::mailer, security::password};
+use crate::{
+    authentication::{AuthorizationContext, BaselineRole},
+    config::Config,
+    error::ApiError,
+    modules::auth::mailer,
+    security::password,
+};
 
 use super::{
     model::{
         BusinessScopeResponse, CreateInvitationRequest, CreateInvitationResponse,
         DashboardOptionResponse, DashboardProfileResponse, InvitationDetailsResponse,
-        RegisterInvitationRequest, RoleResponse, TeamMemberResponse, TeamWorkspaceResponse,
-        UnitScopeResponse, UpdateTeamMemberRequest,
+        PendingInvitationResponse, RegisterInvitationRequest, RoleResponse, TeamMemberResponse,
+        TeamWorkspaceResponse, UnitScopeResponse, UpdateTeamMemberRequest,
     },
     repository,
 };
 
 const CUSTOM_ROLE_PREFIX: &str = "custom_member_";
 
-pub async fn workspace(db: &PgPool, user_id: Uuid) -> Result<TeamWorkspaceResponse, ApiError> {
+pub async fn workspace(
+    db: &PgPool,
+    authorization: &AuthorizationContext,
+) -> Result<TeamWorkspaceResponse, ApiError> {
+    authorization.require_baseline_role(&[
+        BaselineRole::MasterOwner,
+        BaselineRole::BusinessAdmin,
+        BaselineRole::ShopManager,
+    ])?;
+    authorization.require_permission("worker.view")?;
+    let user_id = authorization.user_id;
     repository::ensure_standard_roles(db, user_id).await?;
-    let members = repository::list_members(db, user_id).await?;
-    let invitations = repository::list_invitations(db, user_id).await?;
-    let roles = repository::list_roles(db, user_id).await?;
+    let members = visible_members(authorization, repository::list_members(db, user_id).await?);
+    let invitations = visible_invitations(
+        authorization,
+        repository::list_invitations(db, user_id).await?,
+    );
+    let roles = assignable_roles(
+        authorization.baseline_role,
+        repository::list_roles(db, user_id).await?,
+    );
     let businesses = repository::list_businesses(db, user_id).await?;
     let business_units = repository::list_units(db, user_id).await?;
     let dashboard_profiles =
@@ -38,6 +60,84 @@ pub async fn workspace(db: &PgPool, user_id: Uuid) -> Result<TeamWorkspaceRespon
         dashboard_profiles,
         authorization_version,
     })
+}
+
+fn visible_members(
+    authorization: &AuthorizationContext,
+    members: Vec<TeamMemberResponse>,
+) -> Vec<TeamMemberResponse> {
+    members
+        .into_iter()
+        .filter(|member| match authorization.baseline_role {
+            BaselineRole::MasterOwner => authorization
+                .authorized_business_account_ids
+                .contains(&member.business_account_id),
+            BaselineRole::BusinessAdmin => member.business_id.is_some_and(|business_id| {
+                authorization.authorized_business_ids.contains(&business_id)
+            }),
+            BaselineRole::ShopManager => {
+                BaselineRole::from_local_role_code(&member.role_code) == Some(BaselineRole::Cashier)
+                    && member.business_unit_id.is_some_and(|unit_id| {
+                        authorization
+                            .authorized_business_unit_ids
+                            .contains(&unit_id)
+                    })
+            }
+            BaselineRole::Cashier => false,
+        })
+        .collect()
+}
+
+fn visible_invitations(
+    authorization: &AuthorizationContext,
+    invitations: Vec<PendingInvitationResponse>,
+) -> Vec<PendingInvitationResponse> {
+    invitations
+        .into_iter()
+        .filter(|invitation| match authorization.baseline_role {
+            BaselineRole::MasterOwner => authorization
+                .authorized_business_account_ids
+                .contains(&invitation.business_account_id),
+            BaselineRole::BusinessAdmin => invitation.business_id.is_some_and(|business_id| {
+                authorization.authorized_business_ids.contains(&business_id)
+            }),
+            BaselineRole::ShopManager => {
+                BaselineRole::from_local_role_code(&invitation.role_code)
+                    == Some(BaselineRole::Cashier)
+                    && invitation.business_unit_id.is_some_and(|unit_id| {
+                        authorization
+                            .authorized_business_unit_ids
+                            .contains(&unit_id)
+                    })
+            }
+            BaselineRole::Cashier => false,
+        })
+        .collect()
+}
+
+fn assignable_roles(actor_role: BaselineRole, roles: Vec<RoleResponse>) -> Vec<RoleResponse> {
+    roles
+        .into_iter()
+        .filter(|role| {
+            let target_role = BaselineRole::from_local_role_code(&role.code);
+            match actor_role {
+                BaselineRole::MasterOwner => target_role != Some(BaselineRole::MasterOwner),
+                BaselineRole::BusinessAdmin => matches!(
+                    target_role,
+                    Some(BaselineRole::ShopManager | BaselineRole::Cashier)
+                ),
+                BaselineRole::ShopManager => target_role == Some(BaselineRole::Cashier),
+                BaselineRole::Cashier => false,
+            }
+        })
+        .collect()
+}
+
+fn can_customize_employee_roles(actor_role: BaselineRole) -> bool {
+    matches!(
+        actor_role,
+        BaselineRole::MasterOwner | BaselineRole::BusinessAdmin
+    )
 }
 
 fn build_dashboard_profiles(
@@ -365,9 +465,10 @@ fn dashboard(
 pub async fn create_invitation(
     db: &PgPool,
     config: &Config,
-    actor_id: Uuid,
+    authorization: &AuthorizationContext,
     payload: CreateInvitationRequest,
 ) -> Result<CreateInvitationResponse, ApiError> {
+    let actor_id = authorization.user_id;
     repository::ensure_standard_roles(db, actor_id).await?;
     let email = payload.email.trim().to_lowercase();
     if email.len() < 5 || !email.contains('@') {
@@ -408,6 +509,12 @@ pub async fn create_invitation(
         .find(|role| role.id == payload.role_id)
         .ok_or(ApiError::Forbidden)?;
     validate_member_role_scope(&role.code, payload.business_id, payload.business_unit_id)?;
+    let target_role = BaselineRole::from_local_role_code(&role.code).ok_or(ApiError::Forbidden)?;
+    authorization.require_employee_management(
+        target_role,
+        payload.business_id.ok_or(ApiError::Forbidden)?,
+        payload.business_unit_id,
+    )?;
 
     let raw_token = Uuid::new_v4().to_string();
     let token_hash = hash_token(&raw_token);
@@ -505,10 +612,11 @@ pub async fn register_invitation(
 
 pub async fn update_member(
     db: &PgPool,
-    actor_id: Uuid,
+    authorization: &AuthorizationContext,
     membership_id: Uuid,
     payload: UpdateTeamMemberRequest,
 ) -> Result<TeamMemberResponse, ApiError> {
+    let actor_id = authorization.user_id;
     let current = repository::find_member(db, membership_id)
         .await?
         .ok_or(ApiError::NotFound)?;
@@ -551,6 +659,9 @@ pub async fn update_member(
         return Err(ApiError::Forbidden);
     }
     if let Some(custom_permissions) = payload.custom_permissions {
+        if !can_customize_employee_roles(authorization.baseline_role) {
+            return Err(ApiError::Forbidden);
+        }
         let baseline_role_id = payload.role_id.unwrap_or(current.role_id);
         let roles = repository::list_roles(db, actor_id).await?;
         let baseline_role = roles
@@ -563,6 +674,13 @@ pub async fn update_member(
             ));
         }
         validate_member_role_scope(&baseline_role.code, business_id, unit_id)?;
+        let target_role =
+            BaselineRole::from_local_role_code(&baseline_role.code).ok_or(ApiError::Forbidden)?;
+        authorization.require_employee_management(
+            target_role,
+            business_id.ok_or(ApiError::Forbidden)?,
+            unit_id,
+        )?;
         if !repository::role_is_assignable(db, account_id, baseline_role.id).await? {
             return Err(ApiError::Forbidden);
         }
@@ -599,9 +717,23 @@ pub async fn update_member(
             .iter()
             .find(|role| role.id == role_id)
             .ok_or(ApiError::Forbidden)?;
+        let target_role =
+            BaselineRole::from_local_role_code(&selected_role.code).ok_or(ApiError::Forbidden)?;
+        authorization.require_employee_management(
+            target_role,
+            business_id.ok_or(ApiError::Forbidden)?,
+            unit_id,
+        )?;
         final_role_code = selected_role.code.clone();
     }
     validate_member_role_scope(baseline_role_code(&final_role_code), business_id, unit_id)?;
+    let target_role =
+        BaselineRole::from_local_role_code(&final_role_code).ok_or(ApiError::Forbidden)?;
+    authorization.require_employee_management(
+        target_role,
+        business_id.ok_or(ApiError::Forbidden)?,
+        unit_id,
+    )?;
     if !repository::validate_role_scope(db, account_id, role_id, business_id, unit_id).await? {
         return Err(ApiError::Forbidden);
     }
@@ -620,12 +752,12 @@ pub async fn update_member(
 
 pub async fn delete_member(
     db: &PgPool,
-    actor_id: Uuid,
+    authorization: &AuthorizationContext,
     membership_id: Uuid,
 ) -> Result<TeamMemberResponse, ApiError> {
     update_member(
         db,
-        actor_id,
+        authorization,
         membership_id,
         UpdateTeamMemberRequest {
             role_id: None,
@@ -640,12 +772,20 @@ pub async fn delete_member(
 
 pub async fn cancel_invitation(
     db: &PgPool,
-    actor_id: Uuid,
+    authorization: &AuthorizationContext,
     invitation_id: Uuid,
 ) -> Result<(), ApiError> {
+    let actor_id = authorization.user_id;
     let invite = repository::find_invitation(db, invitation_id)
         .await?
         .ok_or(ApiError::NotFound)?;
+    let target_role =
+        BaselineRole::from_local_role_code(&invite.role_code).ok_or(ApiError::Forbidden)?;
+    authorization.require_employee_management(
+        target_role,
+        invite.business_id.ok_or(ApiError::Forbidden)?,
+        invite.business_unit_id,
+    )?;
     repository::permitted_scope(
         db,
         actor_id,
@@ -665,4 +805,19 @@ fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::authentication::BaselineRole;
+
+    use super::can_customize_employee_roles;
+
+    #[test]
+    fn shop_managers_cannot_grant_custom_permissions_above_cashier() {
+        assert!(!can_customize_employee_roles(BaselineRole::ShopManager));
+        assert!(!can_customize_employee_roles(BaselineRole::Cashier));
+        assert!(can_customize_employee_roles(BaselineRole::BusinessAdmin));
+        assert!(can_customize_employee_roles(BaselineRole::MasterOwner));
+    }
 }

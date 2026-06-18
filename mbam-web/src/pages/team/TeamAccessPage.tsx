@@ -10,6 +10,7 @@ import {
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
+import { getCurrentMember } from "../../security/accessControl";
 import { ApiClientError } from "../../services/apiClient";
 import {
   disableEmployee,
@@ -42,6 +43,9 @@ type ScreenAccessId = (typeof screenAccessOptions)[number]["id"];
 
 export default function TeamAccessPage() {
   const { t } = useTranslation();
+  const currentActor = getCurrentMember();
+  const canCustomizeRoles = currentActor.roleId === "role-master-owner"
+    || currentActor.roleId === "role-business-admin";
   const [searchParams] = useSearchParams();
   const businessFilter = searchParams.get("business") ?? "";
   const [workspace, setWorkspace] = useState<TeamWorkspace | null>(null);
@@ -230,7 +234,7 @@ export default function TeamAccessPage() {
                 }
               }}>
                 {standardRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                <option value={customRoleValue}>{t("team.customRole")}</option>
+                {canCustomizeRoles && <option value={customRoleValue}>{t("team.customRole")}</option>}
               </select>
             </div>
             <div className="form-field">
@@ -256,7 +260,7 @@ export default function TeamAccessPage() {
             </div>
           </div>
 
-          {roleSelection === customRoleValue && (
+          {canCustomizeRoles && roleSelection === customRoleValue && (
             <div className="custom-screen-access">
               <div><span className="eyebrow">{t("team.customPermissions")}</span><h4>{t("team.customScreenTitle")}</h4><p className="card-muted">{t("team.customScreenHint")}</p></div>
               <div className="form-field full">

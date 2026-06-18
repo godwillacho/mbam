@@ -41,3 +41,9 @@ Security review: Keycloak roles grant no domain access without active local memb
 Change: Finished the local Keycloak runtime and reconciled the authentication merge with the stricter configuration and observability implementation.
 Implementation: Added a pinned Keycloak Compose service, persistent data, automatic Mbam realm import, API/web clients, audience mapping, baseline roles, and startup coupling with the database service.
 Verification: Compose configuration rendered successfully; Rust formatting, compile checks, all 9 backend tests, and whitespace validation passed. Targeted database startup also started Keycloak, the realm import completed, discovery and confidential-client introspection responded, and the API started in Keycloak mode with a healthy endpoint.
+
+2026-06-18
+Change: Added the normalized authorization context, current-user authorization bootstrap, durable authorization versions, and role-scoped employee enforcement.
+Security: Protected domain routes now extract membership-scoped grants; Keycloak and Mbam must resolve to one matching baseline role; permission and tenant scope must occur on the same grant; shop managers can manage only cashiers in assigned shops; cashiers cannot open employee management.
+Frontend: Online navigation now bootstraps only from GET /api/v1/me/authorization, preserves the server-approved route list, labels the page Employees, and displays the authenticated user name and role in the workspace header.
+Verification: Rust formatting, strict Clippy, compilation, and all 18 backend tests passed. Frontend type-check, lint, all 32 tests, and production build passed. A clean disposable database applied migration 0010 and started healthy. Live seeded-account checks confirmed scoped manager and cashier behavior, and a rolled-back database check confirmed authorization-version increments.
