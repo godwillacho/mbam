@@ -1,6 +1,6 @@
 use axum::{
     extract::{Query, State},
-    http::{header, HeaderMap},
+    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{error::ApiError, security::tokens, state::AppState};
+use crate::{error::ApiError, state::AppState};
 
 use super::{model::SyncPushRequest, service};
 
@@ -22,38 +22,27 @@ struct PullQuery {
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/pull", get(pull))
-        .route("/push", post(push))
+    Router::new().route("/pull", get(pull)).route("/push", post(push))
 }
 
 async fn pull(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Query(query): Query<PullQuery>,
+    State(state): State<AppState>, headers: HeaderMap, Query(query): Query<PullQuery>,
 ) -> Result<Json<super::model::SyncPullResult>, ApiError> {
-    let user_id = authenticated_user_id(&headers, &state)?;
+    let user_id = state.authentication.authenticate_user_id(&headers, &state.db).await?;
     let device_id = request_device_id(&headers)?;
     if query.device_id != Some(device_id) {
         return Err(ApiError::Unauthorized);
     }
-    Ok(Json(
-        service::pull(&state.db, user_id, query.cursor.as_deref(), Some(device_id)).await?,
-    ))
+    Ok(Json(service::pull(&state.db, user_id, query.cursor.as_deref(), Some(device_id)).await?))
 }
 
 async fn push(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(payload): Json<SyncPushRequest>,
+    State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<SyncPushRequest>,
 ) -> Result<Json<Vec<super::model::SyncPushResult>>, ApiError> {
-    let user_id = authenticated_user_id(&headers, &state)?;
+    let user_id = state.authentication.authenticate_user_id(&headers, &state.db).await?;
     let device_id = request_device_id(&headers)?;
     if payload.device_id != Some(device_id)
-        || payload
-            .operations
-            .iter()
-            .any(|operation| !operation_bound_to_session(operation, user_id, device_id))
+        || payload.operations.iter().any(|operation| !operation_bound_to_session(operation, user_id, device_id))
     {
         return Err(ApiError::Unauthorized);
     }
@@ -61,14 +50,8 @@ async fn push(
 }
 
 fn operation_bound_to_session(operation: &Value, user_id: Uuid, device_id: Uuid) -> bool {
-    let operation_user_id = operation
-        .get("userId")
-        .and_then(Value::as_str)
-        .and_then(|value| Uuid::parse_str(value).ok());
-    let operation_device_id = operation
-        .get("deviceId")
-        .and_then(Value::as_str)
-        .and_then(|value| Uuid::parse_str(value).ok());
+    let operation_user_id = operation.get("userId").and_then(Value::as_str).and_then(|value| Uuid::parse_str(value).ok());
+    let operation_device_id = operation.get("deviceId").and_then(Value::as_str).and_then(|value| Uuid::parse_str(value).ok());
     operation_user_id == Some(user_id) && operation_device_id == Some(device_id)
 }
 
@@ -78,17 +61,4 @@ fn request_device_id(headers: &HeaderMap) -> Result<Uuid, ApiError> {
         .and_then(|value| value.to_str().ok())
         .and_then(|value| Uuid::parse_str(value).ok())
         .ok_or(ApiError::Unauthorized)
-}
-
-fn authenticated_user_id(headers: &HeaderMap, state: &AppState) -> Result<Uuid, ApiError> {
-    let authorization = headers
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .ok_or(ApiError::Unauthorized)?;
-    let token = authorization
-        .strip_prefix("Bearer ")
-        .ok_or(ApiError::Unauthorized)?;
-    tokens::verify_access_token(token, &state.config.jwt_access_secret)
-        .map(|claims| claims.sub)
-        .map_err(|_| ApiError::Unauthorized)
 }
