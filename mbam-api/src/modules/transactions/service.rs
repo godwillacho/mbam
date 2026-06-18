@@ -1,7 +1,10 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::error::ApiError;
+use crate::{
+    authentication::{AuthorizationContext, BaselineRole},
+    error::ApiError,
+};
 
 use super::{
     model::{
@@ -184,6 +187,16 @@ pub async fn delete_draft(db: &PgPool, user_id: Uuid, draft_id: Uuid) -> Result<
 
 pub async fn list(db: &PgPool, user_id: Uuid) -> Result<Vec<TransactionResponse>, ApiError> {
     Ok(repository::list_for_user(db, user_id).await?)
+}
+
+/// Lists at most five newest transactions for cashier and shop-manager dashboards.
+pub async fn recent(
+    db: &PgPool,
+    authorization: &AuthorizationContext,
+) -> Result<Vec<TransactionResponse>, ApiError> {
+    authorization.require_baseline_role(&[BaselineRole::ShopManager, BaselineRole::Cashier])?;
+    authorization.require_permission("sale.view")?;
+    Ok(repository::list_for_user_with_limit(db, authorization.user_id, Some(5)).await?)
 }
 
 pub async fn find(

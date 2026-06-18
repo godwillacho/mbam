@@ -85,6 +85,15 @@ pub struct AuthorizationGrant {
     pub business_unit_ids: BTreeSet<Uuid>,
 }
 
+/// One permission-bearing authorization scope safe for offline reconciliation.
+#[derive(Clone, Debug)]
+pub struct AuthorizationScopeSnapshot {
+    pub business_ids: BTreeSet<Uuid>,
+    pub business_unit_ids: BTreeSet<Uuid>,
+    pub permissions: BTreeSet<String>,
+    pub restrict_to_own_records: bool,
+}
+
 /// The normalized, fail-closed authorization context for one protected request.
 #[derive(Clone, Debug)]
 pub struct AuthorizationContext {
@@ -190,6 +199,54 @@ impl AuthorizationContext {
         }
     }
 
+    /// Returns business IDs authorized by grants containing one permission.
+    ///
+    /// Input is a domain permission and output is the union of business IDs from
+    /// grants that contain that same permission. Empty output means no scoped
+    /// access. This method assumes the context was normalized and does not load
+    /// resource state, authorize a unit, or perform a domain operation.
+    pub fn business_ids_for_permission(&self, permission: &str) -> BTreeSet<Uuid> {
+        self.grants
+            .iter()
+            .filter(|grant| grant.permissions.contains(permission))
+            .flat_map(|grant| grant.business_ids.iter().copied())
+            .collect()
+    }
+
+    /// Returns unit IDs authorized by grants containing one permission.
+    ///
+    /// Input is a domain permission and output is the union of business-unit IDs
+    /// from grants that contain that same permission. Empty output means no
+    /// scoped access. This method does not infer access from another membership
+    /// or authorize the requested operation by itself.
+    pub fn business_unit_ids_for_permission(&self, permission: &str) -> BTreeSet<Uuid> {
+        self.grants
+            .iter()
+            .filter(|grant| grant.permissions.contains(permission))
+            .flat_map(|grant| grant.business_unit_ids.iter().copied())
+            .collect()
+    }
+
+    /// Returns membership scopes that contain the requested permission.
+    ///
+    /// Input is a permission code and output preserves each matching
+    /// membership's business IDs, unit IDs, complete permission set, and cashier
+    /// ownership restriction. Empty output means no access. This method is for
+    /// offline reconciliation and does not authorize a queued operation by
+    /// itself.
+    pub fn scopes_for_permission(&self, permission: &str) -> Vec<AuthorizationScopeSnapshot> {
+        self.grants
+            .iter()
+            .filter(|grant| grant.permissions.contains(permission))
+            .map(|grant| AuthorizationScopeSnapshot {
+                business_ids: grant.business_ids.clone(),
+                business_unit_ids: grant.business_unit_ids.clone(),
+                permissions: grant.permissions.clone(),
+                restrict_to_own_records: grant.baseline_role == BaselineRole::Cashier,
+            })
+            .collect()
+    }
+
     /// Requires a permission and business scope on the same active membership.
     ///
     /// Inputs are a permission code and business identifier. Output is
@@ -219,6 +276,30 @@ impl AuthorizationContext {
     ) -> Result<(), ApiError> {
         if self.grants.iter().any(|grant| {
             grant.permissions.contains(permission)
+                && grant.business_unit_ids.contains(&business_unit_id)
+        }) {
+            Ok(())
+        } else {
+            Err(ApiError::NotFound)
+        }
+    }
+
+    /// Requires permission, business, and unit scope on the same membership.
+    ///
+    /// Inputs identify one domain permission and the parent/child scope pair.
+    /// Output is `Ok(())` only when one active grant contains all three values.
+    /// Cross-grant or out-of-scope combinations return tenant-safe `404`. This
+    /// guard does not query whether the unit currently belongs to the business
+    /// and does not perform the requested domain operation.
+    pub fn require_business_unit_pair(
+        &self,
+        permission: &str,
+        business_id: Uuid,
+        business_unit_id: Uuid,
+    ) -> Result<(), ApiError> {
+        if self.grants.iter().any(|grant| {
+            grant.permissions.contains(permission)
+                && grant.business_ids.contains(&business_id)
                 && grant.business_unit_ids.contains(&business_unit_id)
         }) {
             Ok(())

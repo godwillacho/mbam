@@ -4,9 +4,12 @@ use serde_json::Value;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use crate::error::ApiError;
 use crate::modules::products::{model::ProductWriteRequest, repository as product_repository};
 use crate::modules::transactions::model::{CreateTransactionLineRequest, CreateTransactionRequest};
+use crate::{
+    authentication::{AuthorizationContext, BaselineRole},
+    error::ApiError,
+};
 
 use super::model::{
     CloudChange, SyncAuthorizationScope, SyncPullResult, SyncPushRequest, SyncPushResult,
@@ -14,12 +17,14 @@ use super::model::{
 
 pub async fn pull(
     db: &PgPool,
-    user_id: Uuid,
+    authorization: &AuthorizationContext,
     cursor: Option<&str>,
     device_id: Option<Uuid>,
 ) -> Result<SyncPullResult, ApiError> {
+    authorization.require_permission("sync.pull")?;
+    let user_id = authorization.user_id;
     let run_id = start_run(db, user_id, device_id, "pull", cursor, 0).await?;
-    let result = build_snapshot(db, user_id, run_id).await;
+    let result = build_snapshot(db, authorization, run_id).await;
     match result {
         Ok(snapshot) => {
             finish_run(
@@ -44,9 +49,11 @@ pub async fn pull(
 
 pub async fn push(
     db: &PgPool,
-    user_id: Uuid,
+    authorization: &AuthorizationContext,
     payload: SyncPushRequest,
 ) -> Result<Vec<SyncPushResult>, ApiError> {
+    authorization.require_permission("sync.push")?;
+    let user_id = authorization.user_id;
     let run_id = start_run(
         db,
         user_id,
@@ -56,32 +63,17 @@ pub async fn push(
         payload.operations.len() as i32,
     )
     .await?;
-    let can_push: bool = sqlx::query_scalar(
-        r#"
-        select exists(
-          select 1 from memberships m
-          join role_permissions rp on rp.role_id = m.role_id
-          join permissions p on p.id = rp.permission_id
-          where m.user_id = $1 and m.status = 'active' and p.code = 'sync.push'
-        )
-        "#,
-    )
-    .bind(user_id)
-    .fetch_one(db)
-    .await?;
-
     let mut results = Vec::with_capacity(payload.operations.len());
     for operation in payload.operations {
-        results.push(if can_push {
-            apply_operation(db, user_id, operation).await
-        } else {
-            rejected_result(
+        results.push(match authorize_operation(authorization, &operation) {
+            Ok(()) => apply_operation(db, user_id, operation).await,
+            Err(error) => rejected_result(
                 operation
                     .get("operationId")
                     .and_then(Value::as_str)
                     .unwrap_or("unknown"),
-                "role does not grant offline upload access",
-            )
+                error,
+            ),
         });
     }
     let accepted_count = results
@@ -102,6 +94,34 @@ pub async fn push(
     Ok(results)
 }
 
+fn authorize_operation(
+    authorization: &AuthorizationContext,
+    operation: &Value,
+) -> Result<(), &'static str> {
+    let business_id = operation
+        .get("businessId")
+        .and_then(Value::as_str)
+        .and_then(|value| Uuid::parse_str(value).ok())
+        .ok_or("sync operation business scope is missing")?;
+    let business_unit_id = operation
+        .get("businessUnitId")
+        .and_then(Value::as_str)
+        .and_then(|value| Uuid::parse_str(value).ok());
+    let allowed = match business_unit_id {
+        Some(unit_id) => authorization
+            .require_business_unit_pair("sync.push", business_id, unit_id)
+            .is_ok(),
+        None => authorization
+            .require_business("sync.push", business_id)
+            .is_ok(),
+    };
+    if allowed {
+        Ok(())
+    } else {
+        Err("sync operation is outside current authorization")
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProductSyncOperation {
@@ -109,6 +129,8 @@ struct ProductSyncOperation {
     entity_type: String,
     entity_id: String,
     action: String,
+    business_id: Uuid,
+    business_unit_id: Option<Uuid>,
     base_version: Option<i64>,
     payload: Value,
 }
@@ -135,6 +157,14 @@ async fn apply_operation(db: &PgPool, user_id: Uuid, value: Value) -> SyncPushRe
         Ok(product) => product,
         Err(_) => return rejected_result(&operation.operation_id, "product payload is malformed"),
     };
+    if product.business_id != operation.business_id
+        || Some(product.business_unit_id) != operation.business_unit_id
+    {
+        return rejected_result(
+            &operation.operation_id,
+            "product payload scope does not match the authorized sync envelope",
+        );
+    }
     product.id = Some(product_id);
 
     let result = match operation.action.as_str() {
@@ -224,6 +254,14 @@ async fn apply_transaction_operation(
             return rejected_result(&operation.operation_id, "transaction payload is malformed")
         }
     };
+    if payload.transaction.business_id != operation.business_id
+        || payload.transaction.business_unit_id != operation.business_unit_id
+    {
+        return rejected_result(
+            &operation.operation_id,
+            "transaction payload scope does not match the authorized sync envelope",
+        );
+    }
     let request = CreateTransactionRequest {
         id: Uuid::parse_str(&operation.entity_id).ok(),
         business_id: payload.transaction.business_id,
@@ -273,114 +311,71 @@ fn rejected_result(operation_id: &str, error: &str) -> SyncPushResult {
 
 async fn build_snapshot(
     db: &PgPool,
-    user_id: Uuid,
+    authorization: &AuthorizationContext,
     run_id: Uuid,
 ) -> Result<SyncPullResult, ApiError> {
-    let can_pull: bool = sqlx::query_scalar(
-        r#"
-        select exists(
-          select 1 from memberships m
-          join role_permissions rp on rp.role_id = m.role_id
-          join permissions p on p.id = rp.permission_id
-          where m.user_id = $1 and m.status = 'active' and p.code = 'sync.pull'
-        )
-        "#,
-    )
-    .bind(user_id)
-    .fetch_one(db)
-    .await?;
-    if !can_pull {
-        return Ok(SyncPullResult {
-            cursor: Utc::now().to_rfc3339(),
-            user_id,
-            authorization_version: Utc::now().timestamp_millis(),
-            allowed_business_ids: Vec::new(),
-            allowed_business_unit_ids: Vec::new(),
-            permissions: Vec::new(),
-            restrict_to_own_records: true,
-            authorization_scopes: Vec::new(),
-            allowed_entity_keys: Vec::new(),
-            changes: Vec::new(),
-            sync_run_id: run_id,
-        });
-    }
+    let user_id = authorization.user_id;
+    let business_ids = authorization
+        .business_ids_for_permission("sync.pull")
+        .into_iter()
+        .collect::<Vec<_>>();
+    let unit_ids = authorization
+        .business_unit_ids_for_permission("sync.pull")
+        .into_iter()
+        .collect::<Vec<_>>();
+    let can_view_products = authorization.require_permission("product.view").is_ok();
+    let can_view_transactions = authorization.require_permission("sale.view").is_ok();
+    let can_view_workers = authorization.require_permission("worker.view").is_ok();
+    let baseline_role = authorization.baseline_role.code();
 
     let rows = sqlx::query(
         r#"
-        with actor_memberships as (
-          select m.* from memberships m
-          join role_permissions rp on rp.role_id = m.role_id
-          join permissions p on p.id = rp.permission_id
-          where m.user_id = $1 and m.status = 'active' and p.code = 'sync.pull'
-        ),
-        visible_businesses as (
+        with visible_businesses as (
           select distinct b.id, b.name, b.business_type, b.country, b.currency, b.status, b.updated_at
-          from businesses b join actor_memberships m on m.business_account_id = b.business_account_id
-          where b.status = 'active' and (m.business_id is null or m.business_id = b.id)
+          from businesses b
+          where b.status = 'active' and b.id = any($2)
         ),
         visible_units as (
           select distinct bu.id, bu.business_id, bu.name, bu.unit_type, bu.location, bu.status, bu.updated_at
-          from business_units bu join actor_memberships m on m.business_account_id = bu.business_account_id
-          where bu.status = 'active'
-            and (m.business_id is null or m.business_id = bu.business_id)
-            and (m.business_unit_id is null or m.business_unit_id = bu.id)
-        ),
-        product_memberships as (
-          select distinct m.*
-          from memberships m
-          join role_permissions rp on rp.role_id = m.role_id
-          join permissions p on p.id = rp.permission_id
-          where m.user_id = $1 and m.status = 'active' and p.code = 'product.view'
+          from business_units bu
+          where bu.status = 'active' and bu.id = any($3)
         ),
         visible_products as (
           select distinct product.*
           from products product
-          join product_memberships membership
-            on membership.business_account_id = product.business_account_id
-           and (membership.business_id is null or membership.business_id = product.business_id)
-          where product.status = 'active'
-        ),
-        transaction_memberships as (
-          select distinct m.*, r.code as role_code
-          from memberships m
-          join roles r on r.id = m.role_id
-          join role_permissions rp on rp.role_id = m.role_id
-          join permissions p on p.id = rp.permission_id
-          where m.user_id = $1 and m.status = 'active' and p.code = 'sale.view'
+          where $4 and product.status = 'active'
+            and product.business_id = any($2)
+            and product.business_unit_id = any($3)
         ),
         visible_transactions as (
           select distinct transaction.*, recorder.full_name as recorded_by
           from transactions transaction
           join users recorder on recorder.id = transaction.recorded_by_user_id
-          join transaction_memberships membership
-            on membership.business_account_id = transaction.business_account_id
-           and (membership.business_id is null or membership.business_id = transaction.business_id)
-           and (
-             membership.business_unit_id is null
-             or membership.business_unit_id = transaction.business_unit_id
-           )
-           and (
-             membership.role_code <> 'cashier'
-             or transaction.recorded_by_user_id = $1
-           )
-        ),
-        worker_memberships as (
-          select distinct m.*
-          from memberships m
-          join role_permissions rp on rp.role_id = m.role_id
-          join permissions p on p.id = rp.permission_id
-          where m.user_id = $1 and m.status = 'active' and p.code = 'worker.view'
+          where $5
+            and transaction.business_id = any($2)
+            and (
+              transaction.business_unit_id is null
+              or transaction.business_unit_id = any($3)
+            )
+            and ($7 <> 'cashier' or transaction.recorded_by_user_id = $1)
         ),
         visible_members as (
           select distinct target.id, target.user_id, u.full_name, u.email, u.phone,
             target.role_id, r.code as role_code, r.name as role_name,
             target.business_id, target.business_unit_id, target.status, target.updated_at
-          from worker_memberships actor
-          join memberships target on target.business_account_id = actor.business_account_id
-            and (actor.business_id is null or target.business_id = actor.business_id)
-            and (actor.business_unit_id is null or target.business_unit_id = actor.business_unit_id)
+          from memberships target
           join users u on u.id = target.user_id
           join roles r on r.id = target.role_id
+          where $6 and target.status in ('active', 'disabled')
+            and (
+              ($7 = 'master_owner' and target.business_account_id = any($8))
+              or ($7 = 'business_admin' and target.business_id = any($2))
+              or (
+                $7 = 'shop_manager'
+                and target.business_unit_id = any($3)
+                and (r.code = 'cashier' or r.code like 'custom_member_cashier_%')
+              )
+            )
         )
         select 'business' as entity_type, id, updated_at,
           jsonb_build_object(
@@ -452,82 +447,31 @@ async fn build_snapshot(
         "#,
     )
     .bind(user_id)
+    .bind(&business_ids)
+    .bind(&unit_ids)
+    .bind(can_view_products)
+    .bind(can_view_transactions)
+    .bind(can_view_workers)
+    .bind(baseline_role)
+    .bind(
+        authorization
+            .authorized_business_account_ids
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+    )
     .fetch_all(db)
     .await?;
-
-    let authorization_version: i64 = sqlx::query_scalar(
-        "select coalesce((extract(epoch from max(updated_at)) * 1000)::bigint, 0) from memberships where user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(db)
-    .await?;
-    let scope = sqlx::query(
-        r#"
-        select
-          coalesce(array_agg(distinct b.id) filter (where b.id is not null), array[]::uuid[]) as business_ids,
-          coalesce(array_agg(distinct bu.id) filter (where bu.id is not null), array[]::uuid[]) as unit_ids,
-          coalesce(array_agg(distinct p.code) filter (where p.code is not null), array[]::text[]) as permissions,
-          coalesce(bool_and(r.code = 'cashier'), false) as restrict_to_own_records
-        from memberships m
-        join roles r on r.id = m.role_id
-        left join role_permissions rp on rp.role_id = m.role_id
-        left join permissions p on p.id = rp.permission_id
-        left join businesses b on b.business_account_id = m.business_account_id
-          and (m.business_id is null or m.business_id = b.id)
-          and b.status = 'active'
-        left join business_units bu on bu.business_account_id = m.business_account_id
-          and (m.business_id is null or m.business_id = bu.business_id)
-          and (m.business_unit_id is null or m.business_unit_id = bu.id)
-          and bu.status = 'active'
-        where m.user_id = $1 and m.status = 'active'
-        "#,
-    )
-    .bind(user_id)
-    .fetch_one(db)
-    .await?;
-    let scope_rows = sqlx::query(
-        r#"
-        select
-          coalesce(array(
-            select b.id from businesses b
-            where b.business_account_id = m.business_account_id
-              and (m.business_id is null or m.business_id = b.id)
-              and b.status = 'active'
-          ), array[]::uuid[]) as business_ids,
-          coalesce(array(
-            select bu.id from business_units bu
-            where bu.business_account_id = m.business_account_id
-              and (m.business_id is null or m.business_id = bu.business_id)
-              and (m.business_unit_id is null or m.business_unit_id = bu.id)
-              and bu.status = 'active'
-          ), array[]::uuid[]) as unit_ids,
-          coalesce(array(
-            select p.code from role_permissions rp
-            join permissions p on p.id = rp.permission_id
-            where rp.role_id = m.role_id
-            order by p.code
-          ), array[]::text[]) as permissions,
-          r.code = 'cashier' as restrict_to_own_records
-        from memberships m
-        join roles r on r.id = m.role_id
-        where m.user_id = $1 and m.status = 'active'
-        order by m.created_at
-        "#,
-    )
-    .bind(user_id)
-    .fetch_all(db)
-    .await?;
-    let authorization_scopes = scope_rows
+    let authorization_scopes = authorization
+        .scopes_for_permission("sync.pull")
         .into_iter()
-        .map(|row| {
-            Ok(SyncAuthorizationScope {
-                business_ids: row.try_get("business_ids")?,
-                business_unit_ids: row.try_get("unit_ids")?,
-                permissions: row.try_get("permissions")?,
-                restrict_to_own_records: row.try_get("restrict_to_own_records")?,
-            })
+        .map(|scope| SyncAuthorizationScope {
+            business_ids: scope.business_ids.into_iter().collect(),
+            business_unit_ids: scope.business_unit_ids.into_iter().collect(),
+            permissions: scope.permissions.into_iter().collect(),
+            restrict_to_own_records: scope.restrict_to_own_records,
         })
-        .collect::<Result<Vec<_>, sqlx::Error>>()?;
+        .collect::<Vec<_>>();
     let mut changes = Vec::with_capacity(rows.len());
     let mut allowed_entity_keys = Vec::with_capacity(rows.len());
     for row in rows {
@@ -551,11 +495,11 @@ async fn build_snapshot(
     Ok(SyncPullResult {
         cursor: Utc::now().to_rfc3339(),
         user_id,
-        authorization_version,
-        allowed_business_ids: scope.try_get("business_ids")?,
-        allowed_business_unit_ids: scope.try_get("unit_ids")?,
-        permissions: scope.try_get("permissions")?,
-        restrict_to_own_records: scope.try_get("restrict_to_own_records")?,
+        authorization_version: authorization.authorization_version,
+        allowed_business_ids: business_ids,
+        allowed_business_unit_ids: unit_ids,
+        permissions: authorization.permissions.iter().cloned().collect(),
+        restrict_to_own_records: authorization.baseline_role == BaselineRole::Cashier,
         authorization_scopes,
         allowed_entity_keys,
         changes,

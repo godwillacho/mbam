@@ -612,3 +612,95 @@ role controls, which did not enforce the shop-manager cashier-only ceiling.
   status before enabling role edits in Keycloak mode.
 - Add strict offline snapshot expiry and queued-operation revalidation tests.
 - Build reporting aggregation endpoints and indexes before chart-heavy UI work.
+
+## 2026-06-19 - Scoped Reporting And Offline Revalidation
+
+**Related change:** `codex/complete-authz-reporting-refactor`
+
+**Requested behavior:** Add server-authoritative reporting and recent
+transactions, enforce the complete role/scope matrix in report queries, index
+the reporting paths, and make offline snapshots and queued writes fail closed
+after authorization changes.
+
+**Root cause / engineering reason:** Reports and dashboard metrics still used
+browser workspace data, recent transactions had no dashboard-sized API, and
+offline synchronization pushed queued operations before learning about current
+authorization. The encrypted authorization snapshot also lacked an explicit
+expiry and could not independently prove its baseline role and shop scope.
+
+**Files changed:**
+
+- `mbam-api/migrations/0011_reporting_indexes.sql`
+- `mbam-api/src/modules/reports/`
+- transaction, sync, authorization-context, seed, and role-permission files
+- frontend offline snapshot, database, synchronization, and tests
+- `docs/MBAM_REFACTOR_CHECKLIST.md`
+- `debug.log`, `error.log`, and this engineering log
+
+**Implementation:**
+
+- Added business, shop, employee, product, and dashboard-summary aggregation
+  endpoints with daily, weekly, monthly, and yearly windows.
+- Used timezone-aware UTC boundaries and database aggregation; cashiers are
+  restricted to their own recorder ID, managers to assigned shops, business
+  administrators to assigned businesses, and master owners to authorized
+  account scope.
+- Added compound reporting indexes for business, unit, recorder, product, and
+  creation time.
+- Added a manager/cashier-only recent-transactions endpoint capped at five,
+  newest first, while retaining repository-level ownership and unit filters.
+- Rebuilt sync snapshots from the normalized authorization context instead of
+  separate membership inference.
+- Revalidated every queued operation against current same-grant business/unit
+  scope and required its declared envelope scope to equal its payload scope.
+- Changed synchronization order to pull and reconcile authorization before
+  reading or pushing pending operations.
+- Added explicit offline snapshot expiry, baseline role, permission, business,
+  shop, device binding, and authorization version. Legacy, stale, expired, or
+  broadened snapshots are rejected.
+- Retained revoked queued operations as visible failed records with a stable
+  rejection reason instead of deleting them.
+
+**Debugging and verification:**
+
+- `cargo fmt --all`, `cargo test --locked`, and strict Clippy passed; all 20
+  backend tests passed.
+- Frontend type-check and lint passed; all 35 frontend tests passed.
+- `git diff --check` passed.
+- Live seeded database checks confirmed manager shop reports and cashier
+  personal employee reports return 200 while cashier business reports return
+  403.
+- Device-bound sync pulls returned only normalized manager/cashier scope.
+- Cross-shop sync writes and authorized-envelope/unauthorized-payload probes
+  were rejected without modifying data.
+
+**Errors encountered:**
+
+- An older local API process occupied the configured port and was stopped.
+- The first sync pull probe used the wrong query-field casing and returned 401.
+- The first frontend test invocation duplicated the run flag.
+- The first new Vitest mock relied on non-hoisted state and was corrected with
+  a hoisted initializer.
+
+**Checks not run:**
+
+- Browser UI automation was not run for this backend/offline increment.
+- The chart-rendering frontend and split detail pages are not part of this
+  increment.
+- Database-backed CI integration tests for every tenant-crossing case remain to
+  be added.
+
+**Remaining risks:**
+
+- Keycloak role mutation still needs a transactional outbox and reconciliation
+  worker.
+- Login/logout and synchronization-denial audit coverage is incomplete.
+- Legacy browser authentication remains until the Keycloak PKCE migration and
+  migration tests are complete.
+
+**Follow-up checks:**
+
+- Build chart-based dashboards and split detail pages exclusively on the new
+  aggregation APIs.
+- Add the role-management outbox and expose synchronization failures.
+- Add full database-backed denial/audit integration tests and browser E2E.

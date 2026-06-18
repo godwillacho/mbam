@@ -325,6 +325,15 @@ pub async fn list_for_user(
     db: &PgPool,
     user_id: Uuid,
 ) -> Result<Vec<TransactionResponse>, sqlx::Error> {
+    list_for_user_with_limit(db, user_id, None).await
+}
+
+/// Lists newest authorized transactions with an optional server-side limit.
+pub async fn list_for_user_with_limit(
+    db: &PgPool,
+    user_id: Uuid,
+    limit: Option<i64>,
+) -> Result<Vec<TransactionResponse>, sqlx::Error> {
     let query = format!(
         r#"
         select distinct {TRANSACTION_COLUMNS}
@@ -353,12 +362,17 @@ pub async fn list_for_user(
             or membership.business_unit_id = transaction.business_unit_id
             or unit_scope.business_unit_id is not null
           )
-          and (role.code <> 'cashier' or transaction.recorded_by_user_id = $1)
+          and (
+            (role.code <> 'cashier' and role.code not like 'custom_member_cashier_%')
+            or transaction.recorded_by_user_id = $1
+          )
         order by transaction.created_at desc
+        limit coalesce($2, 9223372036854775807)
         "#
     );
     let records = sqlx::query_as::<_, TransactionRecord>(&query)
         .bind(user_id)
+        .bind(limit)
         .fetch_all(db)
         .await?;
     hydrate(db, records).await
@@ -398,7 +412,10 @@ pub async fn find_by_id(
             or membership.business_unit_id = transaction.business_unit_id
             or unit_scope.business_unit_id is not null
           )
-          and (role.code <> 'cashier' or transaction.recorded_by_user_id = $1)
+          and (
+            (role.code <> 'cashier' and role.code not like 'custom_member_cashier_%')
+            or transaction.recorded_by_user_id = $1
+          )
         limit 1
         "#
     );

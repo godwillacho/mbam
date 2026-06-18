@@ -9,6 +9,7 @@ default-run = "mbam-api"
 argon2 = "0.5"
 axum = "0.7"
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
 dotenvy = "0.15"
 hmac = "0.12"
 jsonwebtoken = "9"

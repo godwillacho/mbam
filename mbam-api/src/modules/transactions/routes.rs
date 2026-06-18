@@ -16,6 +16,7 @@ use super::{
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
+        .route("/recent", get(recent))
         .route("/drafts", get(list_drafts).post(create_draft))
         .route(
             "/drafts/:draft_id",
@@ -90,6 +91,13 @@ async fn list(
     authorization: AuthorizationContext,
 ) -> Result<Json<Vec<super::model::TransactionResponse>>, ApiError> {
     Ok(Json(service::list(&state.db, authorization.user_id).await?))
+}
+
+async fn recent(
+    State(state): State<AppState>,
+    authorization: AuthorizationContext,
+) -> Result<Json<Vec<super::model::TransactionResponse>>, ApiError> {
+    Ok(Json(service::recent(&state.db, &authorization).await?))
 }
 
 async fn find(

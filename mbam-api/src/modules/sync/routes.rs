@@ -33,13 +33,18 @@ async fn pull(
     headers: HeaderMap,
     Query(query): Query<PullQuery>,
 ) -> Result<Json<super::model::SyncPullResult>, ApiError> {
-    let user_id = authorization.user_id;
     let device_id = request_device_id(&headers)?;
     if query.device_id != Some(device_id) {
         return Err(ApiError::Unauthorized);
     }
     Ok(Json(
-        service::pull(&state.db, user_id, query.cursor.as_deref(), Some(device_id)).await?,
+        service::pull(
+            &state.db,
+            &authorization,
+            query.cursor.as_deref(),
+            Some(device_id),
+        )
+        .await?,
     ))
 }
 
@@ -59,7 +64,9 @@ async fn push(
     {
         return Err(ApiError::Unauthorized);
     }
-    Ok(Json(service::push(&state.db, user_id, payload).await?))
+    Ok(Json(
+        service::push(&state.db, &authorization, payload).await?,
+    ))
 }
 
 fn operation_bound_to_session(operation: &Value, user_id: Uuid, device_id: Uuid) -> bool {

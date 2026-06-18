@@ -120,12 +120,14 @@ const CASHIER_PERMISSIONS: &[&str] = &[
     "product.create",
     "product.update",
     "product.view",
+    "report.view",
     "sync.pull",
     "sync.push",
     "screen.record_transaction",
     "screen.transaction_drafts",
     "screen.transactions",
     "screen.products",
+    "screen.reports",
 ];
 
 struct SeedProduct {

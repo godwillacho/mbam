@@ -18,13 +18,18 @@ import {
   getDeviceBinding,
   type DeviceBinding,
 } from "./deviceBindingService";
+import { getValidOfflineGrant } from "./offlineSessionService";
 
 const SNAPSHOT_ID = "current";
 const SNAPSHOT_AAD = "authorization-snapshot:current";
 
 export interface OfflineAuthorizationSnapshot {
-  version: 1;
+  version: 2;
   userId: string;
+  baselineRole: string;
+  permissions: string[];
+  businessIds: string[];
+  businessUnitIds: string[];
   session: AuthSession;
   team: TeamWorkspace;
   workspaceData: WorkspaceData;
@@ -32,7 +37,28 @@ export interface OfflineAuthorizationSnapshot {
   selectedDashboardPath: string;
   deviceBinding: DeviceBinding;
   authorizationVersion: number;
+  expiresAt: string;
   storedAt: string;
+}
+
+/** Returns true only for a current, unexpired snapshot matching its storage metadata. */
+export function offlineSnapshotIsCurrent(
+  snapshot: Pick<
+    OfflineAuthorizationSnapshot,
+    "version" | "userId" | "authorizationVersion" | "expiresAt"
+  >,
+  record: Pick<
+    Awaited<ReturnType<typeof getAuthorizationSnapshotRecord>> & object,
+    "userId" | "authorizationVersion"
+  >,
+  now = Date.now(),
+): boolean {
+  return (
+    snapshot.version === 2 &&
+    snapshot.userId === record.userId &&
+    snapshot.authorizationVersion === record.authorizationVersion &&
+    Date.parse(snapshot.expiresAt) > now
+  );
 }
 
 function cloneWorkspaceData(): WorkspaceData {
@@ -53,11 +79,24 @@ export async function saveOfflineAuthorizationSnapshot(
     (profile) => profile.user_id === session.user.id,
   ) ?? team.dashboard_profiles[0];
   if (!dashboardProfile) throw new Error("offline_dashboard_profile_missing");
+  const grant = await getValidOfflineGrant();
+  if (!grant || grant.payload.userId !== session.user.id) {
+    throw new Error("offline_authorization_required");
+  }
+  if (grant.payload.authorizationVersion !== team.authorization_version) {
+    throw new Error("offline_authorization_version_mismatch");
+  }
+  const member = team.members.find((candidate) => candidate.user_id === session.user.id);
+  if (!member) throw new Error("offline_membership_missing");
 
   const deviceBinding = await getDeviceBinding();
   const snapshot: OfflineAuthorizationSnapshot = {
-    version: 1,
+    version: 2,
     userId: session.user.id,
+    baselineRole: member.role_code,
+    permissions: dashboardProfile.permissions,
+    businessIds: team.businesses.map((business) => business.id),
+    businessUnitIds: team.business_units.map((unit) => unit.id),
     session: {
       ...session,
       accessToken: "",
@@ -68,6 +107,7 @@ export async function saveOfflineAuthorizationSnapshot(
     selectedDashboardPath,
     deviceBinding,
     authorizationVersion: team.authorization_version,
+    expiresAt: grant.payload.offlineUntil,
     storedAt: new Date().toISOString(),
   };
   const value = await encryptJson(requireOfflineDataKey(), snapshot, SNAPSHOT_AAD);
@@ -99,7 +139,7 @@ export async function getValidOfflineAuthorizationSnapshot(
     record.value,
     SNAPSHOT_AAD,
   );
-  if (snapshot.version !== 1 || snapshot.userId !== record.userId) {
+  if (!offlineSnapshotIsCurrent(snapshot, record)) {
     await deleteAuthorizationSnapshotRecord();
     return null;
   }

@@ -263,7 +263,13 @@ export async function reconcileOfflineOutbox(
           scope.businessUnitIds.includes(record.businessUnitId)),
     );
     if (!allowed) {
-      await transaction.objectStore("outbox").delete(record.operationId);
+      await transaction.objectStore("outbox").put({
+        ...record,
+        status: "failed",
+        retryCount: record.retryCount + 1,
+        lastAttemptAt: new Date().toISOString(),
+        errorMessage: "authorization_revoked_before_sync",
+      });
     }
   }
   if (previousVersion?.value !== String(authorizationVersion)) {

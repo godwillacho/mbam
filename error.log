@@ -69,3 +69,13 @@ Encountered: The local shell does not provide the timeout utility used in the fi
 Resolution: Ran the API in an interactive session, verified health and migrations, and stopped it explicitly.
 Encountered: One live denial check reused an expired short-lived development access token and returned 401.
 Resolution: Re-authenticated without logging credentials or token values and confirmed the intended shop-manager role-elevation attempt returns 403.
+
+2026-06-19
+Encountered: The first live API restart found an older development server still listening on the configured port.
+Resolution: Stopped the stale process and started the current binary before runtime verification.
+Encountered: The first sync pull probe used the snake-case query name instead of the API's camel-case device identifier and returned 401.
+Resolution: Repeated the request with the documented query shape; scoped manager and cashier pulls returned 200.
+Encountered: The first frontend test command duplicated the script's built-in run flag.
+Resolution: Re-ran the standard test script; all 35 tests passed.
+Encountered: The first offline sync test used non-hoisted mock state in a hoisted Vitest factory.
+Resolution: Moved the shared mock state into the framework's hoisted initializer; the test now proves authorization reconciliation precedes pending-write reads.

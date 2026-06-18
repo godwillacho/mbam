@@ -127,6 +127,13 @@ export async function unlockOfflineSession(
     if (!snapshot) {
       throw new Error("offline_authorization_snapshot_required");
     }
+    if (
+      snapshot.authorizationVersion !== grant.payload.authorizationVersion ||
+      snapshot.businessIds.some((id) => !grant.payload.businessIds.includes(id)) ||
+      snapshot.permissions.some((permission) => !grant.payload.permissions.includes(permission))
+    ) {
+      throw new Error("offline_authorization_snapshot_stale");
+    }
 
     const session: AuthSession = {
       ...snapshot.session,

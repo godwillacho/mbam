@@ -184,6 +184,9 @@ export async function synchronizeOfflineChanges(
   transport: SyncTransport,
 ): Promise<void> {
   const binding = await getDeviceBinding();
+  const initialPull = await transport.pull(await getSyncCursor());
+  await applyPullResult(initialPull);
+
   const pendingRecords = await getOutboxRecordsByStatus("pending");
   const operations = await Promise.all(
     pendingRecords.map(async (record) => ({
@@ -250,7 +253,13 @@ export async function synchronizeOfflineChanges(
     }
   }
 
-  const pullResult = await transport.pull(await getSyncCursor());
+  if (operations.length > 0) {
+    const finalPull = await transport.pull(await getSyncCursor());
+    await applyPullResult(finalPull);
+  }
+}
+
+async function applyPullResult(pullResult: SyncPullResult): Promise<void> {
   await reconcileCloudEntities(pullResult.allowedEntityKeys);
   await reconcileOfflineOutbox(
     pullResult.authorizationScopes,

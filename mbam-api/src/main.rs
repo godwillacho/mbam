@@ -95,6 +95,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/api/v1/me", modules::authorization::routes::router())
         .nest("/api/v1/businesses", business_router)
         .nest("/api/v1/products", modules::products::routes::router())
+        .nest("/api/v1/reports", modules::reports::routes::router())
         .nest("/api/v1/team-members", modules::team::routes::team_router())
         .nest(
             "/api/v1/invites",
