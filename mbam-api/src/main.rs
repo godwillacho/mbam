@@ -6,6 +6,7 @@
 //! temporary `dead_code` allowance keeps `cargo check` readable during this
 //! setup phase and should be removed once the auth and business flows are wired.
 
+mod authentication_layer;
 mod config;
 mod db;
 mod dev_seed;
