@@ -214,3 +214,62 @@ logging, offline delivery, redaction, and production error reporting.
 - Validate actual Sentry delivery in a staging environment with non-customer
   synthetic events.
 - Resolve the existing frontend test, lint, and Clippy findings separately.
+
+## 2026-06-18 - Keycloak Authentication Layer Scaffold
+
+**Related change:** `e661281141ef565b708e6ff955a03af7efad6cde`
+
+**Requested behavior:** Refactor authentication and role management toward
+Keycloak by creating an authentication-layer directory with detailed README
+coverage and commented functions.
+
+**Engineering reason:** The current local authentication and role-management
+path has repeated reliability problems because local UI state, seeded users, and
+API authorization logic can drift. Keycloak should become the identity and role
+claim provider, while Mbam API keeps business and shop scope enforcement.
+
+**Files changed:**
+
+- `mbam-api/src/authentication_layer/mod.rs`
+- `mbam-api/src/authentication_layer/keycloak.rs`
+- `mbam-api/src/authentication_layer/README.md`
+- `mbam-api/src/main.rs`
+- `mbam-api/README.md`
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Changes:**
+
+- Added a backend authentication boundary module for Keycloak migration.
+- Added documented Keycloak claim, role-baseline, principal, permission, and
+  fail-closed verification scaffolding.
+- Registered the module from `main.rs` without changing live route behavior.
+- Documented the Keycloak realm role model, migration phases, and fail-closed
+  rules.
+- Linked the authentication-layer README from the API README.
+
+**Debugging and verification:**
+
+- Fetched current API entrypoint, auth service, auth repository, team service,
+  team routes, token helpers, config, and API README through GitHub before
+  patching.
+- Confirmed the new layer does not replace live local JWT guards yet.
+- Confirmed each public function in the new Keycloak file has a usage/security
+  comment.
+
+**Errors encountered:**
+
+- Updating `.env.example` was blocked by the safety layer because the file
+  contains secret-related placeholder fields.
+- The first debug log update was blocked by the safety layer because the wording
+  referenced sensitive authentication material.
+
+**Remaining risks and follow-up checks:**
+
+- Run `cargo check` locally after pulling because this environment has no Rust
+  toolchain.
+- Implement JWKS verification before routing live traffic through Keycloak.
+- Add Keycloak realm/client configuration once issuer, audience, and client IDs
+  are finalized.
+- Replace local route guards incrementally after the Keycloak verifier is live.
