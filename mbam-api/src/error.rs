@@ -40,13 +40,25 @@ pub enum ApiError {
 impl IntoResponse for ApiError {
     /// Converts API errors into JSON HTTP responses.
     fn into_response(self) -> Response {
-        let status = match self {
+        let status = match &self {
             ApiError::BadRequest(_) => StatusCode::BAD_REQUEST,
             ApiError::Unauthorized => StatusCode::UNAUTHORIZED,
             ApiError::Forbidden => StatusCode::FORBIDDEN,
             ApiError::NotFound => StatusCode::NOT_FOUND,
             ApiError::Database(_) | ApiError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         };
+
+        if status.is_server_error() {
+            let error_kind = match &self {
+                ApiError::Database(_) => "database",
+                _ => "internal",
+            };
+            tracing::error!(
+                error.kind = error_kind,
+                http.status_code = status.as_u16(),
+                "api request failed"
+            );
+        }
 
         let body = Json(ErrorBody {
             error: self.to_string(),

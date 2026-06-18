@@ -1,3 +1,9 @@
 2026-06-18
 Change: Added the repository-wide debug and error logging rule.
 Verification: Confirmed AGENTS.md requires root debug.log, root error.log, and a structured engineering log entry for every code update.
+
+2026-06-18
+Change: Implemented production-oriented observability for the Rust API and React PWA.
+Rust: Added structured console output, daily rolling JSON debug/error files, safe HTTP spans, and optional Sentry export.
+React: Added a centralized redacting logger, browser console output, IndexedDB offline buffering, Sentry initialization, an error boundary, and API failure logging.
+Verification: cargo check passed; cargo test passed 6 tests; focused frontend logging tests passed 3 tests; TypeScript type-check passed; production frontend build passed; changed frontend files passed ESLint; changed Rust files passed rustfmt checks.

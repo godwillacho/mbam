@@ -132,3 +132,85 @@ root log files requested for per-update debugging and errors.
 **Remaining checks:**
 
 - None. This is a repository workflow update with no executable behavior.
+
+## 2026-06-18 - Rust And React Observability
+
+**Related change:** `codex/implement-observability-logging`
+
+**Requested behavior:** Implement browser console and offline-buffered Sentry
+logging for React, plus console, rolling debug/error files, and Sentry reporting
+for Rust.
+
+**Engineering reason:** MBAM had basic Rust console tracing and an unused React
+Sentry dependency, but lacked durable backend logs, centralized frontend
+logging, offline delivery, redaction, and production error reporting.
+
+**Files changed:**
+
+- `mbam-api/Cargo.toml`
+- `mbam-api/Cargo.lock`
+- `mbam-api/.env.example`
+- `mbam-api/.gitignore`
+- `mbam-api/README.md`
+- `mbam-api/src/main.rs`
+- `mbam-api/src/error.rs`
+- `mbam-api/src/observability.rs`
+- `mbam-web/.env.example`
+- `mbam-web/README.md`
+- `mbam-web/src/main.tsx`
+- `mbam-web/src/observability.ts`
+- `mbam-web/src/services/apiClient.ts`
+- `mbam-web/src/services/logging/logger.ts`
+- `mbam-web/src/services/logging/logger.test.ts`
+- `mbam-web/src/services/logging/loggingStore.ts`
+- `docs/observability.md`
+- `debug.log`
+- `error.log`
+
+**Changes:**
+
+- Added non-blocking daily JSON debug and error file appenders to the Rust API.
+- Added environment-controlled console formatting and optional Sentry export.
+- Restricted HTTP span fields to method and URL path so query secrets are not
+  logged.
+- Added sanitized server-error events without exposing raw database errors.
+- Added a frontend logger with recursive key/value redaction and bounded fields.
+- Added a 200-record IndexedDB queue that flushes to Sentry after reconnection.
+- Added Sentry event, breadcrumb, transaction, URL, header, cookie, and PII
+  scrubbing.
+- Added a React error boundary and sanitized API timeout/failure diagnostics.
+- Documented configuration and prohibited logging data.
+
+**Debugging and verification:**
+
+- `cargo check` passed.
+- `cargo test` passed all 6 Rust tests.
+- `cargo clippy --all-targets` completed with one pre-existing warning.
+- Changed Rust files passed `rustfmt --check`.
+- `npm run type-check` passed.
+- `npm run build` passed and generated the production PWA.
+- Focused logger tests passed all 3 tests.
+- All changed frontend files passed ESLint with zero warnings.
+- `git diff --check` passed.
+
+**Errors encountered:**
+
+- Initial Cargo dependency resolution was blocked by sandbox DNS and succeeded
+  after approved network access.
+- The first focused Vitest command repeated the script's existing `--run` flag.
+- Full frontend lint retains an unrelated Hook dependency warning in
+  `TransactionRecordPage.tsx`.
+- Full frontend tests retain an unrelated `mockWorkspace.test.ts` role fixture
+  expectation failure.
+- Strict Clippy retains an unrelated `dev_seed.rs` too-many-arguments warning.
+- Rustfmt initially traversed module children; those unrelated formatting
+  changes were reverted.
+
+**Remaining risks and follow-up checks:**
+
+- Configure separate frontend and backend Sentry projects before enabling DSNs.
+- Set production trace sample rates conservatively and review Sentry ingestion
+  before increasing them.
+- Validate actual Sentry delivery in a staging environment with non-customer
+  synthetic events.
+- Resolve the existing frontend test, lint, and Clippy findings separately.

@@ -1,3 +1,17 @@
 2026-06-18
 Encountered: AGENTS.md conflicted while integrating concurrent remote logging-rule updates.
 Resolution: Preserved the remote structured logging requirements and added the explicit root debug.log and error.log requirements.
+
+2026-06-18
+Encountered: Initial cargo check could not resolve index.crates.io inside the restricted network sandbox.
+Resolution: Re-ran cargo check with approved network access; dependencies downloaded and the check passed.
+Encountered: The first focused Vitest command duplicated the existing --run flag.
+Resolution: Re-ran the focused test with the file path only; all logging tests passed.
+Encountered: Full frontend lint reports an existing React Hook dependency warning in TransactionRecordPage.tsx.
+Resolution: Verified all files changed for observability pass ESLint independently; unrelated page behavior was not modified.
+Encountered: Full frontend tests retain one existing mockWorkspace.test.ts expectation failure involving role-pending-access versus role-master-owner.
+Resolution: Confirmed the new logger tests and production build pass; unrelated workspace fixture behavior was not modified.
+Encountered: Strict Clippy reports the existing dev_seed.rs upsert_product function has too many arguments.
+Resolution: Standard Clippy completes with that pre-existing warning; logging code introduces no Clippy warnings.
+Encountered: Rustfmt traversed module children and reformatted unrelated Rust files.
+Resolution: Reverted only the accidental formatting changes and verified the intended Rust files independently.

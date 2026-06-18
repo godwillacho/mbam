@@ -12,12 +12,14 @@ mod dev_seed;
 mod dev_seed_cleanup;
 mod error;
 mod modules;
+mod observability;
 mod routes;
 mod security;
 mod state;
 
+use crate::{config::Config, db::pool::connect_database, state::AppState};
 use axum::{
-    http::{header, HeaderName, HeaderValue, Method},
+    http::{header, HeaderName, HeaderValue, Method, Request},
     Router,
 };
 use std::net::SocketAddr;
@@ -25,9 +27,6 @@ use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-use crate::{config::Config, db::pool::connect_database, state::AppState};
 
 /// Starts the Mbam API server.
 ///
@@ -37,7 +36,7 @@ use crate::{config::Config, db::pool::connect_database, state::AppState};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
-    init_tracing();
+    let _observability_guards = observability::init()?;
 
     let config = Config::from_env()?;
     let pool = connect_database(&config.database_url).await?;
@@ -85,13 +84,15 @@ fn build_router(state: AppState) -> Router {
         .allow_headers([
             header::ACCEPT,
             header::AUTHORIZATION,
+            HeaderName::from_static("baggage"),
             header::CONTENT_TYPE,
+            HeaderName::from_static("sentry-trace"),
             HeaderName::from_static("x-mbam-device-id"),
             HeaderName::from_static("x-mbam-device-fingerprint"),
             HeaderName::from_static("x-mbam-device-label"),
         ]);
-    let business_router = modules::businesses::routes::router()
-        .merge(modules::business_units::routes::router());
+    let business_router =
+        modules::businesses::routes::router().merge(modules::business_units::routes::router());
 
     Router::new()
         .merge(routes::router())
@@ -109,17 +110,14 @@ fn build_router(state: AppState) -> Router {
             modules::transactions::routes::router(),
         )
         .layer(cors)
-        .layer(TraceLayer::new_for_http())
-        .with_state(state)
-}
-
-/// Initializes structured logs for local and production visibility.
-fn init_tracing() {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "mbam_api=debug,tower_http=debug".into()),
+        .layer(
+            TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
+                tracing::info_span!(
+                    "http.request",
+                    http.method = %request.method(),
+                    http.path = request.uri().path(),
+                )
+            }),
         )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+        .with_state(state)
 }

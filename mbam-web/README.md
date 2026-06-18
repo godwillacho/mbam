@@ -24,6 +24,10 @@ npm run dev
 
 App runs at `http://localhost:5173`
 
+Frontend console logging, offline log buffering, redaction, and optional Sentry
+reporting are documented in
+[`../docs/observability.md`](../docs/observability.md).
+
 ## Structure
 
 ```

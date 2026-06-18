@@ -13,6 +13,7 @@ The API is the security boundary between the React frontend and PostgreSQL. The 
 - `src/config.rs` reads runtime configuration from environment variables.
 - `src/state.rs` defines shared application state passed into route handlers.
 - `src/error.rs` centralizes API error responses.
+- `src/observability.rs` configures console, rolling-file, and Sentry logging.
 - `src/db/` contains database connection helpers.
 - `src/routes/` contains top-level API routes.
 - `src/security/` contains password hashing and token helpers.
@@ -64,6 +65,9 @@ docker compose -f docker-compose.private.yml up -d db
 `down -v` permanently deletes the local database.
 
 The API defaults to `127.0.0.1:8080`. If the full Compose stack is already running, its web container owns host port 8080; do not also start a host API on that port.
+
+Logging and optional Sentry configuration are documented in
+[`../docs/observability.md`](../docs/observability.md).
 
 ## Full Compose stack
 
