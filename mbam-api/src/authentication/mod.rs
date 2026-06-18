@@ -48,20 +48,11 @@ impl AuthenticationLayer {
                     KeycloakConfig {
                         issuer_url: required(&config.keycloak_issuer_url, "KEYCLOAK_ISSUER_URL")?,
                         client_id: required(&config.keycloak_client_id, "KEYCLOAK_CLIENT_ID")?,
-                        client_secret: required(
-                            &config.keycloak_client_secret,
-                            "KEYCLOAK_CLIENT_SECRET",
-                        )?,
+                        client_secret: required(&config.keycloak_client_secret, "KEYCLOAK_CLIENT_SECRET")?,
                         audience: required(&config.keycloak_audience, "KEYCLOAK_AUDIENCE")?,
-                        role_client_id: config
-                            .keycloak_role_client_id
-                            .clone()
-                            .unwrap_or_else(|| {
-                                config
-                                    .keycloak_client_id
-                                    .clone()
-                                    .unwrap_or_else(|| "mbam-api".to_string())
-                            }),
+                        role_client_id: config.keycloak_role_client_id.clone().unwrap_or_else(|| {
+                            config.keycloak_client_id.clone().unwrap_or_else(|| "mbam-api".to_string())
+                        }),
                         allow_verified_email_linking: config.keycloak_allow_email_linking,
                     },
                 )),
@@ -72,9 +63,8 @@ impl AuthenticationLayer {
 
     /// Authenticates an HTTP request and resolves it to a local Mbam user.
     ///
-    /// Keycloak mode requires both a valid external token and a matching active
-    /// local membership role. This prevents an identity-provider role from
-    /// creating business access without an Mbam membership.
+    /// Keycloak mode requires both a valid external token and complete coverage
+    /// of every baseline role represented by the user's active local memberships.
     pub async fn authenticate(
         &self,
         headers: &HeaderMap,
@@ -103,7 +93,7 @@ impl AuthenticationLayer {
                 .await?;
                 let local_roles = repository::active_role_codes(db, user_id).await?;
                 if !roles_align(&identity.roles, &local_roles) {
-                    tracing::warn!(user_id = %user_id, "Keycloak roles do not match active Mbam membership roles");
+                    tracing::warn!(user_id = %user_id, "Keycloak roles do not cover active Mbam membership roles");
                     return Err(ApiError::Unauthorized);
                 }
                 Ok(AuthenticatedPrincipal {
@@ -130,20 +120,20 @@ fn required(value: &Option<String>, name: &str) -> Result<String, String> {
     value.clone().ok_or_else(|| format!("{name} is required when AUTH_PROVIDER=keycloak"))
 }
 
-/// Confirms that at least one Keycloak baseline role matches an active local role.
+/// Confirms that Keycloak contains every baseline role required by active local memberships.
 fn roles_align(keycloak_roles: &BTreeSet<String>, local_roles: &[String]) -> bool {
-    local_roles.iter().any(|local_role| {
-        baseline_role(local_role)
-            .map(|role| keycloak_roles.contains(role))
-            .unwrap_or(false)
-    })
+    let required_roles = local_roles
+        .iter()
+        .filter_map(|role| baseline_role(role))
+        .collect::<BTreeSet<_>>();
+    !required_roles.is_empty()
+        && required_roles.iter().all(|role| keycloak_roles.contains(*role))
 }
 
 /// Reduces a standard or custom local role code to its least-privilege baseline role.
 fn baseline_role(role_code: &str) -> Option<&'static str> {
     BASELINE_ROLES.iter().copied().find(|baseline| {
-        role_code == *baseline
-            || role_code.starts_with(&format!("custom_member_{baseline}_"))
+        role_code == *baseline || role_code.starts_with(&format!("custom_member_{baseline}_"))
     })
 }
 
@@ -157,22 +147,23 @@ mod tests {
     #[test]
     fn normalizes_custom_roles_to_their_baseline() {
         assert_eq!(baseline_role("cashier"), Some("cashier"));
-        assert_eq!(
-            baseline_role("custom_member_shop_manager_senior"),
-            Some("shop_manager"),
-        );
+        assert_eq!(baseline_role("custom_member_shop_manager_senior"), Some("shop_manager"));
         assert_eq!(baseline_role("unknown"), None);
     }
 
-    /// Verifies that Keycloak and local memberships must share a baseline role.
+    /// Verifies that Keycloak must cover all active local baseline roles.
     #[test]
-    fn requires_keycloak_and_local_role_alignment() {
-        let roles = BTreeSet::from(["cashier".to_string()]);
-        assert!(roles_align(&roles, &["cashier".to_string()]));
+    fn requires_complete_keycloak_role_alignment() {
+        let cashier_only = BTreeSet::from(["cashier".to_string()]);
+        assert!(roles_align(&cashier_only, &["cashier".to_string()]));
+        assert!(roles_align(&cashier_only, &["custom_member_cashier_senior".to_string()]));
+        assert!(!roles_align(&cashier_only, &["cashier".to_string(), "shop_manager".to_string()]));
+        assert!(!roles_align(&cashier_only, &["unknown".to_string()]));
+
+        let cashier_and_manager = BTreeSet::from(["cashier".to_string(), "shop_manager".to_string()]);
         assert!(roles_align(
-            &roles,
-            &["custom_member_cashier_senior".to_string()],
+            &cashier_and_manager,
+            &["cashier".to_string(), "shop_manager".to_string()],
         ));
-        assert!(!roles_align(&roles, &["shop_manager".to_string()]));
     }
 }
