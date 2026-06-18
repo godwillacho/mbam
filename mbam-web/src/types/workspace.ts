@@ -1,10 +1,10 @@
-export type BusinessStatus = "active" | "disabled";
+type BusinessStatus = "active" | "disabled";
 export type UnitType = "shop" | "warehouse" | "sales_desk";
 export type TransactionStatus = "completed" | "queued" | "refunded";
 export type PaymentMethod = "cash" | "mobile_money" | "card" | "bank_transfer";
 export type ScopeLevel = "master" | "business" | "unit";
 
-export interface MasterAccount {
+interface MasterAccount {
   id: string;
   name: string;
   ownerName: string;
@@ -43,7 +43,7 @@ export interface CustomerProfile {
   pendingBalance: number;
 }
 
-export interface ProductCustomerPrice {
+interface ProductCustomerPrice {
   customerId: string;
   price: number;
   lastSoldAt: string;
@@ -107,7 +107,7 @@ export interface PendingPaymentRecord {
   note?: string;
 }
 
-export interface RoleSummary {
+interface RoleSummary {
   id: string;
   name: string;
   permissions: string[];

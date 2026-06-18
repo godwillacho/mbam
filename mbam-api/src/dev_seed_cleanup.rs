@@ -31,13 +31,11 @@ pub async fn cleanup_test_fixture(db: &PgPool) -> Result<(), sqlx::Error> {
 
     // Remove only the obsolete deterministic fixture business. Never delete
     // arbitrary development data created by the user.
-    sqlx::query(
-        "delete from businesses where id = $1 and business_account_id = $2",
-    )
-    .bind(uuid(OBSOLETE_BUSINESS_ID))
-    .bind(account_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("delete from businesses where id = $1 and business_account_id = $2")
+        .bind(uuid(OBSOLETE_BUSINESS_ID))
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await
 }

@@ -103,11 +103,7 @@ pub async fn list_for_business(
     .await
 }
 
-pub async fn name_exists(
-    db: &PgPool,
-    business_id: Uuid,
-    name: &str,
-) -> Result<bool, sqlx::Error> {
+pub async fn name_exists(db: &PgPool, business_id: Uuid, name: &str) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar(
         r#"
         select exists(

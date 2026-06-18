@@ -214,3 +214,66 @@ logging, offline delivery, redaction, and production error reporting.
 - Validate actual Sentry delivery in a staging environment with non-customer
   synthetic events.
 - Resolve the existing frontend test, lint, and Clippy findings separately.
+
+## 2026-06-18 - Repository Architecture Cleanup
+
+**Related change:** `codex/repository-architecture-cleanup`
+
+**Requested behavior:** Organize the full repository, remove unused modules and
+functions, align active code with secure practices, and provide a navigation
+map.
+
+**Engineering reason:** The repository contained competing frontend domain
+architectures, empty Rust scaffolds, obsolete bootstrap/auto-push scripts,
+stale planning documents, dead exports, unused dependencies, and configuration
+that silently accepted invalid production values.
+
+**Scope and changes:**
+
+- Removed empty Rust `accounts`, `memberships`, `permissions`, `roles`, and
+  `users` module folders. Their real behavior is owned by auth/team.
+- Removed the unused React `models/` layer, tool registry, filter library,
+  future-only type files, and replaced dashboard implementation.
+- Removed unreachable sync/customer/transaction/product/team/business
+  functions and narrowed internal-only exports.
+- Removed five unused npm packages and fixed the audited `form-data` advisory.
+- Removed obsolete repository-bootstrap and automatic-push scripts.
+- Removed unused `JWT_REFRESH_SECRET`; refresh tokens are opaque and hashed.
+- Removed `Debug` from secret-bearing runtime configuration.
+- Added strict positive parsing and a 32-character production secret minimum.
+- Added `REPOSITORY_MAP.md` and rewrote active architecture documentation.
+- Fixed the stale workspace test and React Hook dependency warning.
+
+**Measured result:**
+
+- 101 files changed after final formatting and required log updates.
+- 5,237 lines removed and 923 lines added.
+- Active Rust/TypeScript source is approximately 20,096 lines.
+
+**Verification:**
+
+- `cargo check` passed without dead-code warnings.
+- `cargo test` passed all 6 Rust tests.
+- `cargo clippy --all-targets -- -D warnings` passed.
+- `npm run type-check` and `npm run lint` passed.
+- `npm test` passed all 29 frontend tests.
+- `npm run build` produced the production PWA.
+- Knip reported no unused files, exports, types, or dependencies.
+- `npm audit` reported zero vulnerabilities after the lockfile fix.
+- `git diff --check` passed.
+
+**Errors encountered:**
+
+- Initial removals left unused imports; they were removed.
+- Initial Knip verification found additional internal-only exports.
+- npm audit found one high-severity development-tree advisory and fixed it.
+- `cargo audit` was unavailable because the optional subcommand is not
+  installed.
+
+**Remaining risks and follow-up checks:**
+
+- Large route pages remain behaviorally dense; split them alongside feature
+  work so state and permission behavior can be tested incrementally.
+- `localSyncStore.ts` retains legacy IndexedDB stores for safe client database
+  upgrades and role-scoped cleanup, while its dead generic cache API is gone.
+- Keep `REPOSITORY_MAP.md` synchronized with future module changes.

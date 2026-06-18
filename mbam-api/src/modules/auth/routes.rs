@@ -251,7 +251,11 @@ fn device_binding(headers: &HeaderMap) -> Option<(&str, &str)> {
     cookie_value(headers, DEVICE_HINT_COOKIE_NAME)?.split_once('.')
 }
 
-fn device_signature(state: &AppState, device_id: &str, fingerprint: &str) -> Result<String, ApiError> {
+fn device_signature(
+    state: &AppState,
+    device_id: &str,
+    fingerprint: &str,
+) -> Result<String, ApiError> {
     let mut mac = HmacSha256::new_from_slice(state.config.jwt_access_secret.as_bytes())
         .map_err(|_| ApiError::Internal)?;
     mac.update(device_id.as_bytes());

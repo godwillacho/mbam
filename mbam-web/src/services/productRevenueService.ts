@@ -4,7 +4,7 @@ import type { TeamMember } from "../types/workspace";
 import { getProductDescriptor } from "../utils/productDisplay";
 import { listProducts } from "./productService";
 
-export interface ProductRevenuePricePoint {
+interface ProductRevenuePricePoint {
   id: string;
   customerName: string;
   unitName: string;

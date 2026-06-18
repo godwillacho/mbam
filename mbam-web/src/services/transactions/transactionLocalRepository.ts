@@ -1,7 +1,6 @@
 import type { PaymentMethod, TransactionStatus } from "../../types/workspace";
 import { decryptJson, encryptJson } from "../encryptionService";
 import {
-  deleteEncryptedEntity,
   getEncryptedEntitiesByType,
   getEncryptedEntity,
   putEncryptedEntity,
@@ -16,7 +15,7 @@ import type {
   LocalTransactionSyncStatus,
 } from "../localSync/localSyncStore";
 
-export interface CreateLocalTransactionLineInput {
+interface CreateLocalTransactionLineInput {
   productId?: string;
   productName: string;
   sku?: string;
@@ -301,115 +300,10 @@ export async function listLocalTransactions(
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export async function getLocalTransaction(
-  localId: string,
-): Promise<LocalTransactionRecord | undefined> {
-  return (await decodeTransaction(localId))?.transaction;
-}
-
 export async function getLocalTransactionLines(
   localId: string,
 ): Promise<LocalTransactionLineRecord[]> {
   return (await decodeTransaction(localId))?.lines ?? [];
-}
-
-export async function getLocalTransactionWithLines(
-  localId: string,
-): Promise<LocalTransactionWithLines | undefined> {
-  return decodeTransaction(localId);
-}
-
-export async function updateLocalTransaction(
-  localId: string,
-  updates: Partial<
-    Omit<LocalTransactionRecord, "localId" | "createdAt" | "idempotencyKey">
-  >,
-): Promise<LocalTransactionRecord> {
-  const existing = await decodeTransaction(localId);
-  if (!existing) throw new Error("Local transaction was not found.");
-
-  const transaction = {
-    ...existing.transaction,
-    ...updates,
-    localId: existing.transaction.localId,
-    createdAt: existing.transaction.createdAt,
-    idempotencyKey: existing.transaction.idempotencyKey,
-    updatedAt: new Date().toISOString(),
-  };
-  await saveTransaction({ transaction, lines: existing.lines });
-  return transaction;
-}
-
-export async function replaceLocalTransactionLines(
-  localId: string,
-  lines: CreateLocalTransactionLineInput[],
-): Promise<LocalTransactionWithLines> {
-  const existing = await decodeTransaction(localId);
-  if (!existing) throw new Error("Local transaction was not found.");
-
-  const nextLines = buildLineRecords(
-    localId,
-    lines,
-    existing.transaction.createdAt,
-  );
-  const summary = getLineSummary(nextLines);
-  const transaction: LocalTransactionRecord = {
-    ...existing.transaction,
-    amount: summary.amount,
-    itemCount: summary.itemCount,
-    updatedAt: new Date().toISOString(),
-    syncStatus:
-      existing.transaction.syncStatus === "synced"
-        ? "queued"
-        : existing.transaction.syncStatus,
-  };
-  const next = { transaction, lines: nextLines };
-  await saveTransaction(next);
-  return next;
-}
-
-export async function deleteLocalTransaction(localId: string): Promise<void> {
-  await deleteEncryptedEntity(entityId(localId));
-}
-
-export async function markLocalTransactionSyncing(
-  localId: string,
-): Promise<LocalTransactionRecord> {
-  return updateLocalTransaction(localId, {
-    syncStatus: "syncing",
-    syncError: undefined,
-  });
-}
-
-export async function markLocalTransactionSynced(
-  localId: string,
-  serverId: string,
-  serverReference?: string,
-): Promise<LocalTransactionRecord> {
-  const updates: Partial<
-    Omit<LocalTransactionRecord, "localId" | "createdAt" | "idempotencyKey">
-  > = {
-    serverId,
-    syncStatus: "synced",
-    status: "completed",
-    syncError: undefined,
-  };
-  if (serverReference) updates.reference = serverReference;
-  return updateLocalTransaction(localId, updates);
-}
-
-export async function markLocalTransactionFailed(
-  localId: string,
-  syncError: string,
-): Promise<LocalTransactionRecord> {
-  return updateLocalTransaction(localId, { syncStatus: "failed", syncError });
-}
-
-export async function markLocalTransactionRejected(
-  localId: string,
-  syncError: string,
-): Promise<LocalTransactionRecord> {
-  return updateLocalTransaction(localId, { syncStatus: "rejected", syncError });
 }
 
 export async function getLocalTransactionInvoice(

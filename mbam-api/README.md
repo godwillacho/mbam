@@ -64,20 +64,10 @@ docker compose -f docker-compose.private.yml up -d db
 
 `down -v` permanently deletes the local database.
 
-The API defaults to `127.0.0.1:8080`. If the full Compose stack is already running, its web container owns host port 8080; do not also start a host API on that port.
+The API defaults to `127.0.0.1:8080`.
 
 Logging and optional Sentry configuration are documented in
 [`../docs/observability.md`](../docs/observability.md).
-
-## Full Compose stack
-
-To run PostgreSQL, the Rust API, and the web application together:
-
-```bash
-docker compose -f docker-compose.private.yml up --build
-```
-
-In this mode, open the application through `http://localhost:8080`. The API is reached through the Nginx `/api` proxy and connects to PostgreSQL using the internal hostname `db`.
 
 ## Google sign-in
 

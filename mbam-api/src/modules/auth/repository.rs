@@ -22,7 +22,6 @@ pub struct AuthUserRecord {
 pub struct RefreshTokenRecord {
     pub id: Uuid,
     pub user_id: Uuid,
-    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -342,7 +341,7 @@ pub async fn find_active_refresh_token(
 ) -> Result<Option<RefreshTokenRecord>, sqlx::Error> {
     sqlx::query_as::<_, RefreshTokenRecord>(
         r#"
-        select id, user_id, expires_at
+        select id, user_id
         from refresh_tokens
         where token_hash = $1
           and revoked_at is null

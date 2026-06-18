@@ -1,4 +1,4 @@
-import { getCurrentMember, setCurrentMemberId } from "../../security/accessControl";
+import { getCurrentMember } from "../../security/accessControl";
 import type { TeamMember } from "../../types/workspace";
 
 export type DashboardMetricKey =
@@ -109,8 +109,4 @@ export function canViewDashboardMetric(member: TeamMember, metricKey: DashboardM
 
 export function getStoredDashboardMember(): TeamMember {
   return getCurrentMember();
-}
-
-export function saveDashboardMemberId(memberId: string): void {
-  setCurrentMemberId(memberId);
 }

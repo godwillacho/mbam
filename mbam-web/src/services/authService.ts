@@ -8,7 +8,6 @@ import type {
 import { validateLoginInput, validateSignupInput } from "../utils/validation";
 import { buildApiUrl, isApiConfigured, postJson } from "./apiClient";
 import {
-  clearActiveSession,
   getActiveSession,
   setActiveSession,
 } from "./authSessionStore";
@@ -144,15 +143,6 @@ export async function unlockOfflineSession(
 
 export async function offlineAccessIsConfigured(): Promise<boolean> {
   return hasOfflineVault();
-}
-
-export async function logout(): Promise<void> {
-  try {
-    await postJson<void, Record<string, never>>("/api/v1/auth/logout", {});
-  } finally {
-    clearActiveSession();
-    lockOfflineVault();
-  }
 }
 
 export async function loginWithEmail(

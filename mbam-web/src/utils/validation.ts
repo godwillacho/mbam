@@ -16,11 +16,11 @@ export function sanitizeText(value: string, maxLength = 120): string {
     .slice(0, maxLength);
 }
 
-export function normalizeEmail(value: string): string {
+function normalizeEmail(value: string): string {
   return value.normalize("NFKC").trim().toLowerCase();
 }
 
-export function validateEmail(value: string): boolean {
+function validateEmail(value: string): boolean {
   const email = normalizeEmail(value);
   return email.length <= 254 && EMAIL_RE.test(email);
 }
@@ -36,7 +36,7 @@ export function validateSafeText(value: string, maxLength = 120): boolean {
   return text.length > 0 && SAFE_TEXT_RE.test(text);
 }
 
-export function validatePassword(value: string): boolean {
+function validatePassword(value: string): boolean {
   return value.length >= 8 && value.length <= 128 && /[A-Z]/.test(value) && /[0-9]/.test(value);
 }
 
@@ -46,7 +46,7 @@ export function parsePositiveMoney(value: string, max = 100_000_000): number | n
   return Math.round(parsed * 100) / 100;
 }
 
-export function parsePositiveQuantity(value: string, max = 10_000): number | null {
+function parsePositiveQuantity(value: string, max = 10_000): number | null {
   const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed > max) return null;
   return Math.round(parsed * 1000) / 1000;

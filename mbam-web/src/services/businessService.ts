@@ -8,7 +8,7 @@ import {
   isOfflineVaultUnlocked,
   requireOfflineDataKey,
 } from "./offlineVaultService";
-import { getJson, patchJson, postJson } from "./apiClient";
+import { getJson, postJson } from "./apiClient";
 
 export const BUSINESS_WORKSPACE_CHANGE_EVENT = "mbam-business-workspace-change";
 
@@ -271,39 +271,6 @@ export async function createBusinessUnit(
     name: payload.name,
     unit_type: payload.unitType,
     location: payload.location || undefined,
-  });
-  await cacheEntity(
-    "business_unit",
-    unit.id,
-    {
-      id: unit.id,
-      businessId: unit.business_id,
-      name: unit.name,
-      unitType: unit.unit_type,
-      location: unit.location,
-      status: unit.status,
-    },
-    unit.updated_at,
-  );
-  notifyBusinessWorkspaceChanged();
-  return toBusinessUnit(unit);
-}
-
-export async function updateBusinessUnit(
-  businessId: string,
-  unitId: string,
-  payload: BusinessUnitPayload,
-): Promise<BusinessUnit> {
-  const unit = await patchJson<ApiBusinessUnit, {
-    name: string;
-    unit_type: UnitType;
-    location?: string;
-    status?: "active" | "disabled";
-  }>(`/api/v1/businesses/${businessId}/units/${unitId}`, {
-    name: payload.name,
-    unit_type: payload.unitType,
-    location: payload.location || undefined,
-    status: payload.status,
   });
   await cacheEntity(
     "business_unit",

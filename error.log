@@ -15,3 +15,13 @@ Encountered: Strict Clippy reports the existing dev_seed.rs upsert_product funct
 Resolution: Standard Clippy completes with that pre-existing warning; logging code introduces no Clippy warnings.
 Encountered: Rustfmt traversed module children and reformatted unrelated Rust files.
 Resolution: Reverted only the accidental formatting changes and verified the intended Rust files independently.
+
+2026-06-18
+Encountered: Removing dead frontend functions initially left several unused imports.
+Resolution: Removed the imports and the now-unreachable conversion helper; TypeScript and ESLint pass.
+Encountered: The first post-cleanup Knip run found remaining internal helpers and types exported publicly.
+Resolution: Made active internal contracts private and removed obsolete cache/queue helper functions; the final Knip run is clean.
+Encountered: npm audit found one high-severity form-data CRLF-injection advisory in the development dependency tree.
+Resolution: Applied the non-breaking npm audit fix; the complete dependency audit now reports zero vulnerabilities.
+Encountered: cargo-audit is not installed in the workspace.
+Resolution: Rust dependencies were compile-tested and strict-Clippy checked; installing an additional global Cargo tool was not required for this refactor.

@@ -126,7 +126,7 @@ function emit(
   }
 }
 
-export async function flushBufferedLogs(): Promise<void> {
+async function flushBufferedLogs(): Promise<void> {
   if (!isSentryEnabled() || !isOnline()) return;
 
   let records: BufferedLogRecord[];

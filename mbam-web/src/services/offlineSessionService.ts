@@ -61,7 +61,7 @@ export async function importOfflineGrantPublicKey(
   );
 }
 
-export async function verifyOfflineGrant(
+async function verifyOfflineGrant(
   grant: SignedOfflineGrant,
   publicKey: CryptoKey,
 ): Promise<VerifiedOfflineGrant | null> {
@@ -127,8 +127,4 @@ export async function getValidOfflineGrant(): Promise<VerifiedOfflineGrant | nul
     record.value,
     "grant:current",
   );
-}
-
-export async function clearOfflineGrant(): Promise<void> {
-  await deleteGrantRecord();
 }

@@ -7,3 +7,11 @@ Change: Implemented production-oriented observability for the Rust API and React
 Rust: Added structured console output, daily rolling JSON debug/error files, safe HTTP spans, and optional Sentry export.
 React: Added a centralized redacting logger, browser console output, IndexedDB offline buffering, Sentry initialization, an error boundary, and API failure logging.
 Verification: cargo check passed; cargo test passed 6 tests; focused frontend logging tests passed 3 tests; TypeScript type-check passed; production frontend build passed; changed frontend files passed ESLint; changed Rust files passed rustfmt checks.
+
+2026-06-18
+Change: Completed a repository-wide architecture and dead-code cleanup.
+Removed: Empty Rust domain scaffolds, unused React class models, an obsolete tool registry, stale type contracts, an unused dashboard implementation, dead service functions/exports, five unused npm packages, obsolete bootstrap scripts, auto-push hooks, and a stale API tracker.
+Organization: Added REPOSITORY_MAP.md, rewrote active module documentation, and replaced outdated frontend standards and offline-data documentation.
+Security: Removed unused refresh-secret configuration, removed secret-bearing Debug support from Config, added strict positive environment parsing, enforced a 32-character production access-token secret, retained direct-API security boundaries, and fixed the reported npm form-data vulnerability.
+Verification: Rust check/tests/strict Clippy passed; frontend type-check/lint/all 29 tests/production build passed; Knip reports no unused files, exports, types, or dependencies; npm audit reports zero vulnerabilities; git diff check passed.
+Final scope: 101 files changed, with 5,237 lines removed and 923 lines added after formatting, mapping, and required log updates.

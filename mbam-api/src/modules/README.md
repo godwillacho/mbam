@@ -1,17 +1,13 @@
-# Domain modules
+# Active API Domains
 
-This folder contains the main business domains of the Mbam backend.
+- `auth/` owns identity, sessions, OAuth, password reset, and offline grants.
+- `businesses/` owns account-scoped businesses.
+- `business_units/` owns shops, branches, warehouses, and desks.
+- `products/` owns scoped catalogue and inventory records.
+- `team/` owns memberships, roles, permissions, invitations, and employee access.
+- `transactions/` owns transaction writes, reads, drafts, and invoices.
+- `sync/` owns device-bound offline push/pull and conflict handling.
 
-## Folder map
-
-- `auth/` handles signup, login, token refresh, logout, and password reset flows.
-- `users/` handles user profiles and identity records.
-- `accounts/` handles master business accounts.
-- `businesses/` handles businesses owned by a master account.
-- `business_units/` handles shops, branches, warehouses, and other business units.
-- `roles/` handles named roles such as Master Owner, Business Admin, Shop Manager, and Cashier.
-- `permissions/` handles permission codes used by role checks.
-- `memberships/` connects users to accounts, businesses, or units through roles.
-- `sync/` will handle offline-first push and pull sync operations.
-
-Each module should keep route handlers, services, repositories, models, and DTOs separate so the backend stays loosely coupled.
+Roles, permissions, users, accounts, and memberships are database concepts
+implemented inside the active auth/team repositories. They do not have empty
+parallel Rust modules.

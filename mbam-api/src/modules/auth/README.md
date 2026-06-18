@@ -10,4 +10,6 @@ This module owns authentication workflows.
 - `service.rs` contains authentication business logic.
 - `repository.rs` contains database queries for users, identities, and auth tokens.
 
-The module will eventually implement real signup, login, refresh token rotation, logout, password reset, and SSO callbacks.
+The module implements signup, login, opaque refresh-token rotation, logout,
+password reset, Google/Microsoft OAuth, device context validation, and signed
+offline grants.

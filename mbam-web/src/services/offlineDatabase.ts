@@ -160,7 +160,7 @@ function createStores(database: IDBPDatabase<MbamOfflineSchema>): void {
   }
 }
 
-export function getOfflineDatabase(): Promise<IDBPDatabase<MbamOfflineSchema>> {
+function getOfflineDatabase(): Promise<IDBPDatabase<MbamOfflineSchema>> {
   databasePromise ??= openDB<MbamOfflineSchema>(
     DATABASE_NAME,
     DATABASE_VERSION,
@@ -192,24 +192,6 @@ export async function saveVaultRecord(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });
-}
-
-export async function clearOfflineDatabase(): Promise<void> {
-  const database = await getOfflineDatabase();
-  const transaction = database.transaction(
-    ["vault", "entities", "outbox", "conflicts", "grants", "authorizationSnapshots", "metadata"],
-    "readwrite",
-  );
-  await Promise.all([
-    transaction.objectStore("vault").clear(),
-    transaction.objectStore("entities").clear(),
-    transaction.objectStore("outbox").clear(),
-    transaction.objectStore("conflicts").clear(),
-    transaction.objectStore("grants").clear(),
-    transaction.objectStore("authorizationSnapshots").clear(),
-    transaction.objectStore("metadata").clear(),
-    transaction.done,
-  ]);
 }
 
 export async function putEncryptedEntity(

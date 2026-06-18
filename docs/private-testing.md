@@ -81,7 +81,6 @@ Change these values in `docker-compose.private.yml` before giving access to anyo
 - `POSTGRES_PASSWORD`
 - `DATABASE_URL`
 - `JWT_ACCESS_SECRET`
-- `JWT_REFRESH_SECRET`
 
 For the first private test, avoid storing real customer-sensitive data until real authentication and transaction persistence are fully implemented.
 

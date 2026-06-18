@@ -94,6 +94,5 @@ The API currently requires:
 
 - `DATABASE_URL`
 - `JWT_ACCESS_SECRET`
-- `JWT_REFRESH_SECRET`
 
 If any of these are missing, startup should fail early. That is intentional for debugging because it prevents the API from running with unsafe defaults.

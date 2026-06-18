@@ -25,13 +25,8 @@ pub async fn workspace(db: &PgPool, user_id: Uuid) -> Result<TeamWorkspaceRespon
     let roles = repository::list_roles(db, user_id).await?;
     let businesses = repository::list_businesses(db, user_id).await?;
     let business_units = repository::list_units(db, user_id).await?;
-    let dashboard_profiles = build_dashboard_profiles(
-        user_id,
-        &members,
-        &roles,
-        &businesses,
-        &business_units,
-    );
+    let dashboard_profiles =
+        build_dashboard_profiles(user_id, &members, &roles, &businesses, &business_units);
     let authorization_version = repository::authorization_version(db, user_id).await?;
 
     Ok(TeamWorkspaceResponse {
@@ -148,9 +143,11 @@ fn validate_member_role_scope(
     unit_id: Option<Uuid>,
 ) -> Result<(), ApiError> {
     match role_code {
-        "business_admin" if business_id.is_none() || unit_id.is_some() => Err(ApiError::BadRequest(
-            "business administrators must be assigned to one business".to_string(),
-        )),
+        "business_admin" if business_id.is_none() || unit_id.is_some() => {
+            Err(ApiError::BadRequest(
+                "business administrators must be assigned to one business".to_string(),
+            ))
+        }
         "shop_manager" | "cashier" if unit_id.is_none() => Err(ApiError::BadRequest(
             "this role must be assigned to one business unit".to_string(),
         )),
@@ -338,7 +335,9 @@ fn add_if_allowed(
     permission: &str,
     option: DashboardOptionResponse,
 ) {
-    if has_permission(permissions, permission) && !dashboards.iter().any(|item| item.id == option.id) {
+    if has_permission(permissions, permission)
+        && !dashboards.iter().any(|item| item.id == option.id)
+    {
         dashboards.push(option);
     }
 }

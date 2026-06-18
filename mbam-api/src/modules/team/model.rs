@@ -131,8 +131,3 @@ pub struct InvitationDetailsResponse {
     pub expires_at: DateTime<Utc>,
     pub status: String,
 }
-
-pub struct InvitationTokenRecord {
-    pub invitation: PendingInvitationResponse,
-    pub raw_token: String,
-}

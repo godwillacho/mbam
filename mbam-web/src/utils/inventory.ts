@@ -1,7 +1,7 @@
 import { productSales } from "../data/mockProductSales";
 import type { ProductProfile } from "../types/workspace";
 
-export type InventoryStatus = "unknown" | "available" | "low" | "out" | "expired";
+type InventoryStatus = "unknown" | "available" | "low" | "out" | "expired";
 
 export interface ProductInventorySnapshot {
   startingQuantity?: number;
@@ -11,7 +11,7 @@ export interface ProductInventorySnapshot {
   status: InventoryStatus;
 }
 
-export function getSoldQuantity(productId: string): number {
+function getSoldQuantity(productId: string): number {
   return productSales
     .filter((sale) => sale.productId === productId)
     .reduce((sum, sale) => sum + sale.quantity, 0);
@@ -46,9 +46,4 @@ export function getProductInventorySnapshot(product: ProductProfile, now = new D
     lowStockThreshold,
     status,
   };
-}
-
-export function isProductSellable(product: ProductProfile): boolean {
-  const snapshot = getProductInventorySnapshot(product);
-  return snapshot.status !== "out" && snapshot.status !== "expired";
 }

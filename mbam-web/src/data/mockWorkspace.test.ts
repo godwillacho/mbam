@@ -26,7 +26,7 @@ describe("cloud workspace activation", () => {
       expect.objectContaining({
         id: "user-1",
         fullName: "Real User",
-        roleId: "role-master-owner",
+        roleId: "role-pending-access",
       }),
     ]);
   });

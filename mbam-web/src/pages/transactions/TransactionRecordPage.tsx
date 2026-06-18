@@ -79,7 +79,7 @@ export default function TransactionRecordPage() {
   const session = getCurrentSession();
   const memberUnits = useMemo(
     () => getScopedUnits(currentMember),
-    [currentMember.businessId, currentMember.businessUnitId, currentMember.id, currentMember.scopeLevel],
+    [currentMember],
   );
   const memberUnitIds = useMemo(() => new Set(memberUnits.map((unit) => unit.id)), [memberUnits]);
   const memberBusinessIds = useMemo(() => new Set(memberUnits.map((unit) => unit.businessId)), [memberUnits]);

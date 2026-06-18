@@ -1,17 +1,17 @@
 use std::env;
+use thiserror::Error;
 
 /// Runtime configuration loaded from environment variables.
 ///
 /// Keeping configuration typed makes startup failures clear and prevents route
 /// handlers from reading environment variables directly.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Config {
     pub app_env: String,
     pub api_host: String,
     pub api_port: u16,
     pub database_url: String,
     pub jwt_access_secret: String,
-    pub jwt_refresh_secret: String,
     pub access_token_minutes: i64,
     pub refresh_token_days: i64,
     pub offline_grant_private_key_pem: Option<String>,
@@ -31,28 +31,37 @@ pub struct Config {
     pub smtp_from_name: String,
 }
 
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("missing required environment variable {0}")]
+    Missing(&'static str),
+    #[error("invalid value for {0}")]
+    Invalid(&'static str),
+    #[error("JWT_ACCESS_SECRET must contain at least 32 characters outside development")]
+    WeakAccessSecret,
+}
+
 impl Config {
     /// Reads configuration from the current process environment.
-    pub fn from_env() -> Result<Self, env::VarError> {
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let app_env = read_or_default("APP_ENV", "development");
+        let jwt_access_secret = required_var("JWT_ACCESS_SECRET")?;
+        if app_env != "development" && jwt_access_secret.len() < 32 {
+            return Err(ConfigError::WeakAccessSecret);
+        }
+
         Ok(Self {
-            app_env: read_or_default("APP_ENV", "development"),
+            app_env,
             api_host: read_or_default("API_HOST", "127.0.0.1"),
-            api_port: read_or_default("API_PORT", "8080").parse().unwrap_or(8080),
-            database_url: env::var("DATABASE_URL")?,
-            jwt_access_secret: env::var("JWT_ACCESS_SECRET")?,
-            jwt_refresh_secret: env::var("JWT_REFRESH_SECRET")?,
-            access_token_minutes: read_or_default("ACCESS_TOKEN_MINUTES", "15")
-                .parse()
-                .unwrap_or(15),
-            refresh_token_days: read_or_default("REFRESH_TOKEN_DAYS", "30")
-                .parse()
-                .unwrap_or(30),
+            api_port: parse_positive("API_PORT", "8080")?,
+            database_url: required_var("DATABASE_URL")?,
+            jwt_access_secret,
+            access_token_minutes: parse_positive("ACCESS_TOKEN_MINUTES", "15")?,
+            refresh_token_days: parse_positive("REFRESH_TOKEN_DAYS", "30")?,
             offline_grant_private_key_pem: env::var("OFFLINE_GRANT_PRIVATE_KEY_PEM")
                 .ok()
                 .map(|value| value.replace("\\n", "\n")),
-            offline_grant_days: read_or_default("OFFLINE_GRANT_DAYS", "7")
-                .parse()
-                .unwrap_or(7),
+            offline_grant_days: parse_positive("OFFLINE_GRANT_DAYS", "7")?,
             web_origin: read_or_default("WEB_ORIGIN", "http://localhost:5173"),
             google_oauth_client_id: optional_var("GOOGLE_OAUTH_CLIENT_ID"),
             google_oauth_client_secret: optional_var("GOOGLE_OAUTH_CLIENT_SECRET"),
@@ -61,7 +70,7 @@ impl Config {
             microsoft_oauth_client_secret: optional_var("MICROSOFT_OAUTH_CLIENT_SECRET"),
             microsoft_oauth_redirect_uri: optional_var("MICROSOFT_OAUTH_REDIRECT_URI"),
             smtp_host: optional_var("SMTP_HOST"),
-            smtp_port: read_or_default("SMTP_PORT", "587").parse().unwrap_or(587),
+            smtp_port: parse_positive("SMTP_PORT", "587")?,
             smtp_username: optional_var("SMTP_USERNAME"),
             smtp_password: optional_var("SMTP_PASSWORD"),
             smtp_from_email: optional_var("SMTP_FROM_EMAIL"),
@@ -73,6 +82,23 @@ impl Config {
 /// Reads an environment variable or returns a default value.
 fn read_or_default(key: &str, default_value: &str) -> String {
     env::var(key).unwrap_or_else(|_| default_value.to_string())
+}
+
+fn required_var(key: &'static str) -> Result<String, ConfigError> {
+    optional_var(key).ok_or(ConfigError::Missing(key))
+}
+
+fn parse_positive<T>(key: &'static str, default_value: &str) -> Result<T, ConfigError>
+where
+    T: std::str::FromStr + PartialOrd + Default,
+{
+    let value = read_or_default(key, default_value)
+        .parse::<T>()
+        .map_err(|_| ConfigError::Invalid(key))?;
+    if value <= T::default() {
+        return Err(ConfigError::Invalid(key));
+    }
+    Ok(value)
 }
 
 fn optional_var(key: &str) -> Option<String> {

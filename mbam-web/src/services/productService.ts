@@ -13,7 +13,6 @@ import {
 } from "./offlineVaultService";
 import {
   ApiClientError,
-  deleteJson,
   getJson,
   isApiConfigured,
   patchJson,
@@ -71,32 +70,6 @@ function toProfile(product: ApiProduct): ProductProfile {
     status: product.status,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
-  };
-}
-
-function toApiProduct(profile: ProductProfile): ApiProduct {
-  const now = new Date().toISOString();
-  return {
-    id: profile.id,
-    businessId: profile.businessId ?? "",
-    businessUnitId: profile.businessUnitId ?? "",
-    name: profile.name,
-    sku: profile.sku,
-    category: profile.category,
-    manufacturer: profile.manufacturer,
-    brand: profile.brand,
-    variant: profile.variant,
-    packageSize: profile.packageSize,
-    unitOfMeasure: profile.unitOfMeasure,
-    barcode: profile.barcode,
-    availableQuantity: profile.availableQuantity,
-    lowStockThreshold: profile.lowStockThreshold,
-    expiryDate: profile.expiryDate,
-    costPrice: profile.costPrice,
-    defaultPrice: profile.defaultPrice,
-    status: profile.status ?? "active",
-    createdAt: profile.createdAt ?? now,
-    updatedAt: profile.updatedAt ?? now,
   };
 }
 
@@ -258,21 +231,4 @@ export async function updateProduct(
     createdAt: now,
     updatedAt: now,
   }, baseVersion);
-}
-
-export async function deleteProduct(product: ProductProfile): Promise<ProductProfile> {
-  if (isApiConfigured() && isOnline()) {
-    try {
-      const deleted = await deleteJson<ApiProduct>(`/api/v1/products/${product.id}`);
-      await saveOffline(deleted, "cloud");
-      return toProfile(deleted);
-    } catch (error) {
-      if (!canQueueAfter(error)) throw error;
-    }
-  }
-  return queueProductWrite("delete", {
-    ...toApiProduct(product),
-    status: "disabled",
-    updatedAt: new Date().toISOString(),
-  }, product.serverVersion);
 }

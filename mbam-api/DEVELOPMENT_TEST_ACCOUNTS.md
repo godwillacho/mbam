@@ -41,7 +41,6 @@ cd mbam-api
 APP_ENV=development \
 DATABASE_URL=postgres://mbam:mbam_private_password_change_me@localhost:5432/mbam \
 JWT_ACCESS_SECRET=local_development_access_secret \
-JWT_REFRESH_SECRET=local_development_refresh_secret \
 cargo run
 ```
 

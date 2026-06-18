@@ -1,10 +1,7 @@
-#![allow(dead_code)]
 //! Mbam API entrypoint.
 //!
-//! The backend is currently in scaffold mode. Several modules define models,
-//! repositories, and helpers before the real route handlers call them. The
-//! temporary `dead_code` allowance keeps `cargo check` readable during this
-//! setup phase and should be removed once the auth and business flows are wired.
+//! The backend exposes authenticated business, team, product, transaction, and
+//! synchronization APIs over PostgreSQL.
 
 mod config;
 mod db;

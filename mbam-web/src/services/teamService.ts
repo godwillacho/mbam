@@ -38,18 +38,18 @@ export interface TeamInvitation {
   created_at: string;
 }
 
-export interface TeamBusiness {
+interface TeamBusiness {
   id: string;
   name: string;
 }
 
-export interface TeamBusinessUnit {
+interface TeamBusinessUnit {
   id: string;
   business_id: string;
   name: string;
 }
 
-export interface DashboardOption {
+interface DashboardOption {
   id: string;
   label: string;
   description: string;
@@ -126,10 +126,6 @@ export async function disableEmployee(
   membershipId: string,
 ): Promise<TeamEmployee> {
   return deleteJson(`/api/v1/team-members/${membershipId}`);
-}
-
-export async function cancelInvitation(invitationId: string): Promise<void> {
-  await deleteJson(`/api/v1/invites/${invitationId}`);
 }
 
 export async function getInvitationDetails(

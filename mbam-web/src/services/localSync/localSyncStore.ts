@@ -1,13 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { PaymentMethod, TransactionStatus } from "../../types/workspace";
-import type { EncryptedValue } from "../../types/offline.types";
-import { decryptJson, encryptJson } from "../encryptionService";
-import {
-  isOfflineVaultUnlocked,
-  requireOfflineDataKey,
-} from "../offlineVaultService";
 
-export type LocalSyncModule =
+type LocalSyncModule =
   | "businesses"
   | "customers"
   | "inventory"
@@ -16,8 +10,7 @@ export type LocalSyncModule =
   | "reports"
   | "transactions";
 
-export type LocalSyncMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-export type LocalSyncSource = "api" | "cache" | "fallback" | "queued";
+type LocalSyncMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export type LocalTransactionSyncStatus =
   | "local"
@@ -94,7 +87,7 @@ export interface LocalTransactionLineRecord {
   createdAt: string;
 }
 
-export interface LocalSyncCacheRecord<TData = unknown> {
+interface LocalSyncCacheRecord<TData = unknown> {
   cacheKey: string;
   module: LocalSyncModule;
   path: string;
@@ -103,7 +96,7 @@ export interface LocalSyncCacheRecord<TData = unknown> {
   rolePolicyVersion?: string;
 }
 
-export interface LocalSyncQueueRecord<TPayload = unknown> {
+interface LocalSyncQueueRecord<TPayload = unknown> {
   id: string;
   module: LocalSyncModule;
   method: Exclude<LocalSyncMethod, "GET">;
@@ -116,7 +109,7 @@ export interface LocalSyncQueueRecord<TPayload = unknown> {
   rolePolicyVersion?: string;
 }
 
-export interface LocalSyncMetaRecord {
+interface LocalSyncMetaRecord {
   key: string;
   value: string;
   updatedAt: string;
@@ -178,7 +171,7 @@ const LOCAL_SYNC_DB_NAME = "mbam-local-sync";
 const LOCAL_SYNC_DB_VERSION = 4;
 let dbPromise: Promise<IDBPDatabase<MbamLocalSyncDb>> | undefined;
 
-export function getLocalSyncDb(): Promise<IDBPDatabase<MbamLocalSyncDb>> {
+function getLocalSyncDb(): Promise<IDBPDatabase<MbamLocalSyncDb>> {
   dbPromise ??= openDB<MbamLocalSyncDb>(
     LOCAL_SYNC_DB_NAME,
     LOCAL_SYNC_DB_VERSION,
@@ -250,60 +243,12 @@ export function getLocalSyncDb(): Promise<IDBPDatabase<MbamLocalSyncDb>> {
   return dbPromise;
 }
 
-export function getCacheKey(module: LocalSyncModule, path: string): string {
-  return `${module}:${path}`;
-}
-
-export function isOnline(): boolean {
-  return typeof navigator === "undefined" ? true : navigator.onLine;
-}
-
-export async function readCache<TData>(
-  cacheKey: string,
-): Promise<LocalSyncCacheRecord<TData> | undefined> {
-  if (!isOfflineVaultUnlocked()) return undefined;
-  const db = await getLocalSyncDb();
-  const stored = await db.get("readCache", cacheKey);
-  if (!stored) return undefined;
-  const data = await decryptJson<TData>(
-    requireOfflineDataKey(),
-    stored.data as EncryptedValue,
-    `cache:${cacheKey}`,
-  );
-  return { ...stored, data };
-}
-
-export async function writeCache<TData>(
-  record: LocalSyncCacheRecord<TData>,
-): Promise<void> {
-  if (!isOfflineVaultUnlocked()) return;
-  const db = await getLocalSyncDb();
-  const data = await encryptJson(
-    requireOfflineDataKey(),
-    record.data,
-    `cache:${record.cacheKey}`,
-  );
-  await db.put("readCache", { ...record, data } as LocalSyncCacheRecord);
-}
-
-export async function enqueueWrite<TPayload>(
-  record: LocalSyncQueueRecord<TPayload>,
-): Promise<void> {
-  const db = await getLocalSyncDb();
-  const payload = await encryptJson(
-    requireOfflineDataKey(),
-    record.payload,
-    `legacy-queue:${record.id}`,
-  );
-  await db.put("writeQueue", { ...record, payload } as LocalSyncQueueRecord);
-}
-
 export async function setSyncMeta(key: string, value: string): Promise<void> {
   const db = await getLocalSyncDb();
   await db.put("meta", { key, value, updatedAt: new Date().toISOString() });
 }
 
-export async function getSyncMeta(key: string): Promise<string | undefined> {
+async function getSyncMeta(key: string): Promise<string | undefined> {
   const db = await getLocalSyncDb();
   return (await db.get("meta", key))?.value;
 }

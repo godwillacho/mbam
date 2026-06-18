@@ -6,8 +6,6 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct Product {
     pub id: Uuid,
-    #[serde(skip_serializing)]
-    pub business_account_id: Uuid,
     pub business_id: Uuid,
     pub business_unit_id: Uuid,
     pub name: String,

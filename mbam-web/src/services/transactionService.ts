@@ -1,7 +1,7 @@
 import { deleteJson, getJson, patchJson, postJson } from "./apiClient";
 import type { PaymentMethod, TransactionStatus } from "../types/workspace";
 
-export interface TransactionLineInput {
+interface TransactionLineInput {
   productId?: string;
   productName: string;
   sku?: string;
@@ -23,7 +23,7 @@ export interface CreateCloudTransactionInput {
   lines: TransactionLineInput[];
 }
 
-export interface CloudTransactionLine {
+interface CloudTransactionLine {
   id: string;
   transactionId: string;
   productId?: string;

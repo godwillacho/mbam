@@ -108,7 +108,7 @@ export interface SyncPullResult {
   syncRunId: string;
 }
 
-export interface SyncAuthorizationScope {
+interface SyncAuthorizationScope {
   businessIds: string[];
   businessUnitIds: string[];
   permissions: string[];

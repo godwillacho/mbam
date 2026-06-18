@@ -106,7 +106,3 @@ export async function getValidOfflineAuthorizationSnapshot(
   await assertCurrentDeviceBinding(snapshot.deviceBinding);
   return snapshot;
 }
-
-export async function clearOfflineAuthorizationSnapshot(): Promise<void> {
-  await deleteAuthorizationSnapshotRecord();
-}

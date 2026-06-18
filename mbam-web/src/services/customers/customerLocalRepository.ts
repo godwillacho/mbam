@@ -48,7 +48,7 @@ function entityId(localId: string): string {
   return `customer:${localId}`;
 }
 
-export function normalizeCustomerName(name: string): string {
+function normalizeCustomerName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
@@ -222,14 +222,6 @@ async function findExistingCustomerForUpsert(
   );
 }
 
-export async function createLocalCustomer(
-  input: CreateLocalCustomerInput,
-): Promise<LocalCustomerRecord> {
-  const customer = createRecord(input);
-  await saveCustomer(customer);
-  return customer;
-}
-
 export async function upsertLocalCustomer(
   input: CreateLocalCustomerInput,
 ): Promise<LocalCustomerRecord> {
@@ -247,12 +239,6 @@ export async function upsertLocalCustomers(
   return saved;
 }
 
-export async function getLocalCustomer(
-  localId: string,
-): Promise<LocalCustomerRecord | undefined> {
-  return decodeCustomer(localId);
-}
-
 export async function listLocalCustomers(
   filters: ListLocalCustomersFilters = {},
 ): Promise<LocalCustomerRecord[]> {
@@ -263,27 +249,7 @@ export async function listLocalCustomers(
     );
 }
 
-export async function updateLocalCustomer(
-  localId: string,
-  updates: Partial<Omit<LocalCustomerRecord, "localId" | "createdAt">>,
-): Promise<LocalCustomerRecord> {
-  const existing = await decodeCustomer(localId);
-  if (!existing) throw new Error("Local customer was not found.");
-  const next: LocalCustomerRecord = {
-    ...existing,
-    ...updates,
-    localId: existing.localId,
-    normalizedName: updates.name
-      ? normalizeCustomerName(updates.name)
-      : existing.normalizedName,
-    createdAt: existing.createdAt,
-    updatedAt: new Date().toISOString(),
-  };
-  await saveCustomer(next);
-  return next;
-}
-
-export async function deleteLocalCustomer(localId: string): Promise<void> {
+async function deleteLocalCustomer(localId: string): Promise<void> {
   await deleteEncryptedEntity(entityId(localId));
 }
 

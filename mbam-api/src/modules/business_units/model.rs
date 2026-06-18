@@ -6,8 +6,6 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct BusinessUnit {
     pub id: Uuid,
-    #[serde(skip_serializing)]
-    pub business_account_id: Uuid,
     pub business_id: Uuid,
     pub name: String,
     pub unit_type: String,
