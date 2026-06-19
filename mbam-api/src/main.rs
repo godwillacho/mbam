@@ -58,6 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let state = AppState::new(config.clone(), pool, authentication);
+    modules::keycloak_sync::service::spawn_worker(state.db.clone(), config.clone());
     let app = build_router(state);
 
     let addr: SocketAddr = format!("{}:{}", config.api_host, config.api_port).parse()?;
@@ -88,15 +89,24 @@ fn build_router(state: AppState) -> Router {
         ]);
     let business_router =
         modules::businesses::routes::router().merge(modules::business_units::routes::router());
+    let auth_router = if state.config.auth_provider == "legacy" {
+        modules::auth::routes::router()
+    } else {
+        Router::new()
+    };
 
     Router::new()
         .merge(routes::router())
-        .nest("/api/v1/auth", modules::auth::routes::router())
+        .nest("/api/v1/auth", auth_router)
         .nest("/api/v1/me", modules::authorization::routes::router())
         .nest("/api/v1/businesses", business_router)
         .nest("/api/v1/products", modules::products::routes::router())
         .nest("/api/v1/reports", modules::reports::routes::router())
         .nest("/api/v1/team-members", modules::team::routes::team_router())
+        .nest(
+            "/api/v1/keycloak-sync",
+            modules::keycloak_sync::routes::router(),
+        )
         .nest(
             "/api/v1/invites",
             modules::team::routes::invitation_router(),

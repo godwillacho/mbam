@@ -17,6 +17,7 @@ import { BaselineDashboardRoute, DashboardRouter } from "./pages/dashboard/Dashb
 import PendingPaymentsPage from "./pages/dashboard/PendingPaymentsPage";
 import ProductRevenuePage from "./pages/products/ProductRevenuePage";
 import ReportsPage from "./pages/reports/ReportsPage";
+import ScopedEntityReportPage from "./pages/reports/ScopedEntityReportPage";
 import TeamAccessPage from "./pages/team/TeamAccessPage";
 import TransactionInvoicePage from "./pages/transactions/TransactionInvoicePage";
 import TransactionDraftsPage from "./pages/transactions/TransactionDraftsPage";
@@ -43,13 +44,17 @@ export default function App() {
           <Route path="/dashboard/pending-payments" element={<Navigate to="/pending-payments" replace />} />
           <Route path="/dashboard/products" element={<Navigate to="/products" replace />} />
           <Route path="/pending-payments" element={<PendingPaymentsPage />} />
-          <Route path="/products" element={<ProtectedRoute routeKey="products"><ProductRevenuePage /></ProtectedRoute>} />
+          <Route path="/shops" element={<ProtectedRoute routeKey="shops"><ScopedEntityReportPage kind="shops" /></ProtectedRoute>} />
+          <Route path="/employees" element={<ProtectedRoute routeKey="team"><ScopedEntityReportPage kind="employees" /></ProtectedRoute>} />
+          <Route path="/employees/manage" element={<ProtectedRoute routeKey="team"><TeamAccessPage /></ProtectedRoute>} />
+          <Route path="/products" element={<ProtectedRoute routeKey="products"><ScopedEntityReportPage kind="products" /></ProtectedRoute>} />
+          <Route path="/products/manage" element={<ProtectedRoute routeKey="products"><ProductRevenuePage /></ProtectedRoute>} />
           <Route path="/transactions/new" element={<ProtectedRoute routeKey="recordTransaction"><TransactionRecordPage /></ProtectedRoute>} />
           <Route path="/transactions/drafts" element={<ProtectedRoute routeKey="transactionDrafts"><TransactionDraftsPage /></ProtectedRoute>} />
           <Route path="/transactions/:transactionId/invoice" element={<ProtectedRoute routeKey="transactions"><TransactionInvoicePage /></ProtectedRoute>} />
           <Route path="/transactions" element={<ProtectedRoute routeKey="transactions"><TransactionsPage /></ProtectedRoute>} />
           <Route path="/businesses" element={<ProtectedRoute routeKey="businesses"><BusinessStructurePage /></ProtectedRoute>} />
-          <Route path="/team" element={<ProtectedRoute routeKey="team"><TeamAccessPage /></ProtectedRoute>} />
+          <Route path="/team" element={<Navigate to="/employees" replace />} />
           <Route path="/reports" element={<ProtectedRoute routeKey="reports"><ReportsPage /></ProtectedRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard-picker" replace />} />

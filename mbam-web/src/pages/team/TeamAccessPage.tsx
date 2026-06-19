@@ -15,7 +15,9 @@ import { ApiClientError } from "../../services/apiClient";
 import {
   disableEmployee,
   inviteEmployee,
+  loadKeycloakSyncStatuses,
   loadTeamWorkspace,
+  type KeycloakSyncStatus,
   updateEmployee,
   type TeamEmployee,
   type TeamRole,
@@ -59,10 +61,15 @@ export default function TeamAccessPage() {
   const [roleSelection, setRoleSelection] = useState("");
   const [customBaseRoleId, setCustomBaseRoleId] = useState("");
   const [customScreens, setCustomScreens] = useState<Set<ScreenAccessId>>(new Set());
+  const [syncStatuses, setSyncStatuses] = useState<KeycloakSyncStatus[]>([]);
 
   const reload = useCallback(async () => {
-    const data = await loadTeamWorkspace();
+    const [data, statuses] = await Promise.all([
+      loadTeamWorkspace(),
+      loadKeycloakSyncStatuses().catch(() => []),
+    ]);
     setWorkspace(data);
+    setSyncStatuses(statuses);
     setSelectedId((current) => {
       if (current && data.members.some((member) => member.id === current)) return current;
       if (!businessFilter) return data.members[0]?.id || "";
@@ -92,6 +99,8 @@ export default function TeamAccessPage() {
   }, [businessFilter, workspace]);
 
   const selected = workspace?.members.find((member) => member.id === selectedId);
+  const selectedSync = syncStatuses.find((status) => status.membership_id === selectedId);
+  const failedSyncCount = syncStatuses.filter((status) => status.status === "failed").length;
   const customBaseRole = baselineRoles.find((role) => role.id === customBaseRoleId);
   const baselineScreenIds = useMemo<Set<ScreenAccessId>>(
     () => new Set(screenAccessOptions.filter((option) => customBaseRole?.permissions.includes(option.permission)).map((option) => option.id)),
@@ -191,6 +200,11 @@ export default function TeamAccessPage() {
 
       {error && <div className="validation-summary" role="alert">{error}</div>}
       {message && <div className="validation-success" role="status">{message}</div>}
+      {failedSyncCount > 0 && (
+        <div className="validation-summary" role="alert">
+          {failedSyncCount} employee role update{failedSyncCount === 1 ? "" : "s"} could not be reconciled with Keycloak. Local membership remains authoritative and mismatched sign-ins fail closed.
+        </div>
+      )}
 
       {showInvite && (
         <form className="form-card employee-form" onSubmit={submitInvite}>
@@ -213,6 +227,12 @@ export default function TeamAccessPage() {
             <div><span className="eyebrow">{t("team.editEmployeeAccess")}</span><h3>{selected.full_name}</h3><p className="card-muted">{selected.email}</p></div>
             <button className="secondary-btn danger-text" disabled={saving || selected.status === "disabled"} type="button" onClick={() => void removeEmployee(selected)}>{t("team.disableEmployee")}</button>
           </header>
+          {selectedSync && selectedSync.status !== "succeeded" && (
+            <div className={selectedSync.status === "failed" ? "validation-summary" : "product-revenue-source-note"} role="status">
+              Identity synchronization: {selectedSync.status}
+              {selectedSync.last_error ? ` — ${selectedSync.last_error}` : ""}
+            </div>
+          )}
           <div className="form-grid">
             <div className="form-field full">
               <label htmlFor="employee-selector">{t("team.selectEmployee")}</label>

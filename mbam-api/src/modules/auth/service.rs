@@ -58,6 +58,7 @@ pub fn normalize_email(email: &str) -> String {
 pub async fn signup(
     db: &PgPool,
     config: &Config,
+    device_id: Uuid,
     payload: SignupRequest,
 ) -> Result<AuthResponse, ApiError> {
     let full_name = payload.full_name.trim();
@@ -89,6 +90,8 @@ pub async fn signup(
         user.full_name,
         user.email,
         user.email_verified,
+        device_id,
+        true,
     )
     .await
 }
@@ -97,6 +100,7 @@ pub async fn signup(
 pub async fn login(
     db: &PgPool,
     config: &Config,
+    device_id: Uuid,
     payload: LoginRequest,
 ) -> Result<AuthResponse, ApiError> {
     let email = normalize_email(&payload.email);
@@ -120,6 +124,8 @@ pub async fn login(
         user.full_name,
         user.email,
         user.email_verified,
+        device_id,
+        true,
     )
     .await
 }
@@ -128,6 +134,7 @@ pub async fn login(
 pub async fn refresh(
     db: &PgPool,
     config: &Config,
+    device_id: Uuid,
     raw_refresh_token: &str,
 ) -> Result<AuthResponse, ApiError> {
     let token_hash = hash_refresh_token(raw_refresh_token);
@@ -146,6 +153,8 @@ pub async fn refresh(
         user.full_name,
         user.email,
         user.email_verified,
+        device_id,
+        false,
     )
     .await
 }
@@ -155,6 +164,12 @@ pub async fn logout(db: &PgPool, raw_refresh_token: &str) -> Result<(), ApiError
     let token_hash = hash_refresh_token(raw_refresh_token);
     if let Some(stored) = repository::find_active_refresh_token(db, &token_hash).await? {
         repository::revoke_refresh_token(db, stored.id).await?;
+        crate::modules::audit::record_user_session_event(
+            db,
+            stored.user_id,
+            "authentication.logout",
+        )
+        .await?;
     }
     Ok(())
 }
@@ -163,6 +178,7 @@ pub async fn logout(db: &PgPool, raw_refresh_token: &str) -> Result<(), ApiError
 pub async fn login_with_google(
     db: &PgPool,
     config: &Config,
+    device_id: Uuid,
     code: &str,
 ) -> Result<AuthResponse, ApiError> {
     let client_id = config
@@ -238,6 +254,8 @@ pub async fn login_with_google(
         user.full_name,
         user.email,
         user.email_verified,
+        device_id,
+        true,
     )
     .await
 }
@@ -245,6 +263,7 @@ pub async fn login_with_google(
 pub async fn login_with_microsoft(
     db: &PgPool,
     config: &Config,
+    device_id: Uuid,
     code: &str,
 ) -> Result<AuthResponse, ApiError> {
     let client_id = config
@@ -323,6 +342,8 @@ pub async fn login_with_microsoft(
         user.full_name,
         user.email,
         user.email_verified,
+        device_id,
+        true,
     )
     .await
 }
@@ -379,6 +400,8 @@ async fn build_auth_response(
     full_name: String,
     email: String,
     email_verified: bool,
+    device_id: Uuid,
+    record_login_event: bool,
 ) -> Result<AuthResponse, ApiError> {
     let access_token = tokens::create_access_token(
         user_id,
@@ -391,15 +414,36 @@ async fn build_auth_response(
     let refresh_expires_at = Utc::now() + Duration::days(config.refresh_token_days);
 
     repository::store_refresh_token(db, user_id, &refresh_hash, refresh_expires_at).await?;
+    if record_login_event {
+        let _ = crate::modules::audit::record_user_session_event(
+            db,
+            user_id,
+            "authentication.login",
+        )
+        .await;
+    }
     let offline_grant = if let Some(private_key) = config.offline_grant_private_key_pem.as_deref() {
         let scope = repository::get_offline_authorization_scope(db, user_id).await?;
+        let baselines = scope
+            .role_codes
+            .iter()
+            .filter_map(|role| crate::authentication::BaselineRole::from_local_role_code(role))
+            .collect::<std::collections::BTreeSet<_>>();
+        let baseline_role = baselines
+            .iter()
+            .next()
+            .filter(|_| baselines.len() == 1)
+            .ok_or(ApiError::Unauthorized)?;
         Some(
             tokens::create_offline_grant(
                 tokens::OfflineGrantSubject {
                     user_id,
                     display_name: full_name.clone(),
                     email: email.clone(),
+                    device_id,
+                    baseline_role: baseline_role.code().to_string(),
                     business_ids: scope.business_ids,
+                    business_unit_ids: scope.business_unit_ids,
                     permissions: scope.permissions,
                     authorization_version: scope.authorization_version,
                 },

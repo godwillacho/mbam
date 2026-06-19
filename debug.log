@@ -53,3 +53,8 @@ Change: Added API-authoritative reporting, scoped dashboard summary data, recent
 Security: Reporting uses normalized same-grant business and shop scope; cashier reports are owner-restricted; business aggregates reject manager/cashier roles; sync pulls use the normalized context; queued writes are revalidated before push; envelope and payload scopes must match.
 Offline: Authorization snapshots now have explicit expiry, baseline role, permission, business, shop, device, and authorization-version fields. Expired, legacy, stale, or broadened snapshots fail closed. Revoked queued writes are retained as failed records instead of silently deleted.
 Verification: Rust formatting, strict Clippy, all 20 backend tests, frontend type-check, lint, and all 35 frontend tests passed. Live seeded-account checks confirmed manager shop reports, cashier self reports, cashier business-report denial, scoped sync pulls, cross-shop sync denial, and envelope/payload mismatch denial.
+
+2026-06-19
+Change: Completed the remaining checklist-backed Keycloak browser auth, report/detail-page, dashboard, and outbox notes that were already implemented in code, and tightened session auditing.
+Implementation: Added a dedicated Keycloak login-event endpoint, stopped the authorization bootstrap from doubling as a login audit write, made legacy login auditing non-blocking, recorded employee disable events distinctly, added route/report UI verification tests, and updated the refactor checklist to reflect the features now present in the tree.
+Verification: cargo test passed 21 backend tests; frontend vitest passed 32 tests; frontend lint passed; frontend production build passed; git diff --check passed.

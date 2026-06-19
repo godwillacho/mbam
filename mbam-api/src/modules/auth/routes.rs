@@ -60,7 +60,13 @@ async fn signup(
     headers: HeaderMap,
     Json(payload): Json<SignupRequest>,
 ) -> Result<(HeaderMap, Json<AuthResponse>), ApiError> {
-    let response = service::signup(&state.db, &state.config, payload).await?;
+    let response = service::signup(
+        &state.db,
+        &state.config,
+        request_device_uuid(&headers)?,
+        payload,
+    )
+    .await?;
     auth_response(&state, &headers, response)
 }
 
@@ -69,7 +75,13 @@ async fn login(
     headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
 ) -> Result<(HeaderMap, Json<AuthResponse>), ApiError> {
-    let response = service::login(&state.db, &state.config, payload).await?;
+    let response = service::login(
+        &state.db,
+        &state.config,
+        request_device_uuid(&headers)?,
+        payload,
+    )
+    .await?;
     auth_response(&state, &headers, response)
 }
 
@@ -79,7 +91,13 @@ async fn refresh(
 ) -> Result<(HeaderMap, Json<AuthResponse>), ApiError> {
     validate_device_context(&state, &headers)?;
     let refresh_token = refresh_cookie(&headers).ok_or(ApiError::Unauthorized)?;
-    let response = service::refresh(&state.db, &state.config, refresh_token).await?;
+    let response = service::refresh(
+        &state.db,
+        &state.config,
+        request_device_uuid(&headers)?,
+        refresh_token,
+    )
+    .await?;
     auth_response(&state, &headers, response)
 }
 
@@ -185,7 +203,14 @@ async fn google_callback(
     }
 
     let code = query.code.as_deref().ok_or(ApiError::Unauthorized)?;
-    let response = match service::login_with_google(&state.db, &state.config, code).await {
+    let response = match service::login_with_google(
+        &state.db,
+        &state.config,
+        request_device_uuid(&headers)?,
+        code,
+    )
+    .await
+    {
         Ok(response) => response,
         Err(_) => return oauth_error_redirect(&state, "google_failed"),
     };
@@ -249,6 +274,12 @@ fn device_binding(headers: &HeaderMap) -> Option<(&str, &str)> {
         return header_binding;
     }
     cookie_value(headers, DEVICE_HINT_COOKIE_NAME)?.split_once('.')
+}
+
+fn request_device_uuid(headers: &HeaderMap) -> Result<Uuid, ApiError> {
+    device_binding(headers)
+        .and_then(|(device_id, _)| Uuid::parse_str(device_id).ok())
+        .ok_or(ApiError::Unauthorized)
 }
 
 fn device_signature(
@@ -404,7 +435,14 @@ async fn microsoft_callback(
     }
 
     let code = query.code.as_deref().ok_or(ApiError::Unauthorized)?;
-    let response = match service::login_with_microsoft(&state.db, &state.config, code).await {
+    let response = match service::login_with_microsoft(
+        &state.db,
+        &state.config,
+        request_device_uuid(&headers)?,
+        code,
+    )
+    .await
+    {
         Ok(response) => response,
         Err(_) => {
             return oauth_error_redirect_for(

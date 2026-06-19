@@ -131,7 +131,20 @@ async fn report(
     let window = report_window(&query)?;
     let scope = report_scope(authorization, &window)?;
     let entity_id = selected_entity(dimension, &query);
-    validate_requested_scope(authorization, dimension, &query)?;
+    if let Err(error) = validate_requested_scope(authorization, dimension, &query) {
+        let _ = crate::modules::audit::record_authorization_event(
+            db,
+            authorization,
+            "authorization.report.denied",
+            dimension,
+            selected_entity(dimension, &query),
+            query.business_id,
+            query.business_unit_id,
+            serde_json::json!({ "reason": "outside_current_scope" }),
+        )
+        .await;
+        return Err(error);
+    }
     let series = match dimension {
         "business" => repository::business_revenue(db, &scope, entity_id).await?,
         "shop" => repository::shop_revenue(db, &scope, entity_id).await?,

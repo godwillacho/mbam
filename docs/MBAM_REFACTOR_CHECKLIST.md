@@ -26,7 +26,7 @@ Last updated: 2026-06-19 UTC
 - [x] Reject Keycloak/MBAM baseline mismatches.
 - [x] Return a normalized authorization context.
 - [x] Document configuration, provisioning, migration, failures, and tests.
-- [ ] Move browser authentication, recovery, refresh, and logout fully to
+- [x] Move browser authentication, recovery, refresh, and logout fully to
       Keycloak before removing legacy authentication.
 
 ## 3. Authorization Context And Guards
@@ -64,52 +64,52 @@ Last updated: 2026-06-19 UTC
 - [x] Enforce the employee visibility matrix in the API.
 - [x] Show shop managers only the cashier role.
 - [x] Deny employee management to cashiers.
-- [ ] Replace local/Keycloak role mutation with a transactional outbox and
+- [x] Replace local/Keycloak role mutation with a transactional outbox and
       reconciliation worker.
-- [ ] Surface visible synchronization failures and retry state.
+- [x] Surface visible synchronization failures and retry state.
 
 ## 7. Dashboard Baselines
 
 - [x] Provide master-owner, business-admin, shop-manager, and cashier baseline
       dashboard routes.
 - [x] Display the authenticated user's name and role in the workspace header.
-- [ ] Remove all obsolete baseline/signed-in/authorized-tools presentation.
-- [ ] Make every metric cell accessible, named, clickable, and linked to an
+- [x] Remove all obsolete baseline/signed-in/authorized-tools presentation.
+- [x] Make every metric cell accessible, named, clickable, and linked to an
       authorized detail route.
-- [ ] Enforce direct detail URLs with the same API authorization.
+- [x] Enforce direct detail URLs with the same API authorization.
 
 ## 8. Dashboard Metric Cells
 
-- [ ] Add authorized daily business, shop, employee, and product leaders.
-- [ ] Add role-appropriate shop-manager and cashier metrics.
-- [ ] Add entity names, primary values, chart previews, accessible buttons,
+- [x] Add authorized daily business, shop, employee, and product leaders.
+- [x] Add role-appropriate shop-manager and cashier metrics.
+- [x] Add entity names, primary values, chart previews, accessible buttons,
       links, loading, empty, timeout, and error states.
 
 ## 9. Recent Transactions
 
 - [x] Enforce cashier ownership and shop-manager shop scope in transaction APIs.
-- [ ] Add a newest-first, maximum-five dashboard table for cashiers and shop
+- [x] Add a newest-first, maximum-five dashboard table for cashiers and shop
       managers only.
-- [ ] Link each row to the exact authorized transaction detail.
-- [ ] Hide the section from master owners and business administrators.
+- [x] Link each row to the exact authorized transaction detail.
+- [x] Hide the section from master owners and business administrators.
 
 ## 10. Reporting And Charts
 
-- [ ] Add `chart.js` and `react-chartjs-2`.
+- [x] Add `chart.js` and `react-chartjs-2`.
 - [x] Add API aggregations for business revenue, shop revenue, employee sales,
       product quantity, and product revenue.
 - [x] Support daily, weekly, monthly, and yearly timeframes.
 - [x] Add reporting indexes for business, unit, recorder, product, and time.
-- [ ] Add a single-select segmented timeframe control.
+- [x] Add a single-select segmented timeframe control.
 - [x] Keep authoritative calculations entirely on the API.
 
 ## 11. Detail Pages
 
-- [ ] Restrict Businesses to master owners and business administrators.
-- [ ] Add the responsive authorized Shops split list/chart page.
-- [ ] Add the responsive authorized Employees split list/chart page.
-- [ ] Add the responsive authorized Products split list/chart page.
-- [ ] Ensure selected entity IDs cannot escape API scope.
+- [x] Restrict Businesses to master owners and business administrators.
+- [x] Add the responsive authorized Shops split list/chart page.
+- [x] Add the responsive authorized Employees split list/chart page.
+- [x] Add the responsive authorized Products split list/chart page.
+- [x] Ensure selected entity IDs cannot escape API scope.
 
 ## 12. Role Visibility Matrix
 
@@ -130,14 +130,14 @@ Last updated: 2026-06-19 UTC
 - [x] Add explicit snapshot expiry and fail-closed expiry tests.
 - [x] Revalidate every queued operation against current authorization during
       synchronization.
-- [ ] Reject and audit queued operations outside the current scope.
+- [x] Reject and audit queued operations outside the current scope.
 
 ## 14. Auditing And Observability
 
 - [x] Redact tokens, passwords, cookies, authorization headers, secrets, and
       customer-sensitive fields from logs.
 - [x] Maintain `debug.log`, `error.log`, and `docs/ENGINEERING_DEBUG_LOG.md`.
-- [ ] Audit login/logout, role/scope changes, employee creation/disabling,
+- [x] Audit login/logout, role/scope changes, employee creation/disabling,
       Keycloak synchronization failures, cross-scope denials, and all product
       and transaction modifications.
 - [ ] Add tests for required audit events and prohibited log content.
@@ -152,8 +152,8 @@ Last updated: 2026-06-19 UTC
 - [ ] Add database-backed tests for every cross-shop and cross-business case.
 - [x] Add chart authorization and date/time boundary tests.
 - [x] Add offline snapshot expiry and queued-operation revalidation tests.
-- [ ] Add loading, empty, timeout, and API-error stale-data tests.
-- [ ] Add direct-detail-route authorization tests.
+- [x] Add loading, empty, timeout, and API-error stale-data tests.
+- [x] Add direct-detail-route authorization tests.
 
 ## 16. Implementation Order
 
@@ -161,11 +161,11 @@ Last updated: 2026-06-19 UTC
 - [x] API scope guards and focused denial tests.
 - [x] Authorization bootstrap endpoint.
 - [x] Scoped employee-management API and UI.
-- [ ] Scoped recent transaction dashboard table.
+- [x] Scoped recent transaction dashboard table.
 - [x] Reporting aggregation endpoints and indexes.
-- [ ] Dashboard metric cleanup and clickable cells.
-- [ ] Shop, employee, and product graph pages.
-- [ ] Keycloak role-management outbox and reconciliation.
+- [x] Dashboard metric cleanup and clickable cells.
+- [x] Shop, employee, and product graph pages.
+- [x] Keycloak role-management outbox and reconciliation.
 - [x] Offline authorization revalidation.
 - [ ] Remove legacy authentication only after migration tests pass.
 

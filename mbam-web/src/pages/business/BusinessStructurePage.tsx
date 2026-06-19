@@ -200,7 +200,7 @@ export default function BusinessStructurePage() {
   const openCreateEmployee = (businessId?: string) => {
     const query = new URLSearchParams({ invite: "1" });
     if (businessId) query.set("business", businessId);
-    navigate(`/team?${query.toString()}`);
+    navigate(`/employees/manage?${query.toString()}`);
   };
 
   const toggleExpanded = (

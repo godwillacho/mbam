@@ -79,3 +79,9 @@ Encountered: The first frontend test command duplicated the script's built-in ru
 Resolution: Re-ran the standard test script; all 35 tests passed.
 Encountered: The first offline sync test used non-hoisted mock state in a hoisted Vitest factory.
 Resolution: Moved the shared mock state into the framework's hoisted initializer; the test now proves authorization reconciliation precedes pending-write reads.
+
+2026-06-19
+Encountered: The first new access-control test treated an explicit empty permissions array as equivalent to baseline-role fallback access.
+Resolution: Updated the test fixture to match runtime behavior, where an explicit permissions array is authoritative.
+Encountered: The first production build after adding report-page tests failed because the explicit React imports were unused under the current JSX transform.
+Resolution: Removed the unused imports and re-ran frontend test, lint, and build successfully.

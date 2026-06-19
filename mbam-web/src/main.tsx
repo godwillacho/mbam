@@ -2,18 +2,25 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./i18n";
+import "./components/charts/Charts.css";
 import "./i18n/roleDashboardResources";
 import "./i18n/productRevenueResources";
 import "./i18n/cleanDashboardResources";
 import * as Sentry from "@sentry/react";
 import { initializeObservability } from "./observability";
+import { initializeKeycloak } from "./services/keycloakService";
 
 initializeObservability();
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <Sentry.ErrorBoundary fallback={<p>Mbam encountered an unexpected error.</p>}>
-      <App />
-    </Sentry.ErrorBoundary>
-  </React.StrictMode>,
-);
+async function renderApplication() {
+  await initializeKeycloak().catch(() => undefined);
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <Sentry.ErrorBoundary fallback={<p>Mbam encountered an unexpected error.</p>}>
+        <App />
+      </Sentry.ErrorBoundary>
+    </React.StrictMode>,
+  );
+}
+
+void renderApplication();

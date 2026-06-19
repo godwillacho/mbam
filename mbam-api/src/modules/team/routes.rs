@@ -81,6 +81,9 @@ async fn register_invitation(
     State(state): State<AppState>,
     Json(payload): Json<RegisterInvitationRequest>,
 ) -> Result<Json<Value>, ApiError> {
+    if state.config.auth_provider == "keycloak" {
+        return Err(ApiError::NotFound);
+    }
     service::register_invitation(&state.db, payload).await?;
     Ok(Json(json!({ "message": "invited account created" })))
 }

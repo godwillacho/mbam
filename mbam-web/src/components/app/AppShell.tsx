@@ -4,8 +4,15 @@ import { useTranslation } from "react-i18next";
 import { isDemoWorkspace, WORKSPACE_CHANGE_EVENT, workspace } from "../../data/mockWorkspace";
 import { baselineDashboardPath } from "../../pages/dashboard/dashboardRoutes";
 import { getCurrentSession } from "../../services/authService";
-import { API_AUTH_LOCK_EVENT } from "../../services/apiClient";
-import { getAccessToken } from "../../services/authSessionStore";
+import { API_AUTH_LOCK_EVENT, postJson } from "../../services/apiClient";
+import {
+  clearActiveSession,
+  getAccessToken,
+} from "../../services/authSessionStore";
+import {
+  isKeycloakEnabled,
+  logoutFromKeycloak,
+} from "../../services/keycloakService";
 import { createApiSyncTransport, synchronizeOfflineChanges } from "../../services/offlineSyncService";
 import { isOfflineVaultUnlocked } from "../../services/offlineVaultService";
 import { hydrateAuthorizationWorkspace, hydrateCloudWorkspace } from "../../services/workspaceService";
@@ -25,7 +32,8 @@ const navItems: Array<{ to: string; labelKey: string; routeKey?: AppRouteKey }> 
   { to: "/transactions/drafts", labelKey: "app.nav.drafts", routeKey: "transactionDrafts" },
   { to: "/transactions", labelKey: "app.nav.transactions", routeKey: "transactions" },
   { to: "/businesses", labelKey: "app.nav.businesses", routeKey: "businesses" },
-  { to: "/team", labelKey: "app.nav.team", routeKey: "team" },
+  { to: "/shops", labelKey: "app.nav.shops", routeKey: "shops" },
+  { to: "/employees", labelKey: "app.nav.team", routeKey: "team" },
   { to: "/products", labelKey: "app.nav.products", routeKey: "products" },
   { to: "/reports", labelKey: "app.nav.reports", routeKey: "reports" },
 ];
@@ -42,6 +50,19 @@ export default function AppShell() {
   const dashboardPath = baselineDashboardPath(currentMember) ?? "/dashboard";
   const visibleNavItems = navItems.filter((item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey));
   const workspaceName = workspace.masterAccount.name || t("app.defaultWorkspaceName");
+
+  const signOut = async () => {
+    if (isKeycloakEnabled()) {
+      await logoutFromKeycloak();
+      return;
+    }
+    await postJson<{ message: string }, Record<string, never>>(
+      "/api/v1/auth/logout",
+      {},
+    ).catch(() => undefined);
+    clearActiveSession();
+    window.location.assign("/auth");
+  };
 
   useEffect(() => {
     const syncCurrentMember = () => setCurrentMember(getCurrentMember());
@@ -129,6 +150,9 @@ export default function AppShell() {
             )}
             <LanguageSwitcher />
             <div className="sync-pill"><span className="sync-dot" />{t("app.readyToSync")}</div>
+            <button className="secondary-btn" onClick={() => void signOut()} type="button">
+              Sign out
+            </button>
           </div>
         </header>
         <Outlet />

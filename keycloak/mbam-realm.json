@@ -71,5 +71,19 @@
         }
       ]
     }
+  ],
+  "users": [
+    {
+      "username": "service-account-mbam-api",
+      "enabled": true,
+      "serviceAccountClientId": "mbam-api",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "view-realm"
+        ]
+      }
+    }
   ]
 }

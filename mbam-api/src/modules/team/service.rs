@@ -641,6 +641,7 @@ pub async fn update_member(
     } else {
         "worker.update"
     };
+    let audit_action = permission;
     let account_id = repository::permitted_scope(
         db,
         actor_id,
@@ -741,6 +742,7 @@ pub async fn update_member(
         db,
         actor_id,
         membership_id,
+        audit_action,
         role_id,
         business_id,
         unit_id,

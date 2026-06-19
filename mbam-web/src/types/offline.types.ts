@@ -36,7 +36,9 @@ export interface OfflineGrantPayload {
   displayName: string;
   email: string;
   deviceId: string;
+  baselineRole: string;
   businessIds: string[];
+  businessUnitIds: string[];
   permissions: string[];
   authorizationVersion: number;
   issuedAt: string;

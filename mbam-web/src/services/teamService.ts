@@ -99,8 +99,20 @@ export interface InvitationDetails {
   status: string;
 }
 
+export interface KeycloakSyncStatus {
+  membership_id: string;
+  status: "pending" | "processing" | "succeeded" | "failed" | "superseded";
+  attempts: number;
+  last_error?: string;
+  updated_at: string;
+}
+
 export async function loadTeamWorkspace(): Promise<TeamWorkspace> {
   return getJson<TeamWorkspace>("/api/v1/team-members");
+}
+
+export async function loadKeycloakSyncStatuses(): Promise<KeycloakSyncStatus[]> {
+  return getJson<KeycloakSyncStatus[]>("/api/v1/keycloak-sync");
 }
 
 export async function inviteEmployee(payload: InviteEmployeeInput): Promise<{

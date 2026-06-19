@@ -1,78 +1,69 @@
 import { describe, expect, it } from "vitest";
 import type { TeamMember } from "../types/workspace";
-import { canAccessRoute, canManageProducts } from "./accessControl";
+import { canAccessRoute } from "./accessControl";
 
-function member(roleId: string, permissions?: string[]): TeamMember {
+function member(overrides: Partial<TeamMember> = {}): TeamMember {
   return {
-    id: roleId,
-    fullName: "Test user",
-    email: "test@example.com",
-    roleId,
-    permissions,
-    scopeLevel: "master",
+    id: "member-1",
+    fullName: "Test User",
+    email: "user@example.com",
+    roleId: "role-cashier",
+    scopeLevel: "unit",
     status: "active",
+    ...overrides,
   };
 }
 
-describe("product management access", () => {
-  it.each(["role-master-owner", "role-business-admin", "role-shop-manager"])(
-    "allows %s to manage products",
-    (roleId) => {
-      expect(canManageProducts(member(roleId))).toBe(true);
-    },
-  );
-
-  it("keeps product writes hidden from cashiers", () => {
-    expect(canManageProducts(member("role-cashier"))).toBe(false);
-  });
-
-  it("keeps product writes hidden for a custom view-only grant", () => {
+describe("authorized route matrix", () => {
+  it("restricts the Businesses page to master owners and business admins", () => {
     expect(
-      canManageProducts(
-        member("role-custom", ["screen.products", "product.view"]),
-      ),
-    ).toBe(false);
-  });
-
-  it("allows product writes when a custom role includes update access", () => {
-    expect(
-      canManageProducts(
-        member("role-custom", [
-          "screen.products",
-          "product.view",
-          "product.update",
-        ]),
+      canAccessRoute(
+        member({ roleId: "role-master-owner", scopeLevel: "master" }),
+        "businesses",
       ),
     ).toBe(true);
-  });
-});
-
-describe("custom screen access", () => {
-  it("uses the server-authorized route list before local permissions", () => {
-    const shopManager = member("role-shop-manager", [
-      "screen.businesses",
-      "screen.team",
-    ]);
-    shopManager.authorizedRouteKeys = ["team"];
-
-    expect(canAccessRoute(shopManager, "team")).toBe(true);
-    expect(canAccessRoute(shopManager, "businesses")).toBe(false);
+    expect(
+      canAccessRoute(
+        member({ roleId: "role-business-admin", scopeLevel: "business" }),
+        "businesses",
+      ),
+    ).toBe(true);
+    expect(
+      canAccessRoute(member({ roleId: "role-shop-manager" }), "businesses"),
+    ).toBe(false);
+    expect(canAccessRoute(member(), "businesses")).toBe(false);
   });
 
-  it("allows only explicitly granted screens", () => {
-    const customMember = member("role-custom", [
-      "screen.transactions",
-      "sale.view",
-    ]);
+  it("allows scoped employees, shops, products, and reports only when the API grants them", () => {
+    const scopedManager = member({
+      roleId: "role-shop-manager",
+      permissions: [
+        "screen.team",
+        "screen.reports",
+        "screen.products",
+      ],
+    });
+    expect(canAccessRoute(scopedManager, "team")).toBe(true);
+    expect(canAccessRoute(scopedManager, "shops")).toBe(true);
+    expect(canAccessRoute(scopedManager, "products")).toBe(true);
+    expect(canAccessRoute(scopedManager, "reports")).toBe(true);
 
-    expect(canAccessRoute(customMember, "transactions")).toBe(true);
-    expect(canAccessRoute(customMember, "reports")).toBe(false);
+    const cashier = member({
+      permissions: ["screen.products", "screen.reports"],
+    });
+    expect(canAccessRoute(cashier, "products")).toBe(true);
+    expect(canAccessRoute(cashier, "shops")).toBe(true);
+    expect(canAccessRoute(cashier, "reports")).toBe(true);
+    expect(canAccessRoute(cashier, "team")).toBe(false);
   });
 
-  it("retains the standard-role fallback for demo accounts", () => {
-    expect(canAccessRoute(member("role-cashier"), "recordTransaction")).toBe(
-      true,
-    );
-    expect(canAccessRoute(member("role-cashier"), "reports")).toBe(false);
+  it("keeps custom-role access fail-closed without explicit permissions", () => {
+    const custom = member({
+      roleId: "role-custom-member-shop-manager-123",
+      permissions: ["screen.reports"],
+    });
+    expect(canAccessRoute(custom, "reports")).toBe(true);
+    expect(canAccessRoute(custom, "team")).toBe(false);
+    expect(canAccessRoute(custom, "businesses")).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import { clearActiveSession, getAccessToken } from "./authSessionStore";
 import { getDeviceBinding } from "./deviceBindingService";
+import { refreshKeycloakTokenIfNeeded } from "./keycloakService";
 import { logger } from "./logging/logger";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -96,6 +97,7 @@ export function buildApiUrl(path: string): string {
 }
 
 export async function getJson<TResponse>(path: string): Promise<TResponse> {
+  await refreshKeycloakTokenIfNeeded();
   const accessToken = getAccessToken();
   const response = await apiFetch(path, {
     method: "GET",
@@ -114,6 +116,7 @@ export async function patchJson<TResponse, TPayload>(path: string, payload: TPay
 }
 
 export async function deleteJson<TResponse>(path: string): Promise<TResponse> {
+  await refreshKeycloakTokenIfNeeded();
   const accessToken = getAccessToken();
   const response = await apiFetch(path, {
     method: "DELETE",
@@ -124,6 +127,7 @@ export async function deleteJson<TResponse>(path: string): Promise<TResponse> {
 }
 
 async function sendJson<TResponse, TPayload>(method: "POST" | "PATCH", path: string, payload: TPayload): Promise<TResponse> {
+  await refreshKeycloakTokenIfNeeded();
   const accessToken = getAccessToken();
   const response = await apiFetch(path, {
     method,

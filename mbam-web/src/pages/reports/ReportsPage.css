@@ -1,0 +1,68 @@
+.report-dimension-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-dimension-tabs button {
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.report-dimension-tabs button.active {
+  border-color: var(--forest);
+  background: var(--forest-soft);
+  color: var(--forest);
+}
+
+.report-series-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.report-series-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.report-series-card h3 {
+  margin-top: 4px;
+}
+
+.report-total {
+  text-align: right;
+}
+
+.report-total strong,
+.report-total small {
+  display: block;
+}
+
+.report-total small {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.report-state {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+}
+
+@media (max-width: 640px) {
+  .report-series-card header {
+    flex-direction: column;
+  }
+
+  .report-total {
+    text-align: left;
+  }
+}

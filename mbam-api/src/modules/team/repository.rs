@@ -685,6 +685,11 @@ pub async fn accept_invitation(
         },
     )
     .await?;
+    crate::modules::keycloak_sync::repository::enqueue_membership_reconciliation(
+        &mut tx,
+        membership_id,
+    )
+    .await?;
     tx.commit().await?;
     find_member(db, membership_id).await
 }
@@ -767,6 +772,11 @@ pub async fn register_invited_user(
         },
     )
     .await?;
+    crate::modules::keycloak_sync::repository::enqueue_membership_reconciliation(
+        &mut tx,
+        membership_id,
+    )
+    .await?;
     tx.commit().await?;
     Ok(Some(user_id))
 }
@@ -793,6 +803,7 @@ pub async fn update_member(
     db: &PgPool,
     actor_id: Uuid,
     membership_id: Uuid,
+    action: &str,
     role_id: Uuid,
     business_id: Option<Uuid>,
     unit_id: Option<Uuid>,
@@ -827,10 +838,14 @@ pub async fn update_member(
                 account_id: member.business_account_id,
                 business_id: member.business_id,
                 unit_id: member.business_unit_id,
-                action: "worker.update",
+                action,
                 resource_type: "membership",
                 resource_id: member.id,
             },
+        )
+        .await?;
+        crate::modules::keycloak_sync::repository::enqueue_membership_reconciliation(
+            &mut tx, member.id,
         )
         .await?;
     }

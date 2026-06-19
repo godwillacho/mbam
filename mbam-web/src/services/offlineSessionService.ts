@@ -13,6 +13,7 @@ import {
   requireOfflineDataKey,
   requireOfflineVaultUserId,
 } from "./offlineVaultService";
+import { getDeviceBinding } from "./deviceBindingService";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -40,7 +41,9 @@ function parseGrant(token: string): VerifiedOfflineGrant {
       displayName: claims.displayName,
       email: claims.email,
       deviceId: claims.deviceId,
+      baselineRole: claims.baselineRole,
       businessIds: claims.businessIds,
+      businessUnitIds: claims.businessUnitIds,
       permissions: claims.permissions,
       authorizationVersion: claims.authorizationVersion,
       issuedAt: claims.issuedAt,
@@ -96,6 +99,10 @@ export async function saveOfflineGrant(
   if (verified.payload.userId !== requireOfflineVaultUserId()) {
     throw new Error("offline_vault_user_mismatch");
   }
+  const binding = await getDeviceBinding();
+  if (verified.payload.deviceId !== binding.deviceId) {
+    throw new Error("offline_device_binding_mismatch");
+  }
 
   const value = await encryptJson(
     requireOfflineDataKey(),
@@ -122,9 +129,14 @@ export async function getValidOfflineGrant(): Promise<VerifiedOfflineGrant | nul
     return null;
   }
 
-  return decryptJson<VerifiedOfflineGrant>(
+  const grant = await decryptJson<VerifiedOfflineGrant>(
     requireOfflineDataKey(),
     record.value,
     "grant:current",
   );
+  const binding = await getDeviceBinding();
+  if (grant.payload.deviceId !== binding.deviceId) {
+    throw new Error("offline_device_binding_mismatch");
+  }
+  return grant;
 }

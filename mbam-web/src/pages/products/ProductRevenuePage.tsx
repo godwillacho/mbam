@@ -2,7 +2,7 @@ import { type ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
-import { isDemoWorkspace, workspace } from "../../data/mockWorkspace";
+import { workspace } from "../../data/mockWorkspace";
 import { canManageProducts, getCurrentMember, getScopedUnits } from "../../security/accessControl";
 import { listBusinesses } from "../../services/businessService";
 import {
@@ -10,7 +10,7 @@ import {
   updateProduct,
   type ProductWritePayload,
 } from "../../services/productService";
-import { getProductRevenueReport, type ProductRevenueReport, type ProductRevenueRow } from "../../services/productRevenueService";
+import { getProductRevenueReport, type ProductRevenueRow } from "../../services/productRevenueService";
 import type { ProductProfile } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
 import { getProductInventorySnapshot } from "../../utils/inventory";
@@ -18,7 +18,6 @@ import { getProductSearchText } from "../../utils/productDisplay";
 import { canViewDashboardMetric } from "../dashboard/dashboardPermissions";
 import "./ProductRevenuePage.css";
 
-const isDevEnvironment = import.meta.env.DEV;
 type SortMode = "alphabetical" | "reverse" | "brand" | "bestSelling";
 
 interface ProductDraft {
@@ -257,7 +256,6 @@ export default function ProductRevenuePage() {
   const member = useMemo(() => getCurrentMember(), []);
   const scopedUnits = useMemo(() => getScopedUnits(member), [member]);
   const [rows, setRows] = useState<ProductRevenueRow[]>([]);
-  const [source, setSource] = useState<ProductRevenueReport["source"]>("mock");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -284,7 +282,6 @@ export default function ProductRevenuePage() {
       .then((report) => {
         if (ignore) return;
         setRows(report.rows);
-        setSource(report.source);
         setProductDrafts((current) => {
           const next = { ...current };
           report.rows.forEach((row) => {
@@ -472,8 +469,6 @@ export default function ProductRevenuePage() {
         )}
       </div>
 
-      {isDevEnvironment && isDemoWorkspace() && source === "mock" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.mockSourceNote")}</div>}
-      {isDevEnvironment && isDemoWorkspace() && source === "cache" && !isLoading && !error && <div className="product-revenue-source-note">{t("productRevenue.cacheSourceNote")}</div>}
       {error && <div className="product-revenue-error">{error}</div>}
 
       <div className="filter-bar card product-table-controls">

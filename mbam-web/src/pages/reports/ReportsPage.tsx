@@ -1,56 +1,142 @@
-import { useTranslation } from "react-i18next";
-import DevOnly from "../../components/app/DevOnly";
+import { useEffect, useMemo, useState } from "react";
+import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
+import TimeframeControl from "../../components/charts/TimeframeControl";
 import { workspace } from "../../data/mockWorkspace";
+import { getCurrentMember } from "../../security/accessControl";
+import {
+  loadReport,
+  type ReportDimension,
+  type ReportResponse,
+  type ReportTimeframe,
+} from "../../services/reportService";
 import { formatMoney } from "../../utils/formatters";
+import "./ReportsPage.css";
+
+const labels: Record<ReportDimension, string> = {
+  businesses: "Businesses",
+  shops: "Shops",
+  employees: "Employees",
+  products: "Products",
+};
+
+function baseline(roleId: string): string {
+  if (roleId.includes("master-owner")) return "master_owner";
+  if (roleId.includes("business-admin")) return "business_admin";
+  if (roleId.includes("shop-manager")) return "shop_manager";
+  return "cashier";
+}
 
 export default function ReportsPage() {
-  const { t } = useTranslation();
-  const completed = workspace.transactions.filter((transaction) => transaction.status === "completed");
-  const completedRevenue = completed.reduce((sum, transaction) => sum + transaction.amount, 0);
-  const queued = workspace.transactions.filter((transaction) => transaction.status === "queued");
+  const member = getCurrentMember();
+  const role = baseline(member.roleId);
+  const dimensions = useMemo<ReportDimension[]>(
+    () =>
+      role === "master_owner" || role === "business_admin"
+        ? ["businesses", "shops", "employees", "products"]
+        : role === "shop_manager"
+          ? ["shops", "employees", "products"]
+          : ["employees", "products"],
+    [role],
+  );
+  const [dimension, setDimension] = useState<ReportDimension>(dimensions[0]);
+  const [timeframe, setTimeframe] = useState<ReportTimeframe>("daily");
+  const [report, setReport] = useState<ReportResponse | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const currency = workspace.businesses[0]?.currency ?? "XAF";
+
+  useEffect(() => {
+    let ignore = false;
+    setReport(null);
+    setState("loading");
+    loadReport(dimension, { timeframe })
+      .then((next) => {
+        if (ignore) return;
+        setReport(next);
+        setState("ready");
+      })
+      .catch(() => {
+        if (ignore) return;
+        setReport(null);
+        setState("error");
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [dimension, timeframe]);
 
   return (
     <section className="page-grid">
       <div className="page-heading clean-dashboard-heading">
         <div>
-          <span className="eyebrow">{t("reports.eyebrow")}</span>
-          <h2>{t("reports.title")}</h2>
-          <DevOnly><p>{t("reports.description")}</p></DevOnly>
+          <span className="eyebrow">Authorized reporting</span>
+          <h2>Reports</h2>
+          <p className="card-muted">
+            Aggregated by the API using only your current business, shop, and
+            ownership scope.
+          </p>
         </div>
+        <TimeframeControl onChange={setTimeframe} value={timeframe} />
       </div>
 
-      <div className="metrics-grid">
-        <article className="metric-card">
-          <span>{t("reports.completedRevenue")}</span>
-          <strong>{formatMoney(completedRevenue, workspace.masterAccount.currency)}</strong>
-          <small>{t("reports.completedRecords", { count: completed.length })}</small>
-        </article>
-        <article className="metric-card">
-          <span>{t("reports.queuedAmount")}</span>
-          <strong>{formatMoney(queued.reduce((sum, transaction) => sum + transaction.amount, 0), workspace.masterAccount.currency)}</strong>
-          <small>{t("reports.waitingForSync", { count: queued.length })}</small>
-        </article>
-        <article className="metric-card">
-          <span>{t("reports.averageSale")}</span>
-          <strong>{formatMoney(completedRevenue / Math.max(completed.length, 1), workspace.masterAccount.currency)}</strong>
-          <small>{t("reports.completedOnly")}</small>
-        </article>
-        <article className="metric-card">
-          <span>{t("reports.activeUnits")}</span>
-          <strong>{workspace.businessUnits.length}</strong>
-          <small>{t("reports.acrossBusinesses")}</small>
-        </article>
+      <div className="report-dimension-tabs" role="tablist" aria-label="Report type">
+        {dimensions.map((item) => (
+          <button
+            aria-selected={dimension === item}
+            className={dimension === item ? "active" : ""}
+            key={item}
+            onClick={() => setDimension(item)}
+            role="tab"
+            type="button"
+          >
+            {labels[item]}
+          </button>
+        ))}
       </div>
 
-      <article className="card">
-        <h3>{t("reports.nextSections")}</h3>
-        <div className="list-stack">
-          <div className="list-item"><strong>{t("reports.revenueByBusiness")}</strong><span className="badge">{t("common.planned")}</span></div>
-          <div className="list-item"><strong>{t("reports.revenueByUnit")}</strong><span className="badge">{t("common.planned")}</span></div>
-          <div className="list-item"><strong>{t("reports.workerPerformance")}</strong><span className="badge">{t("common.planned")}</span></div>
-          <div className="list-item"><strong>{t("reports.offlineSyncHealth")}</strong><span className="badge warning">{t("common.important")}</span></div>
+      {state === "loading" && (
+        <article className="card report-state" role="status">
+          Loading authorized report…
+        </article>
+      )}
+      {state === "error" && (
+        <div className="validation-summary" role="alert">
+          The report could not be loaded. No cached broader data is displayed.
         </div>
-      </article>
+      )}
+      {state === "ready" && report?.series.length === 0 && (
+        <article className="card report-state">
+          No sales were recorded in this authorized scope and timeframe.
+        </article>
+      )}
+      {state === "ready" && report && report.series.length > 0 && (
+        <div className="report-series-grid">
+          {report.series.map((series) => (
+            <article className="card report-series-card" key={series.entity_id}>
+              <header>
+                <div>
+                  <span className="eyebrow">{labels[dimension]}</span>
+                  <h3>{series.entity_name}</h3>
+                </div>
+                <div className="report-total">
+                  <strong>
+                    {dimension === "products"
+                      ? `${series.total_quantity.toLocaleString()} sold`
+                      : formatMoney(series.total_revenue, currency)}
+                  </strong>
+                  <small>
+                    {series.transaction_count.toLocaleString()} transactions
+                  </small>
+                </div>
+              </header>
+              <AuthorizedLineChart
+                label={series.entity_name}
+                points={series.points}
+                quantity={dimension === "products"}
+              />
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

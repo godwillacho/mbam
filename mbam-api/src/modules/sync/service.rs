@@ -67,13 +67,34 @@ pub async fn push(
     for operation in payload.operations {
         results.push(match authorize_operation(authorization, &operation) {
             Ok(()) => apply_operation(db, user_id, operation).await,
-            Err(error) => rejected_result(
-                operation
-                    .get("operationId")
+            Err(error) => {
+                let business_id = operation
+                    .get("businessId")
                     .and_then(Value::as_str)
-                    .unwrap_or("unknown"),
-                error,
-            ),
+                    .and_then(|value| Uuid::parse_str(value).ok());
+                let business_unit_id = operation
+                    .get("businessUnitId")
+                    .and_then(Value::as_str)
+                    .and_then(|value| Uuid::parse_str(value).ok());
+                let _ = crate::modules::audit::record_authorization_event(
+                    db,
+                    authorization,
+                    "authorization.sync.denied",
+                    "sync_operation",
+                    None,
+                    business_id,
+                    business_unit_id,
+                    serde_json::json!({ "reason": error }),
+                )
+                .await;
+                rejected_result(
+                    operation
+                        .get("operationId")
+                        .and_then(Value::as_str)
+                        .unwrap_or("unknown"),
+                    error,
+                )
+            }
         });
     }
     let accepted_count = results

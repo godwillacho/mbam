@@ -12,6 +12,7 @@ export type AppRouteKey =
   | "transactionDrafts"
   | "transactions"
   | "businesses"
+  | "shops"
   | "team"
   | "reports"
   | "products";
@@ -36,6 +37,7 @@ const routeAccessByRole: Record<string, AppRouteKey[]> = {
     "transactionDrafts",
     "transactions",
     "businesses",
+    "shops",
     "team",
     "reports",
     "products",
@@ -45,6 +47,7 @@ const routeAccessByRole: Record<string, AppRouteKey[]> = {
     "transactionDrafts",
     "transactions",
     "businesses",
+    "shops",
     "team",
     "reports",
     "products",
@@ -53,6 +56,7 @@ const routeAccessByRole: Record<string, AppRouteKey[]> = {
     "recordTransaction",
     "transactionDrafts",
     "transactions",
+    "shops",
     "reports",
     "products",
   ],
@@ -60,6 +64,7 @@ const routeAccessByRole: Record<string, AppRouteKey[]> = {
     "recordTransaction",
     "transactionDrafts",
     "transactions",
+    "shops",
     "products",
   ],
 };
@@ -75,6 +80,7 @@ const routePermission: Record<AppRouteKey, string> = {
   transactionDrafts: "screen.transaction_drafts",
   transactions: "screen.transactions",
   businesses: "screen.businesses",
+  shops: "screen.reports",
   team: "screen.team",
   reports: "screen.reports",
   products: "screen.products",

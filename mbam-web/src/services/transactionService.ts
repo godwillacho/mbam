@@ -87,6 +87,10 @@ export async function listCloudTransactions(): Promise<CloudTransaction[]> {
   return getJson<CloudTransaction[]>("/api/v1/transactions");
 }
 
+export async function listRecentCloudTransactions(): Promise<CloudTransaction[]> {
+  return getJson<CloudTransaction[]>("/api/v1/transactions/recent");
+}
+
 export async function getCloudTransaction(id: string): Promise<CloudTransaction> {
   return getJson<CloudTransaction>(`/api/v1/transactions/${id}`);
 }

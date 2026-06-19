@@ -7,10 +7,16 @@ import SSOButtons from "../../components/auth/SSOButtons";
 import AuthLayout from "../../components/auth/AuthLayout";
 import {
   enableOfflineAccess,
+  getCurrentSession,
   offlineAccessIsConfigured,
   refreshCloudSession,
   unlockOfflineSession,
 } from "../../services/authService";
+import {
+  isKeycloakEnabled,
+  loginWithKeycloak,
+  recoverKeycloakAccount,
+} from "../../services/keycloakService";
 import {
   createApiSyncTransport,
   synchronizeOfflineChanges,
@@ -28,7 +34,7 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<AuthMode>("login");
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(() => getCurrentSession());
   const [offlineConfigured, setOfflineConfigured] = useState(false);
   const [passphrase, setPassphrase] = useState("");
   const [offlineError, setOfflineError] = useState("");
@@ -59,7 +65,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     void offlineAccessIsConfigured().then(setOfflineConfigured);
-    if (navigator.onLine && !switchingAccount) {
+    if (!isKeycloakEnabled() && navigator.onLine && !switchingAccount) {
       void refreshCloudSession()
         .then(setSession)
         .catch(() => {
@@ -101,6 +107,66 @@ export default function AuthPage() {
       setOfflineBusy(false);
     }
   };
+
+  if (isKeycloakEnabled() && session) {
+    return <Navigate to={dashboardPickerPath(nextPath)} replace />;
+  }
+
+  if (isKeycloakEnabled()) {
+    return (
+      <AuthLayout mode="login">
+        <div className="verify-screen">
+          <div className="verify-icon">M</div>
+          <h2 className="verify-title">Sign in to Mbam</h2>
+          <p className="verify-body">
+            Keycloak securely manages credentials, account recovery, sessions,
+            and multi-factor authentication.
+          </p>
+          <button
+            className="submit-btn"
+            onClick={() => void loginWithKeycloak()}
+            type="button"
+          >
+            Continue to secure sign in
+          </button>
+          <button
+            className="forgot-link"
+            onClick={() => void recoverKeycloakAccount()}
+            type="button"
+          >
+            Recover or update your account
+          </button>
+          {offlineConfigured && (
+            <div className="field-group">
+              <div className="field">
+                <label htmlFor="offline-passphrase">
+                  {t("auth.offlineUnlock")}
+                </label>
+                <input
+                  id="offline-passphrase"
+                  minLength={10}
+                  onChange={(event) => setPassphrase(event.target.value)}
+                  type="password"
+                  value={passphrase}
+                />
+                <button
+                  className="forgot-link"
+                  disabled={offlineBusy || passphrase.length < 10}
+                  onClick={unlockOffline}
+                  type="button"
+                >
+                  {offlineBusy ? t("auth.unlockingOffline") : t("auth.unlockOffline")}
+                </button>
+                {offlineError && (
+                  <span className="field-error">{offlineError}</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </AuthLayout>
+    );
+  }
 
   if (session && !session.offlineGrant) {
     return <Navigate to={dashboardPickerPath(nextPath)} replace />;

@@ -136,6 +136,12 @@ export async function listProducts(
     : { products: fallback, source: "fallback" };
 }
 
+export async function listAuthorizedProductsOnline(): Promise<ProductProfile[]> {
+  const products = await getJson<ApiProduct[]>("/api/v1/products");
+  await Promise.all(products.map((product) => saveOffline(product, "cloud")));
+  return products.map(toProfile);
+}
+
 async function queueProductWrite(
   action: "create" | "update" | "delete",
   product: ApiProduct,

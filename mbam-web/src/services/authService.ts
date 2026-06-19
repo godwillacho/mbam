@@ -129,7 +129,11 @@ export async function unlockOfflineSession(
     }
     if (
       snapshot.authorizationVersion !== grant.payload.authorizationVersion ||
+      snapshot.baselineRole !== grant.payload.baselineRole ||
       snapshot.businessIds.some((id) => !grant.payload.businessIds.includes(id)) ||
+      snapshot.businessUnitIds.some(
+        (id) => !grant.payload.businessUnitIds.includes(id),
+      ) ||
       snapshot.permissions.some((permission) => !grant.payload.permissions.includes(permission))
     ) {
       throw new Error("offline_authorization_snapshot_stale");

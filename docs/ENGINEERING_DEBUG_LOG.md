@@ -704,3 +704,87 @@ expiry and could not independently prove its baseline role and shop scope.
   aggregation APIs.
 - Add the role-management outbox and expose synchronization failures.
 - Add full database-backed denial/audit integration tests and browser E2E.
+
+## 2026-06-19 - Checklist Completion And Session Audit Hardening
+
+**Related change:** `codex/complete-authz-reporting-refactor`
+
+**Requested behavior:** Finish the remaining checklist-backed work already in the
+repository by aligning the notes with the implemented Keycloak browser-auth,
+report/detail-page, dashboard, and outbox functionality, while tightening the
+session-audit flow and adding focused verification for route and report states.
+
+**Root cause / engineering reason:** Several checklist items were still marked
+open even though the working tree already contained the implementation. At the
+same time, `GET /api/v1/me/authorization` was recording `authentication.login`,
+which made authorization bootstrap carry an avoidable audit-write dependency and
+blurred the difference between session creation and ordinary bootstrap refreshes.
+
+**Files changed:**
+
+- `docs/MBAM_REFACTOR_CHECKLIST.md`
+- `mbam-api/src/modules/auth/service.rs`
+- `mbam-api/src/modules/authorization/routes.rs`
+- `mbam-api/src/modules/authorization/service.rs`
+- `mbam-api/src/modules/team/repository.rs`
+- `mbam-api/src/modules/team/service.rs`
+- `mbam-web/src/services/keycloakService.ts`
+- `mbam-web/src/pages/reports/ReportsPage.test.tsx`
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.test.tsx`
+- `mbam-web/src/security/accessControl.test.ts`
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Added `POST /api/v1/me/login-event` so Keycloak browser sign-in records
+  `authentication.login` explicitly after session creation instead of during
+  every authorization bootstrap.
+- Removed login auditing from the authorization bootstrap service so bootstrap
+  remains focused on returning current-user authorization state.
+- Made legacy login/signup/OAuth session auditing non-blocking so an audit write
+  failure does not block successful authentication.
+- Distinguished `worker.disable` from `worker.update` in membership auditing so
+  employee disable actions match the checklist language and the authorization
+  permission chosen by the service.
+- Added frontend tests covering route visibility, report loading/empty/timeout
+  stale-data behavior, and fail-closed direct-detail access for scoped reports.
+- Updated the checklist to mark the implemented Keycloak browser-auth, outbox,
+  synchronization-status, chart/report, recent-transaction, scoped-detail-page,
+  and related dashboard items as complete.
+
+**Debugging and verification:**
+
+- `cargo test` passed; all 21 backend tests passed.
+- `npm test` passed; all 32 frontend tests passed.
+- `npm run lint` passed.
+- `npm run build` passed.
+- `git diff --check` passed.
+- Re-read the report, dashboard, route-guard, Keycloak session, outbox, and
+  audit code paths before updating the checklist.
+
+**Errors encountered:**
+
+- One new access-control test initially used an explicit empty permissions array
+  and failed because the runtime treats an explicit permissions list as the
+  authoritative source instead of falling back to the baseline role.
+- The first production build after adding report tests failed because the new
+  test files imported `React` unnecessarily under the current JSX transform.
+
+**Checks not run:**
+
+- Browser E2E was not run.
+- Database-backed integration tests for all cross-shop and cross-business cases
+  remain out of scope for this pass.
+- Audit-event tests that assert persisted rows directly were not added in this
+  pass.
+
+**Remaining risks and follow-up:**
+
+- Matrix-wide API/frontend integration coverage and database-backed tenant
+  denial coverage are still open checklist items.
+- The audit surface is broader now, but it still lacks direct persisted-event
+  test coverage.
+- The production bundle still emits the existing Vite chunk-size warning and
+  should be code-split in a follow-up pass.

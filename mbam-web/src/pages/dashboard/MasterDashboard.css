@@ -51,6 +51,71 @@
   gap: 14px;
 }
 
+.dashboard-leader-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-metric-link {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.dashboard-metric-link:hover,
+.dashboard-metric-link:focus-visible {
+  border-color: var(--forest-mid);
+  box-shadow: 0 10px 28px rgba(27, 67, 50, 0.12);
+  transform: translateY(-1px);
+}
+
+.dashboard-metric-link strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-state {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+}
+
+.compact-transaction-table {
+  display: grid;
+}
+
+.compact-transaction-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  text-decoration: none;
+}
+
+.compact-transaction-row:last-child {
+  border-bottom: 0;
+}
+
+.compact-transaction-row:hover {
+  color: var(--forest);
+}
+
+.compact-transaction-row span,
+.compact-transaction-row small {
+  display: block;
+  min-width: 0;
+}
+
+.compact-transaction-row small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
 .metric-button {
   width: 100%;
   border: 1px solid var(--border);
@@ -181,6 +246,10 @@
   .quick-action-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .dashboard-leader-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -193,6 +262,11 @@
   .pending-payment-report,
   .pending-payment-meta,
   .quick-action-list {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-leader-grid,
+  .compact-transaction-row {
     grid-template-columns: 1fr;
   }
 }

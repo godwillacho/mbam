@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
-import { productSales } from "../../data/mockProductSales";
 import { workspace } from "../../data/mockWorkspace";
-import { getCurrentMember, getScopedTransactions } from "../../security/accessControl";
 import { getLocalTransactionInvoice } from "../../services/transactions/transactionLocalRepository";
 import { getCloudTransaction } from "../../services/transactionService";
 import type { PaymentMethod, TransactionStatus } from "../../types/workspace";
@@ -33,51 +31,13 @@ interface InvoiceView {
   lines: InvoiceLineView[];
 }
 
-function getMockInvoice(transactionId: string | undefined): InvoiceView | undefined {
-  const currentMember = getCurrentMember();
-  const transaction = getScopedTransactions(currentMember).find((item) => item.id === transactionId);
-  if (!transaction) return undefined;
-
-  const lines = productSales.filter((sale) => sale.transactionId === transaction.id).map((sale) => {
-    const product = workspace.products.find((item) => item.id === sale.productId);
-    const lineTotal = sale.quantity * sale.unitPrice;
-    return {
-      id: sale.id,
-      name: product?.name ?? sale.productId,
-      sku: product?.sku,
-      quantity: sale.quantity,
-      unitPrice: sale.unitPrice,
-      lineTotal,
-    };
-  });
-  const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
-
-  return {
-    reference: transaction.reference,
-    businessId: transaction.businessId,
-    businessUnitId: transaction.businessUnitId,
-    customerName: transaction.customerName,
-    paymentMethod: transaction.paymentMethod,
-    status: transaction.status,
-    createdAt: transaction.createdAt,
-    recordedBy: transaction.recordedBy,
-    total: subtotal || transaction.amount,
-    lines: lines.length > 0 ? lines : [{
-      id: `${transaction.id}-total`,
-      name: "transaction-total",
-      quantity: transaction.itemCount,
-      unitPrice: transaction.amount,
-      lineTotal: transaction.amount,
-    }],
-  };
-}
-
 export default function TransactionInvoicePage() {
   const { transactionId } = useParams();
   const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const [invoice, setInvoice] = useState<InvoiceView | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -134,7 +94,8 @@ export default function TransactionInvoicePage() {
             })),
           });
         } catch {
-          setInvoice(getMockInvoice(transactionId));
+          setInvoice(undefined);
+          setLoadError(true);
         }
       }
 
@@ -156,6 +117,19 @@ export default function TransactionInvoicePage() {
 
   if (isLoading) {
     return <p className="card-muted">{t("productRevenue.loading")}</p>;
+  }
+
+  if (loadError) {
+    return (
+      <section className="page-grid">
+        <div className="validation-summary" role="alert">
+          This transaction is unavailable or outside your current authorization.
+        </div>
+        <Link className="secondary-btn" to="/transactions">
+          Return to transactions
+        </Link>
+      </section>
+    );
   }
 
   if (!invoice) {

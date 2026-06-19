@@ -33,7 +33,9 @@ pub struct PasswordResetRecord {
 /// Current authorization scope embedded in a short-lived offline grant.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct OfflineAuthorizationScope {
+    pub role_codes: Vec<String>,
     pub business_ids: Vec<Uuid>,
+    pub business_unit_ids: Vec<Uuid>,
     pub permissions: Vec<String>,
     pub authorization_version: i64,
 }
@@ -466,19 +468,36 @@ pub async fn get_offline_authorization_scope(
         r#"
         select
           coalesce(
+            array_agg(distinct r.code) filter (where r.code is not null),
+            array[]::text[]
+          ) as role_codes,
+          coalesce(
             array_agg(distinct b.id) filter (where b.id is not null),
             array[]::uuid[]
           ) as business_ids,
+          coalesce(
+            array_agg(distinct bu.id) filter (where bu.id is not null),
+            array[]::uuid[]
+          ) as business_unit_ids,
           coalesce(
             array_agg(distinct p.code) filter (where p.code is not null),
             array[]::text[]
           ) as permissions,
           coalesce(extract(epoch from max(m.updated_at))::bigint, 0) as authorization_version
         from memberships m
+        join roles r on r.id = m.role_id
         left join businesses b
           on b.business_account_id = m.business_account_id
          and (m.business_id is null or b.id = m.business_id)
          and b.status = 'active'
+        left join business_units bu
+          on bu.business_account_id = m.business_account_id
+         and bu.status = 'active'
+         and (
+           (m.business_id is null and m.business_unit_id is null)
+           or (m.business_id = bu.business_id and m.business_unit_id is null)
+           or m.business_unit_id = bu.id
+         )
         left join role_permissions rp on rp.role_id = m.role_id
         left join permissions p on p.id = rp.permission_id
         where m.user_id = $1 and m.status = 'active'

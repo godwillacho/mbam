@@ -144,9 +144,17 @@ fn authorized_routes(
     add_route(
         &mut routes,
         permissions,
+        "screen.reports",
+        "shops",
+        "/shops",
+        true,
+    );
+    add_route(
+        &mut routes,
+        permissions,
         "screen.team",
         "team",
-        "/team",
+        "/employees",
         role != BaselineRole::Cashier,
     );
     add_route(
@@ -208,9 +216,15 @@ mod tests {
     fn shop_manager_permissions_cannot_restore_business_structure_access() {
         let route_keys = keys(
             BaselineRole::ShopManager,
-            &["screen.businesses", "screen.team", "screen.products"],
+            &[
+                "screen.businesses",
+                "screen.team",
+                "screen.products",
+                "screen.reports",
+            ],
         );
         assert!(!route_keys.contains(&"businesses".to_string()));
+        assert!(route_keys.contains(&"shops".to_string()));
         assert!(route_keys.contains(&"team".to_string()));
         assert!(route_keys.contains(&"products".to_string()));
     }
