@@ -3,6 +3,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthLayout from "../../components/auth/AuthLayout";
 import { completePasswordReset } from "../../services/authService";
+import {
+  isKeycloakEnabled,
+  recoverKeycloakAccount,
+} from "../../services/keycloakService";
 
 export default function ResetPasswordPage() {
   const { t } = useTranslation();
@@ -12,6 +16,30 @@ export default function ResetPasswordPage() {
   const [confirmation, setConfirmation] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "success">("idle");
   const [error, setError] = useState("");
+
+  if (isKeycloakEnabled()) {
+    return (
+      <AuthLayout mode="login">
+        <div className="verify-screen">
+          <h1 className="verify-title">{t("auth.resetTitle")}</h1>
+          <p className="verify-body">
+            Account recovery now runs through Keycloak so password resets and
+            verification updates stay in one identity system.
+          </p>
+          <button
+            className="submit-btn"
+            onClick={() => void recoverKeycloakAccount()}
+            type="button"
+          >
+            Recover or update your account
+          </button>
+          <Link className="forgot-link" to="/auth">
+            {t("auth.backToSignIn")}
+          </Link>
+        </div>
+      </AuthLayout>
+    );
+  }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

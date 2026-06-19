@@ -47,8 +47,11 @@ pub async fn list_for_user(db: &PgPool, user_id: Uuid) -> Result<Vec<Product>, s
           and (
             membership.business_id is null
             or membership.business_id = product.business_id
-            or membership.business_unit_id = product.business_unit_id
             or business_scope.business_id is not null
+          )
+          and (
+            membership.business_unit_id is null
+            or membership.business_unit_id = product.business_unit_id
             or unit_scope.business_unit_id is not null
           )
         order by product.name, product.created_at
@@ -87,8 +90,11 @@ pub async fn find_visible(
           and (
             membership.business_id is null
             or membership.business_id = product.business_id
-            or membership.business_unit_id = product.business_unit_id
             or business_scope.business_id is not null
+          )
+          and (
+            membership.business_unit_id is null
+            or membership.business_unit_id = product.business_unit_id
             or unit_scope.business_unit_id is not null
           )
         limit 1
@@ -134,8 +140,11 @@ pub async fn permitted_scope(
           and (
             membership.business_id is null
             or membership.business_id = business.id
-            or membership.business_unit_id = unit.id
             or business_scope.business_id is not null
+          )
+          and (
+            membership.business_unit_id is null
+            or membership.business_unit_id = unit.id
             or unit_scope.business_unit_id is not null
           )
         order by membership.created_at

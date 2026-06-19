@@ -83,7 +83,8 @@ Logging and optional Sentry configuration are documented in
 
 Protected API routes now use the centralized authentication layer. Set
 `AUTH_PROVIDER=keycloak` to validate access tokens through the imported `mbam`
-realm, or retain `AUTH_PROVIDER=legacy` during staged migration.
+realm. The browser runtime now relies on Keycloak-managed sign-in, recovery,
+logout, and identity brokering.
 
 The local realm is imported from `keycloak/mbam-realm.json` and includes:
 
@@ -113,31 +114,9 @@ It never returns the employee directory, invitations, or role definitions.
 
 The private Compose file manages PostgreSQL and Keycloak. Run the API and web
 server directly on the host.
-## Google sign-in
-
-Create an OAuth 2.0 Client ID for a **Web application** in Google Cloud Console.
-For local development, configure:
-
-- Authorized JavaScript origin: `http://localhost:5173`
-- Authorized redirect URI: `http://localhost:8080/api/v1/auth/oauth/google/callback`
-
-Then set these values in `mbam-api/.env`:
-
-```dotenv
-WEB_ORIGIN=http://localhost:5173
-GOOGLE_OAUTH_CLIENT_ID=your_google_client_id
-GOOGLE_OAUTH_CLIENT_SECRET=your_google_client_secret
-GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8080/api/v1/auth/oauth/google/callback
-```
-
-The frontend must use the same hostname in `mbam-web/.env.development`:
-
-```dotenv
-VITE_API_BASE_URL=http://localhost:8080
-```
-
-Do not mix `localhost` and `127.0.0.1` in this flow. Browser cookie rules
-treat them as different sites, which prevents OAuth session completion.
+Identity-provider brokering such as Google and Microsoft sign-in now belongs in
+Keycloak. Configure redirect URIs, client secrets, and account-recovery actions
+on the Keycloak clients instead of on Mbam-hosted browser routes.
 
 ## Product API and deployed base URL
 
@@ -166,24 +145,10 @@ changes queued offline are encrypted, pushed through `/api/v1/sync/push`, and
 included in scoped `/api/v1/sync/pull` snapshots. Each pull and push is tracked
 in `sync_runs`.
 
-## Microsoft sign-in
+## Operational email
 
-Create an app registration in Microsoft Entra ID that accepts personal
-Microsoft accounts and organizational accounts. Add this web redirect URI:
-
-`http://localhost:8080/api/v1/auth/oauth/microsoft/callback`
-
-Create a client secret, grant delegated `User.Read` permission, and set:
-
-```dotenv
-MICROSOFT_OAUTH_CLIENT_ID=your_application_client_id
-MICROSOFT_OAUTH_CLIENT_SECRET=your_client_secret
-MICROSOFT_OAUTH_REDIRECT_URI=http://localhost:8080/api/v1/auth/oauth/microsoft/callback
-```
-
-## Password-reset email
-
-Configure an SMTP account that supports STARTTLS on port 587:
+Configure an SMTP account that supports STARTTLS on port 587 for invitations
+and operational email:
 
 ```dotenv
 SMTP_HOST=smtp.example.com
@@ -193,10 +158,6 @@ SMTP_PASSWORD=your_smtp_password
 SMTP_FROM_EMAIL=no-reply@example.com
 SMTP_FROM_NAME=Mbam
 ```
-
-Password-reset tokens expire after 30 minutes, are stored only as SHA-256
-hashes, are single-use, and revoke the user's existing refresh tokens when
-consumed.
 
 ## Employees, invitations, and offline scope
 
@@ -209,7 +170,6 @@ DELETE /api/v1/team-members/:membership_id
 POST   /api/v1/invites
 POST   /api/v1/invites/details
 POST   /api/v1/invites/accept
-POST   /api/v1/invites/register
 DELETE /api/v1/invites/:invitation_id
 ```
 

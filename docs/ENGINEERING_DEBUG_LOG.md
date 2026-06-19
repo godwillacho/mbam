@@ -18,6 +18,105 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-06-19 - Refactor Checklist Closure And Keycloak Runtime Cleanup
+
+**Related change:** Working tree pending commit at `2026-06-19T21:22:36Z`
+
+**Requested behavior:** Complete the remaining refactor checklist items by
+adding cross-shop and cross-business integration coverage, validating required
+audit events and redaction behavior, and removing the remaining legacy browser
+authentication runtime paths after migration verification.
+
+**Root cause:** The checklist still had open items because the repository lacked
+database-backed authorization integration tests, frontend route/auth migration
+integration coverage, and a final cleanup of legacy browser login, invitation
+registration, and password-reset flows. While adding those tests, the product
+repository still allowed shop managers to inherit business-wide product access,
+and session-audit writes used an unsupported PostgreSQL UUID aggregate.
+
+**Files changed:**
+
+- `docs/MBAM_REFACTOR_CHECKLIST.md`
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+- `mbam-api/Cargo.toml`
+- `mbam-api/Cargo.lock`
+- `mbam-api/README.md`
+- `mbam-api/.env.example`
+- `mbam-api/src/authentication/README.md`
+- `mbam-api/src/main.rs`
+- `mbam-api/src/checklist_tests.rs`
+- `mbam-api/src/modules/audit.rs`
+- `mbam-api/src/modules/products/repository.rs`
+- `mbam-web/.env.example`
+- `mbam-web/src/components/app/AppShell.tsx`
+- `mbam-web/src/components/app/ProtectedRoute.test.tsx`
+- `mbam-web/src/pages/auth/AuthPage.tsx`
+- `mbam-web/src/pages/auth/AuthPage.test.tsx`
+- `mbam-web/src/pages/auth/InviteAcceptancePage.tsx`
+- `mbam-web/src/pages/auth/ResetPasswordPage.tsx`
+- `mbam-web/src/services/keycloakService.ts`
+
+**Changes:**
+
+- Added a backend checklist integration harness that seeds deterministic data,
+  inserts cross-business fixtures, and exercises protected routes through the
+  real Axum router with database-backed authorization.
+- Added API tests covering shop-manager and business-admin URL/API
+  manipulation, cross-shop denials, cross-business denials, authorization
+  bootstrap route visibility, and required audit events.
+- Fixed product read/write scope enforcement so unit-scoped memberships no
+  longer inherit full business product access.
+- Fixed user-session audit writes by selecting one membership account instead of
+  calling PostgreSQL's unsupported `min(uuid)`.
+- Added frontend integration tests for protected-route matrix behavior and the
+  Keycloak-only sign-in screen.
+- Removed the remaining active legacy browser auth paths from the web runtime:
+  local sign-in/sign-up UI, invitation self-registration fallback, and local
+  password reset recovery.
+- Updated environment examples and authentication documentation to make
+  Keycloak the supported runtime default.
+- Marked the remaining refactor checklist items complete after implementation
+  and verification.
+
+**Debugging and verification performed:**
+
+- Verified the local Docker stack publishes PostgreSQL on `127.0.0.1:5433` and
+  inspected the container environment to align the integration harness with the
+  active credentials.
+- `cargo test checklist_tests -- --nocapture`
+- `cargo test`
+- `npm run type-check`
+- `npx vitest --run`
+
+**Errors encountered:**
+
+- The first backend integration test run could not reach the local PostgreSQL
+  fixture from the sandbox.
+- The initial DB fallback targeted the wrong host port and password for this
+  machine's running stack.
+- The first checklist write requests used snake_case payload keys against
+  camelCase request DTOs and returned `422`.
+- The first DB-backed scope assertions exposed a real shop-manager product
+  overreach bug and a failing PostgreSQL `min(uuid)` audit query.
+
+**Checks not run:**
+
+- `npm run build`
+- Live browser PKCE sign-in against Keycloak after the UI cleanup
+
+**Remaining risks and follow-up:**
+
+- The backend still retains legacy compatibility code paths for local token
+  validation and dormant auth routes; they are no longer the documented browser
+  runtime path, but deeper code removal can proceed separately if the team
+  wants to delete compatibility-only modules.
+- The DB-backed checklist harness currently uses the repo-local Docker
+  PostgreSQL fixture and assumes the standard local compose stack is running.
+- Run one manual end-to-end invite acceptance and offline unlock pass against
+  the local Keycloak stack before the next production-oriented release.
+
 ## 2026-06-18 - Keycloak Authentication Boundary And Local Runtime
 
 **Branch:** `codex/keycloak-auth-layer`

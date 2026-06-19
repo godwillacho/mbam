@@ -1,3 +1,9 @@
+2026-06-19T21:22:36Z UTC
+Change: Completed the remaining refactor checklist work for scoped authorization coverage and the Keycloak-only browser runtime.
+Implementation: Added database-backed API integration tests for cross-shop and cross-business access, added frontend integration tests for protected-route and Keycloak sign-in behavior, removed the remaining legacy browser login/invite/reset flows from active runtime paths, and updated checklist/configuration/authentication documentation.
+Bug fixes: Tightened product repository scope enforcement so shop-manager product access stays unit-scoped, and fixed session audit inserts to avoid the unsupported PostgreSQL `min(uuid)` aggregate.
+Verification: `cargo test` passed 24 backend tests including the new DB-backed checklist suite; `npm run type-check` passed; `npx vitest --run` passed 14 files and 35 tests.
+
 2026-06-18
 Change: Added the repository-wide debug and error logging rule.
 Verification: Confirmed AGENTS.md requires root debug.log, root error.log, and a structured engineering log entry for every code update.

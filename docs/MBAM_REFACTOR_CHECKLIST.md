@@ -3,7 +3,7 @@
 This page is the completion ledger for the 17-point refactor. A checkbox is
 marked only after the implementation and its relevant verification pass.
 
-Last updated: 2026-06-19 UTC
+Last updated: 2026-06-20 UTC
 
 ## 1. Architecture Boundaries
 
@@ -55,7 +55,7 @@ Last updated: 2026-06-19 UTC
 - [x] Enforce scoped transaction detail access.
 - [x] Add scoped reporting endpoints and prove shop managers cannot access
       business/account-wide aggregates.
-- [ ] Add complete URL/API manipulation integration tests across all shop
+- [x] Add complete URL/API manipulation integration tests across all shop
       resources.
 
 ## 6. Employee Management
@@ -119,7 +119,7 @@ Last updated: 2026-06-19 UTC
       managers.
 - [x] Enforce products and transactions with business/unit/owner scope.
 - [x] Enforce the complete reports matrix with scoped aggregation APIs.
-- [ ] Add matrix-wide API and frontend integration tests.
+- [x] Add matrix-wide API and frontend integration tests.
 
 ## 13. Offline Authorization
 
@@ -140,7 +140,7 @@ Last updated: 2026-06-19 UTC
 - [x] Audit login/logout, role/scope changes, employee creation/disabling,
       Keycloak synchronization failures, cross-scope denials, and all product
       and transaction modifications.
-- [ ] Add tests for required audit events and prohibited log content.
+- [x] Add tests for required audit events and prohibited log content.
 
 ## 15. Required Tests
 
@@ -149,7 +149,7 @@ Last updated: 2026-06-19 UTC
 - [x] Shop managers cannot grant roles above cashier.
 - [x] Cashiers cannot open another user's transaction.
 - [x] Authorization version changes on membership updates.
-- [ ] Add database-backed tests for every cross-shop and cross-business case.
+- [x] Add database-backed tests for every cross-shop and cross-business case.
 - [x] Add chart authorization and date/time boundary tests.
 - [x] Add offline snapshot expiry and queued-operation revalidation tests.
 - [x] Add loading, empty, timeout, and API-error stale-data tests.
@@ -167,7 +167,7 @@ Last updated: 2026-06-19 UTC
 - [x] Shop, employee, and product graph pages.
 - [x] Keycloak role-management outbox and reconciliation.
 - [x] Offline authorization revalidation.
-- [ ] Remove legacy authentication only after migration tests pass.
+- [x] Remove legacy authentication only after migration tests pass.
 
 ## 17. Conflict Resolution Priority
 

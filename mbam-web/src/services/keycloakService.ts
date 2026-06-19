@@ -102,11 +102,11 @@ export async function refreshKeycloakTokenIfNeeded(
   }
 }
 
-export async function loginWithKeycloak(): Promise<void> {
+export async function loginWithKeycloak(
+  redirectUri = `${window.location.origin}/dashboard-picker`,
+): Promise<void> {
   if (!keycloak) throw new Error("keycloak_not_configured");
-  await keycloak.login({
-    redirectUri: `${window.location.origin}/dashboard-picker`,
-  });
+  await keycloak.login({ redirectUri });
 }
 
 export async function recoverKeycloakAccount(): Promise<void> {

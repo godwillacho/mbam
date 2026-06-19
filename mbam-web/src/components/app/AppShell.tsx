@@ -4,15 +4,9 @@ import { useTranslation } from "react-i18next";
 import { isDemoWorkspace, WORKSPACE_CHANGE_EVENT, workspace } from "../../data/mockWorkspace";
 import { baselineDashboardPath } from "../../pages/dashboard/dashboardRoutes";
 import { getCurrentSession } from "../../services/authService";
-import { API_AUTH_LOCK_EVENT, postJson } from "../../services/apiClient";
-import {
-  clearActiveSession,
-  getAccessToken,
-} from "../../services/authSessionStore";
-import {
-  isKeycloakEnabled,
-  logoutFromKeycloak,
-} from "../../services/keycloakService";
+import { API_AUTH_LOCK_EVENT } from "../../services/apiClient";
+import { getAccessToken } from "../../services/authSessionStore";
+import { logoutFromKeycloak } from "../../services/keycloakService";
 import { createApiSyncTransport, synchronizeOfflineChanges } from "../../services/offlineSyncService";
 import { isOfflineVaultUnlocked } from "../../services/offlineVaultService";
 import { hydrateAuthorizationWorkspace, hydrateCloudWorkspace } from "../../services/workspaceService";
@@ -52,16 +46,7 @@ export default function AppShell() {
   const workspaceName = workspace.masterAccount.name || t("app.defaultWorkspaceName");
 
   const signOut = async () => {
-    if (isKeycloakEnabled()) {
-      await logoutFromKeycloak();
-      return;
-    }
-    await postJson<{ message: string }, Record<string, never>>(
-      "/api/v1/auth/logout",
-      {},
-    ).catch(() => undefined);
-    clearActiveSession();
-    window.location.assign("/auth");
+    await logoutFromKeycloak();
   };
 
   useEffect(() => {

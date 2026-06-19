@@ -14,6 +14,8 @@ mod observability;
 mod routes;
 mod security;
 mod state;
+#[cfg(test)]
+mod checklist_tests;
 
 use crate::{
     authentication::AuthenticationLayer, config::Config, db::pool::connect_database,

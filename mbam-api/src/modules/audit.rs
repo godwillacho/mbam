@@ -51,9 +51,14 @@ pub async fn record_user_session_event(
         insert into audit_logs (
           actor_user_id, business_account_id, action, resource_type, resource_id
         )
-        select $1, min(business_account_id), $2, 'user', $1
-        from memberships
-        where user_id = $1
+        select business_account.user_id, business_account.business_account_id, $2, 'user', business_account.user_id
+        from (
+          select $1::uuid as user_id, memberships.business_account_id
+          from memberships
+          where memberships.user_id = $1
+          order by memberships.created_at
+          limit 1
+        ) as business_account
         "#,
     )
     .bind(user_id)

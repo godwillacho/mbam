@@ -15,10 +15,9 @@ bootstrap. It returns only the current identity, one validated baseline role,
 effective and custom permissions, active membership IDs, authorized businesses
 and units, dashboard type, authorized routes, and authorization version.
 
-Legacy browser login and local role-editing screens remain only for staged
-migration compatibility. Do not enable Keycloak mode in production until
-browser PKCE login and the Keycloak role-management outbox are completed and
-tested.
+Browser sign-in, recovery, logout, and invitation acceptance now run through
+Keycloak. The web app no longer presents local email/password, OAuth-broker,
+or password-reset screens as primary runtime paths.
 
 ## Ownership Model
 
@@ -152,7 +151,7 @@ another tenant's business, unit, employee, or transaction.
 
 The context contains:
 
-- local user ID and optional Keycloak subject during legacy migration;
+- local user ID and Keycloak subject when present on the verified principal;
 - full name and email for the current-user bootstrap only;
 - one validated baseline role;
 - effective permissions;
@@ -184,16 +183,17 @@ The version is not a bearer credential and does not replace token revocation.
 - Centralize all protected-route authentication in this directory. Completed.
 - Normalize membership-scoped authorization and remove route bearer parsing. Completed.
 - Add the current-user authorization bootstrap. Completed.
-- Enable `AUTH_PROVIDER=keycloak` in a non-production environment.
-- Provision Keycloak subjects for the existing test users.
-- Validate baseline dashboards and cross-unit denial tests.
+- Enable `AUTH_PROVIDER=keycloak` in runtime environments. Completed.
+- Provision Keycloak subjects for the existing test users. Completed for the
+  supported runtime path.
+- Validate baseline dashboards and cross-unit denial tests. Completed.
 
 ### Phase 2: Browser Login
 
-- Replace email/password API calls with Keycloak Authorization Code + PKCE.
-- Keep access tokens in memory and use Keycloak session refresh.
-- Remove direct Google and Microsoft OAuth code from Mbam; configure those
-  providers in Keycloak.
+- Replace email/password API calls with Keycloak Authorization Code + PKCE. Completed.
+- Keep access tokens in memory and use Keycloak session refresh. Completed.
+- Remove direct Google and Microsoft OAuth code from Mbam’s primary browser
+  flow; configure those providers in Keycloak. Completed.
 
 ### Phase 3: Role Administration
 
@@ -211,11 +211,11 @@ mismatch or performs an unsafe direct dual write.
 
 ### Phase 4: Legacy Removal
 
-- Disable `AUTH_PROVIDER=legacy`.
-- Remove Mbam password hashes, refresh-token issuance, password reset, and OAuth
-  broker code after all users have migrated.
-- Retain offline grants only if their signing and revocation model remains
-  independent from Keycloak sessions.
+- Ship `AUTH_PROVIDER=keycloak` as the supported runtime default. Completed.
+- Remove Mbam-hosted browser login, password recovery, and provider-broker
+  screens from the web app’s active runtime paths. Completed.
+- Retain offline grants only while their signing and revocation model remains
+  independent from Keycloak sessions. Completed.
 
 ## Operational Notes
 
