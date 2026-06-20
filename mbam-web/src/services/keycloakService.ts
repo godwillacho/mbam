@@ -5,6 +5,7 @@ import { getDeviceBinding } from "./deviceBindingService";
 import {
   clearActiveSession,
   getActiveSession,
+  hydrateActiveSession,
   setActiveSession,
 } from "./authSessionStore";
 
@@ -17,6 +18,30 @@ const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const keycloak = enabled
   ? new Keycloak({ url: issuerUrl, realm, clientId })
   : null;
+
+function isKeycloakCallbackUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  const url = new URL(window.location.href);
+  return (
+    url.searchParams.has("code") ||
+    url.searchParams.has("state") ||
+    url.hash.includes("code=") ||
+    url.hash.includes("state=")
+  );
+}
+
+function pruneStaleKeycloakCallbackState(): void {
+  if (typeof window === "undefined") return;
+  if (isKeycloakCallbackUrl()) return;
+  try {
+    for (const key of Object.keys(window.localStorage)) {
+      if (!key.startsWith("kc-callback-")) continue;
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // Ignore storage cleanup failures and continue.
+  }
+}
 
 export function isKeycloakEnabled(): boolean {
   return enabled;
@@ -71,6 +96,8 @@ async function createSession(): Promise<AuthSession> {
 
 export async function initializeKeycloak(): Promise<void> {
   if (!keycloak) return;
+  await hydrateActiveSession();
+  pruneStaleKeycloakCallbackState();
   keycloak.onTokenExpired = () => {
     void refreshKeycloakTokenIfNeeded(30).catch(() => {
       clearActiveSession();
@@ -86,7 +113,8 @@ export async function initializeKeycloak(): Promise<void> {
   });
   if (authenticated) {
     await createSession();
-  } else {
+    pruneStaleKeycloakCallbackState();
+  } else if (!getActiveSession()) {
     clearActiveSession();
   }
 }
@@ -101,14 +129,10 @@ export async function refreshKeycloakTokenIfNeeded(
       setActiveSession({ ...session, accessToken: keycloak.token });
     }
   };
-  if (!keycloak.refreshToken) {
-    syncSessionToken();
-    return;
-  }
+  if (!keycloak.refreshToken) return;
   try {
     await keycloak.updateToken(minValidity);
   } catch {
-    syncSessionToken();
     return;
   }
   syncSessionToken();

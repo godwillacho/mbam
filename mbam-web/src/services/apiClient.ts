@@ -19,8 +19,23 @@ function isErrorResponse(value: unknown): value is { error: string } {
   return typeof value === "object" && value !== null && "error" in value && typeof (value as { error?: unknown }).error === "string";
 }
 
-function lockOutOnAuthFailure(status: number): void {
+function lockOutOnAuthFailure(
+  status: number,
+  usedAccessToken?: string | null,
+): void {
   if (status !== 401) return;
+  const currentAccessToken = getAccessToken();
+  if (
+    usedAccessToken &&
+    currentAccessToken &&
+    usedAccessToken !== currentAccessToken
+  ) {
+    logger.warn("ignoring stale authentication failure", {
+      currentAccessTokenPrefix: currentAccessToken.slice(0, 24),
+      usedAccessTokenPrefix: usedAccessToken.slice(0, 24),
+    });
+    return;
+  }
   clearActiveSession();
   if (typeof window !== "undefined") window.dispatchEvent(new Event(API_AUTH_LOCK_EVENT));
 }
@@ -62,10 +77,11 @@ async function parseJsonResponse<TResponse>(
   response: Response,
   method: string,
   path: string,
+  usedAccessToken?: string | null,
 ): Promise<TResponse> {
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    lockOutOnAuthFailure(response.status);
+    lockOutOnAuthFailure(response.status, usedAccessToken);
     logger.warn("api returned an unsuccessful response", {
       method,
       path: safeApiPath(path),
@@ -104,7 +120,7 @@ export async function getJson<TResponse>(path: string): Promise<TResponse> {
     headers: { Accept: "application/json", ...(await deviceHeaders()), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
     credentials: "include",
   });
-  return parseJsonResponse<TResponse>(response, "GET", path);
+  return parseJsonResponse<TResponse>(response, "GET", path, accessToken);
 }
 
 export async function postJson<TResponse, TPayload>(path: string, payload: TPayload): Promise<TResponse> {
@@ -123,7 +139,7 @@ export async function deleteJson<TResponse>(path: string): Promise<TResponse> {
     headers: { Accept: "application/json", ...(await deviceHeaders()), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
     credentials: "include",
   });
-  return parseJsonResponse<TResponse>(response, "DELETE", path);
+  return parseJsonResponse<TResponse>(response, "DELETE", path, accessToken);
 }
 
 async function sendJson<TResponse, TPayload>(method: "POST" | "PATCH", path: string, payload: TPayload): Promise<TResponse> {
@@ -140,5 +156,5 @@ async function sendJson<TResponse, TPayload>(method: "POST" | "PATCH", path: str
     body: JSON.stringify(payload),
     credentials: "include",
   });
-  return parseJsonResponse<TResponse>(response, method, path);
+  return parseJsonResponse<TResponse>(response, method, path, accessToken);
 }

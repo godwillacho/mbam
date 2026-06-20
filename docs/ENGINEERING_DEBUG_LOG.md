@@ -959,3 +959,93 @@ blurred the difference between session creation and ordinary bootstrap refreshes
   test coverage.
 - The production bundle still emits the existing Vite chunk-size warning and
   should be code-split in a follow-up pass.
+
+## 2026-06-20 - Keycloak Reload Investigation And Saved Browser State
+
+**Related change:** `working-tree reload investigation`
+
+**Requested behavior:** Re-run the test-account browser verification, fix any
+newly found cashier/dashboard issues immediately, and save the work state so the
+investigation can continue later without losing evidence.
+
+**Root cause / engineering reason:** The seeded accounts can still complete a
+fresh Keycloak sign-in and land on the expected dashboards, but protected-page
+hard reload and direct URL navigation in the in-app browser continue to bounce
+back to `/auth`. The browser runtime preserves the stored session record after
+fresh sign-in, yet protected-route startup still contains a Keycloak/browser
+state defect that is not fully resolved by basic localStorage persistence.
+
+**Files changed:**
+
+- `mbam-web/src/main.tsx`
+- `mbam-web/src/services/apiClient.ts`
+- `mbam-web/src/services/apiClient.test.ts`
+- `mbam-web/src/services/authSessionPersistence.ts`
+- `mbam-web/src/services/authSessionPersistence.test.ts`
+- `mbam-web/src/services/authSessionStore.ts`
+- `mbam-web/src/services/authSessionStore.test.ts`
+- `mbam-web/src/services/keycloakService.ts`
+- `mbam-web/src/services/keycloakService.test.ts`
+- `mbam-web/public/codex-keycloak-login-helper.html`
+- `mbam-web/public/codex-storage-debug.html`
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Added IndexedDB-backed active-session persistence as a fallback alongside the
+  existing localStorage record and hydrated it before Keycloak startup.
+- Updated `getAccessToken()` to read through the current session loader instead
+  of trusting only in-memory state.
+- Tightened `refreshKeycloakTokenIfNeeded()` so missing or failed Keycloak
+  refreshes preserve the stored session token instead of overwriting it.
+- Tightened API `401` handling so a stale concurrent failure does not evict a
+  newer session token already stored in the active session.
+- Added same-origin debug pages for controlled browser inspection of stored
+  session records, preserved token checks, and frontend authorization calls.
+
+**Debugging and verification:**
+
+- `npm test -- authSessionPersistence.test.ts authSessionStore.test.ts apiClient.test.ts keycloakService.test.ts AuthPage.test.tsx`
+  passed with 13 tests.
+- `npm run type-check` passed.
+- Live browser sign-in for all six seeded accounts still landed on the expected
+  dashboards.
+- Same-origin browser inspection confirmed `mbam-active-session` is written to
+  localStorage immediately after fresh sign-in.
+- Same-origin raw authorization fetches were able to succeed with the preserved
+  stored access token during the investigation.
+- Protected-route hard reload and direct URL navigation still reproduced a
+  forced return to `/auth`, including after the added session-persistence and
+  stale-401 protections.
+
+**Errors encountered:**
+
+- The first IndexedDB-backed persistence tests failed because the Vitest runtime
+  does not expose `indexedDB` by default.
+- The in-app browser retained multiple historical `kc-callback-*` entries from
+  repeated helper-driven PKCE sign-ins, which complicated direct reload
+  debugging.
+- Protected-route startup still produced mixed authorization results in the
+  browser, including successful and unsuccessful bootstrap requests during the
+  same investigation window.
+
+**Checks not run:**
+
+- No backend Rust changes were made, so backend test suites were not rerun in
+  this pass.
+- Full frontend lint and production build were not rerun for this investigation
+  pass.
+- The unresolved protected-route reload issue was not fixed before saving the
+  work state.
+
+**Remaining risks and follow-up:**
+
+- Protected-route reload/direct-navigation behavior in the in-app browser is
+  still broken and should not be treated as resolved.
+- The temporary same-origin debug pages should be removed or replaced with a
+  cleaner browser-E2E harness once the root cause is fully understood.
+- The next pass should isolate which bootstrap path still emits the failing
+  authorization request during protected-route startup and remove that stale or
+  conflicting Keycloak/browser state transition.

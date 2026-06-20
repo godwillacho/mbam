@@ -82,6 +82,10 @@ Resolution: Ran the API in an interactive session, verified health and migration
 Encountered: One live denial check reused an expired short-lived development access token and returned 401.
 Resolution: Re-authenticated without logging credentials or token values and confirmed the intended shop-manager role-elevation attempt returns 403.
 
+2026-06-20T13:27:25Z UTC
+Encountered: The in-app browser still forces protected pages back to `/auth` on hard reload or direct navigation even after the session store was persisted across reloads.
+Resolution: Confirmed the issue with live browser automation across all six seeded accounts, added focused session-persistence and stale-401 protections, and captured same-origin debug evidence showing that protected-route startup still contains a remaining Keycloak/browser-state defect. The work state was saved for later continuation instead of discarding the investigation.
+
 2026-06-19
 Encountered: The first live API restart found an older development server still listening on the configured port.
 Resolution: Stopped the stale process and started the current binary before runtime verification.
