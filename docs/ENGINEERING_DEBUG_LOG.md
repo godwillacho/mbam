@@ -18,6 +18,78 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-06-20 - Cashier Dashboard Sign-In Stabilization
+
+**Related change:** Working tree pending commit at `2026-06-20T03:21:00Z`
+
+**Requested behavior:** Fix the cashier dashboard sign-in failure, verify the
+cashier account can load its dashboard in the browser, and preserve the valid
+cashier session during normal scoped authorization checks.
+
+**Root cause:** Two frontend auth assumptions broke the cashier path. First,
+the API client treated `403 Forbidden` authorization denials as if they were
+authentication failures and immediately cleared the active session. Cashier
+users legitimately hit scoped `403` responses during follow-up data loading, so
+they were forced back to sign-in. Second, the Keycloak refresh helper assumed a
+refresh token was always usable during early post-login bootstrap and let that
+refresh preflight abort dashboard loading even when the current access token was
+still valid.
+
+**Files changed:**
+
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+- `mbam-web/src/services/apiClient.ts`
+- `mbam-web/src/services/apiClient.test.ts`
+- `mbam-web/src/services/keycloakService.ts`
+- `mbam-web/src/services/keycloakService.test.ts`
+
+**Changes:**
+
+- Limited automatic frontend auth lockout to `401 Unauthorized` responses so
+  scoped `403` denials no longer destroy otherwise valid sessions.
+- Added API client regression tests proving `403` preserves the active session
+  while `401` still clears it and emits the lock event.
+- Made Keycloak refresh handling reuse the current access token when refresh
+  metadata is not yet available or an early refresh attempt fails.
+- Added Keycloak service regression tests covering both the missing-refresh-token
+  and refresh-failure fallback paths.
+
+**Debugging and verification performed:**
+
+- Reproduced the cashier path in the local browser against the running
+  `127.0.0.1` Keycloak and API stack.
+- Confirmed the live cashier authorization bootstrap still returned the
+  expected personal dashboard route and scoped permissions through the local
+  proxy before patching.
+- `npm test -- apiClient.test.ts keycloakService.test.ts AuthPage.test.tsx`
+- `npm run type-check`
+- Live browser verification reached `/dashboard/personal` for the cashier test
+  account and rendered the cashier dashboard, authorized navigation, metric
+  cards, and recent transactions.
+
+**Errors encountered:**
+
+- The live cashier sign-in initially stalled because the frontend invalidated
+  the session after a scoped `403`.
+- Browser reproduction also exposed an early Keycloak refresh failure during
+  dashboard bootstrap even though the access token was still usable.
+
+**Checks not run:**
+
+- `npm run build`
+- Full `npm test`
+
+**Remaining risks and follow-up:**
+
+- The defensive Keycloak refresh fallback now prefers continued use of the
+  current token until the API proves it invalid; if the identity provider
+  changes refresh-token issuance policy again, a broader session-lifecycle test
+  pass would still be worth adding.
+- A fuller browser automation harness for seeded Keycloak accounts would reduce
+  reliance on manual/local helper orchestration for future auth regressions.
+
 ## 2026-06-19 - Refactor Checklist Closure And Keycloak Runtime Cleanup
 
 **Related change:** Working tree pending commit at `2026-06-19T21:22:36Z`

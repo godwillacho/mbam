@@ -1,3 +1,8 @@
+2026-06-20T03:21:00Z UTC
+Change: Fixed cashier Keycloak dashboard sign-in regression caused by frontend session invalidation and refresh handling.
+Implementation: Stopped treating `403` authorization denials as authentication lockouts in the API client, and made the Keycloak session refresh path keep using the current access token when no refresh token is available or an early refresh attempt fails.
+Verification: `npm test -- apiClient.test.ts keycloakService.test.ts AuthPage.test.tsx` passed; `npm run type-check` passed; live browser verification reached `http://127.0.0.1:5173/dashboard/personal` for the cashier test account and rendered the cashier dashboard with authorized navigation and recent transactions.
+
 2026-06-19T21:22:36Z UTC
 Change: Completed the remaining refactor checklist work for scoped authorization coverage and the Keycloak-only browser runtime.
 Implementation: Added database-backed API integration tests for cross-shop and cross-business access, added frontend integration tests for protected-route and Keycloak sign-in behavior, removed the remaining legacy browser login/invite/reset flows from active runtime paths, and updated checklist/configuration/authentication documentation.

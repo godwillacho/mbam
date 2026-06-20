@@ -20,7 +20,7 @@ function isErrorResponse(value: unknown): value is { error: string } {
 }
 
 function lockOutOnAuthFailure(status: number): void {
-  if (status !== 401 && status !== 403) return;
+  if (status !== 401) return;
   clearActiveSession();
   if (typeof window !== "undefined") window.dispatchEvent(new Event(API_AUTH_LOCK_EVENT));
 }

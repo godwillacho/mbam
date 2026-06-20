@@ -1,3 +1,7 @@
+2026-06-20T03:21:00Z UTC
+Encountered: Cashier sign-in created a valid Keycloak/API session, but the frontend cleared that session on a scoped `403` response and then failed dashboard bootstrap during early token refresh handling.
+Resolution: Limited automatic auth lockout to `401` responses only, added regression tests for both `401` and `403`, and made Keycloak refresh fallback to the current access token when refresh metadata is not yet usable.
+
 2026-06-19T21:22:36Z UTC
 Encountered: The first backend checklist tests could not reach the local PostgreSQL fixture inside the sandbox, then used the wrong fallback port and password after host access was approved.
 Resolution: Re-ran `cargo test` with approved host access and aligned the DB-backed test harness with the repo-local `.env` and running Docker stack on `127.0.0.1:5433`.

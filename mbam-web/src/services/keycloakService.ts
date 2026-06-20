@@ -94,12 +94,24 @@ export async function initializeKeycloak(): Promise<void> {
 export async function refreshKeycloakTokenIfNeeded(
   minValidity = 30,
 ): Promise<void> {
-  if (!keycloak?.authenticated) return;
-  await keycloak.updateToken(minValidity);
-  const session = getActiveSession();
-  if (session && keycloak.token) {
-    setActiveSession({ ...session, accessToken: keycloak.token });
+  if (!keycloak?.authenticated || !keycloak.token) return;
+  const syncSessionToken = () => {
+    const session = getActiveSession();
+    if (session && keycloak.token) {
+      setActiveSession({ ...session, accessToken: keycloak.token });
+    }
+  };
+  if (!keycloak.refreshToken) {
+    syncSessionToken();
+    return;
   }
+  try {
+    await keycloak.updateToken(minValidity);
+  } catch {
+    syncSessionToken();
+    return;
+  }
+  syncSessionToken();
 }
 
 export async function loginWithKeycloak(
