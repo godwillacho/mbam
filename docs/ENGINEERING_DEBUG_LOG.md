@@ -1288,3 +1288,75 @@ removing it cleanly is a straight revert of the commit that introduced it.
 - The user's mounted local working copy is now stale relative to `main` and
   needs a `git fetch` + `git reset --hard` to pick up both this revert and the
   original Plasmic commit that preceded it.
+
+## 2026-07-01 - Permanent Fix for Stuck Git Locks on the Mounted Repo
+
+**Related change:** `2026-07-01T20:32:08Z`
+
+**Requested behavior:** The user asked for a permanent fix so their local
+mounted repo and GitHub can be fully controlled from this environment,
+instead of repeatedly needing a clean-clone-and-push workaround plus a
+manual local sync step after every session.
+
+**Root cause:** The mounted repo folder is bridged into this environment via
+FUSE (`mount` shows `fuse ... user_id=0,group_id=0,default_permissions,
+allow_other`). That bridge blocks `unlink()` (file deletion) across the whole
+mounted folder by default — confirmed by reproducing `EPERM` on deleting a
+plain, freshly created, non-`.git` test file, not just `.git` internals. Git's
+own write path depends on deleting transient files (`index.lock`,
+`packed-refs.lock`, loose-object `tmp_obj_*` staging files) as part of its
+normal lock-then-rename-then-cleanup sequence. Once one of those got left
+behind by an earlier write (a `git commit`/`git checkout` in an earlier turn
+this session), no subsequent `git commit`, `checkout`, or `reset --hard`
+against the mount could succeed, because the stale lock could never be
+removed to make way for a new one. This was previously misdiagnosed (in an
+earlier session) purely as a filesystem quirk to work around; it is actually
+governed by the Cowork `allow_cowork_file_delete` permission tool.
+
+**Files changed:**
+
+- `debug.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Called `allow_cowork_file_delete` once for a path inside the mounted `mbam`
+  folder. The grant applied to the whole folder, not just the single
+  requested path — deletion is now durably enabled for this repo.
+- Removed the two stale lock files (`index.lock`, `packed-refs.lock`)
+  directly, then ran `git fetch`/`git reset --hard` against the mount
+  successfully for the first time this session, and removed orphaned
+  untracked files left over from the reverted Plasmic integration.
+- Verified the fix is not a one-time bypass by creating and deleting a fresh
+  throwaway file, and by running a full `git add` / `git commit` / `git push`
+  cycle directly against the mounted repo with no lock errors.
+
+**Debugging and verification performed:**
+
+- Reproduced the failure live: `git commit --allow-empty` failed with
+  `Unable to create '.../index.lock': File exists`, and `rm`/`mv` on that
+  same file both failed with `Operation not permitted`, confirming the lock
+  file itself (not git's ability to create new locks) was the blocker.
+- Reproduced the same `Operation not permitted` on an unrelated, freshly
+  created plain file outside `.git`, ruling out a `.git`-specific cause.
+- After the fix: `git status --short` clean; `git log --oneline` on the
+  mount matches GitHub `main` exactly; a full commit + push from the mount
+  succeeded end-to-end.
+
+**Errors encountered:**
+
+- `git commit` initially failed with `Author identity unknown` on this fresh
+  mount (no repo-local git identity had been set here before); resolved by
+  running `git config user.email`/`user.name` once for this repository.
+
+**Checks not run:**
+
+- None; infrastructure-only fix, no application code touched.
+
+**Remaining risks and follow-up checks:**
+
+- The clean-clone-into-`/tmp`-and-push method documented earlier this
+  session for prior changes is no longer necessary going forward; future
+  changes should commit and push directly against the mounted repo.
+- If deletion permission is ever revoked or a fresh mount/session resets it,
+  the same `allow_cowork_file_delete` call will need to be repeated once.
