@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import DashboardMetricsGrid from "../../components/dashboard/DashboardMetricsGrid";
-import type { MetricDefinition } from "../../components/dashboard/MetricCell";
+import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
 import { workspace } from "../../data/mockWorkspace";
-import { canAccessRoute, getCurrentMember } from "../../security/accessControl";
+import {
+  canAccessRoute,
+  getCurrentMember,
+  type AppRouteKey,
+} from "../../security/accessControl";
 import {
   loadDashboardSummary,
+  type DashboardLeader,
   type DashboardSummary,
 } from "../../services/reportService";
 import {
@@ -17,9 +21,18 @@ import { formatDateTime, formatMoney } from "../../utils/formatters";
 import "./MasterDashboard.css";
 
 type BaselineKind = "master" | "business" | "shop" | "cashier";
+type MetricKey = keyof DashboardSummary;
 
 interface BaselineDashboardProps {
   kind: BaselineKind;
+}
+
+interface MetricDefinition {
+  key: MetricKey;
+  label: string;
+  fallbackPath: string;
+  routeKey: AppRouteKey;
+  quantity?: boolean;
 }
 
 const dashboardCopy: Record<
@@ -96,6 +109,41 @@ const metricDefinitions: Record<BaselineKind, MetricDefinition[]> = {
     },
   ],
 };
+
+function MetricCell({
+  definition,
+  leader,
+  currency,
+}: {
+  definition: MetricDefinition;
+  leader?: DashboardLeader;
+  currency: string;
+}) {
+  const path = leader?.detail_path ?? definition.fallbackPath;
+  const value = leader
+    ? definition.quantity
+      ? `${leader.primary_value.toLocaleString()} sold`
+      : formatMoney(leader.primary_value, currency)
+    : "No sales yet";
+
+  return (
+    <Link
+      aria-label={`${definition.label}: ${leader?.entity_name ?? "no data"}`}
+      className="metric-card dashboard-metric-link"
+      to={path}
+    >
+      <span>{definition.label}</span>
+      <strong>{leader?.entity_name ?? "No authorized activity"}</strong>
+      <small>{value}</small>
+      <AuthorizedLineChart
+        compact
+        label={definition.label}
+        points={leader?.points ?? []}
+        quantity={definition.quantity}
+      />
+    </Link>
+  );
+}
 
 function RecentTransactions({
   transactions,
@@ -211,7 +259,16 @@ function BaselineDashboard({ kind }: BaselineDashboardProps) {
       {state === "ready" && (
         <>
           {definitions.length > 0 && (
-            <DashboardMetricsGrid currency={currency} definitions={definitions} summary={summary} />
+            <div className="metrics-grid dashboard-leader-grid">
+              {definitions.map((definition) => (
+                <MetricCell
+                  currency={currency}
+                  definition={definition}
+                  key={definition.key}
+                  leader={summary?.[definition.key]}
+                />
+              ))}
+            </div>
           )}
           {definitions.length === 0 && !showRecent && (
             <div className="card dashboard-state">
