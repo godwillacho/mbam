@@ -101,3 +101,9 @@ Encountered: The first new access-control test treated an explicit empty permiss
 Resolution: Updated the test fixture to match runtime behavior, where an explicit permissions array is authoritative.
 Encountered: The first production build after adding report-page tests failed because the explicit React imports were unused under the current JSX transform.
 Resolution: Removed the unused imports and re-ran frontend test, lint, and build successfully.
+
+2026-07-01T12:39:05Z UTC
+Encountered: The first new auth redirect helper test exposed that `/dashboard-picker?next=...` was still treated as a safe protected return path because only slash-delimited prefixes were rejected.
+Resolution: Normalized the candidate path before checking blocked public auth routes, re-ran the focused frontend tests, and confirmed the helper rejects query-bearing public auth routes.
+Encountered: The local Docker daemon socket was unavailable, so the live Keycloak/API browser stack could not be inspected from this environment.
+Resolution: Completed focused frontend verification with Vitest, TypeScript, ESLint, and the production build; live seeded-account reload verification remains a follow-up when Docker/browser services are available.

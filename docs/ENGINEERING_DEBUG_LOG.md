@@ -1049,3 +1049,81 @@ state defect that is not fully resolved by basic localStorage persistence.
 - The next pass should isolate which bootstrap path still emits the failing
   authorization request during protected-route startup and remove that stale or
   conflicting Keycloak/browser state transition.
+
+## 2026-07-01 - Keycloak Reload Redirect Completion
+
+**Related change:** `working-tree reload redirect completion`
+
+**Requested behavior:** Finish fixing the Mbam protected-page reload issue so a
+valid stored Keycloak/API session is not bounced back to sign-in during hard
+reload or direct navigation.
+
+**Root cause / engineering reason:** The prior investigation showed that the
+stored session token could still authorize the frontend bootstrap, but the app
+shell discarded the protected page target when it redirected through the access
+bootstrap path. The dashboard picker also rejected every `/dashboard...` URL as
+a possible return target, so valid dashboard reloads could collapse into the
+generic bootstrap flow instead of preserving the originally requested route.
+The temporary debug pages had served their purpose and should not remain in the
+public bundle.
+
+**Files changed:**
+
+- `mbam-web/src/components/app/AppShell.tsx`
+- `mbam-web/src/pages/auth/AccessBootstrapPage.tsx`
+- `mbam-web/src/pages/auth/AuthPage.tsx`
+- `mbam-web/src/pages/auth/authRedirect.ts`
+- `mbam-web/src/pages/auth/authRedirect.test.ts`
+- `mbam-web/public/codex-keycloak-login-helper.html`
+- `mbam-web/public/codex-storage-debug.html`
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Added shared auth redirect helpers for safe next-path validation and encoded
+  sign-in/dashboard-picker redirect targets.
+- Preserved the current protected path, query string, and hash when `AppShell`
+  redirects an existing session through access bootstrap or sends a missing or
+  locked session to sign-in.
+- Allowed concrete dashboard paths such as `/dashboard/personal` to survive as
+  safe return targets while still rejecting public auth routes and
+  protocol-relative paths.
+- Compared bootstrap authorization targets by pathname so query strings and
+  hashes do not make otherwise authorized routes fail the local route check.
+- Removed the temporary same-origin Keycloak login and storage debug pages from
+  the public web bundle.
+
+**Debugging and verification performed:**
+
+- Re-read the saved reload investigation entry, `AppShell`, `AuthPage`,
+  `AccessBootstrapPage`, session store, Keycloak service, API client, and
+  authorization bootstrap mapping.
+- `npm test -- authRedirect.test.ts authSessionPersistence.test.ts authSessionStore.test.ts apiClient.test.ts keycloakService.test.ts AuthPage.test.tsx ProtectedRoute.test.tsx`
+  passed with 19 tests.
+- `npm run type-check` passed.
+- `npm run lint` passed.
+- `npm run build` passed.
+
+**Errors encountered:**
+
+- The first new redirect-helper test failed because
+  `/dashboard-picker?next=...` was not rejected until the candidate pathname was
+  normalized before blocked-route matching.
+- The local Docker daemon socket was unavailable, so live Keycloak/API browser
+  verification could not be rerun in this environment.
+
+**Checks not run:**
+
+- Backend Rust tests were not rerun because this change only touched frontend
+  routing and public debug-helper cleanup.
+- Live seeded-account browser reload checks were not rerun because the local
+  Docker-backed Keycloak/API stack was unavailable.
+
+**Remaining risks and follow-up checks:**
+
+- Re-run the seeded-account browser reload/direct-navigation matrix when the
+  local Keycloak/API stack is available.
+- If any account still bounces after route preservation, inspect API status
+  codes during the background cloud-workspace hydration requests.

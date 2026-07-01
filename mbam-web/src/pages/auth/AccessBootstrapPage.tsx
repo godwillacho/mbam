@@ -8,19 +8,17 @@ import { clearActiveSession } from "../../services/authSessionStore";
 import { saveOfflineAuthorizationSnapshot } from "../../services/offlineAuthorizationSnapshotService";
 import type { DashboardProfile } from "../../services/teamService";
 import { hydrateAuthorizationWorkspace } from "../../services/workspaceService";
+import { routePathname, safeNextPath } from "./authRedirect";
 
 function requestedPath(searchParams: URLSearchParams): string | null {
   const next = searchParams.get("next") ?? sessionStorage.getItem("mbam-auth-next");
-  if (!next?.startsWith("/") || next === "/") return null;
-  if (next.startsWith("/auth") || next.startsWith("/access") || next.startsWith("/dashboard")) {
-    return null;
-  }
-  return next;
+  return safeNextPath(next);
 }
 
 function pathIsAllowed(profile: DashboardProfile, path: string): boolean {
+  const pathname = routePathname(path);
   return profile.dashboards.some((dashboard) =>
-    path === dashboard.path || path.startsWith(`${dashboard.path}/`),
+    pathname === dashboard.path || pathname.startsWith(`${dashboard.path}/`),
   );
 }
 

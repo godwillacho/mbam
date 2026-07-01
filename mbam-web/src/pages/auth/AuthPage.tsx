@@ -12,12 +12,9 @@ import {
   loginWithKeycloak,
   recoverKeycloakAccount,
 } from "../../services/keycloakService";
+import { dashboardPickerPath, safeNextPath } from "./authRedirect";
 
 export type AuthMode = "login" | "signup";
-
-function dashboardPickerPath(nextPath: string | null): string {
-  return nextPath ? `/dashboard-picker?next=${encodeURIComponent(nextPath)}` : "/dashboard-picker";
-}
 
 export default function AuthPage() {
   const { t } = useTranslation();
@@ -33,13 +30,7 @@ export default function AuthPage() {
     (typeof window === "undefined"
       ? null
       : sessionStorage.getItem("mbam-auth-next"));
-  const nextPath =
-    requestedNextPath?.startsWith("/") &&
-    !requestedNextPath.startsWith("/auth") &&
-    !requestedNextPath.startsWith("/access") &&
-    !requestedNextPath.startsWith("/dashboard-picker")
-      ? requestedNextPath
-      : null;
+  const nextPath = safeNextPath(requestedNextPath);
 
   useEffect(() => {
     void offlineAccessIsConfigured().then(setOfflineConfigured);

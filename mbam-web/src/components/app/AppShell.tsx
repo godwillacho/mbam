@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Navigate, NavLink, Outlet } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { isDemoWorkspace, WORKSPACE_CHANGE_EVENT, workspace } from "../../data/mockWorkspace";
+import { authPath, currentProtectedPath, dashboardPickerPath } from "../../pages/auth/authRedirect";
 import { baselineDashboardPath } from "../../pages/dashboard/dashboardRoutes";
 import { getCurrentSession } from "../../services/authService";
 import { API_AUTH_LOCK_EVENT } from "../../services/apiClient";
@@ -37,6 +38,7 @@ type HydrationState = "loading" | "ready" | "failed";
 
 export default function AppShell() {
   const { t } = useTranslation();
+  const location = useLocation();
   const [currentMember, setCurrentMember] = useState(() => getCurrentMember());
   const [authLocked, setAuthLocked] = useState(false);
   const [hydrationState, setHydrationState] = useState<HydrationState>("loading");
@@ -44,6 +46,7 @@ export default function AppShell() {
   const dashboardPath = baselineDashboardPath(currentMember) ?? "/dashboard";
   const visibleNavItems = navItems.filter((item) => !item.routeKey || canAccessRoute(currentMember, item.routeKey));
   const workspaceName = workspace.masterAccount.name || t("app.defaultWorkspaceName");
+  const protectedPath = currentProtectedPath(location.pathname, location.search, location.hash);
 
   const signOut = async () => {
     await logoutFromKeycloak();
@@ -96,14 +99,14 @@ export default function AppShell() {
     return () => window.removeEventListener("online", synchronize);
   }, []);
 
-  if (authLocked || !getCurrentSession()) return <Navigate to="/auth" replace />;
+  if (authLocked || !getCurrentSession()) return <Navigate to={authPath(protectedPath)} replace />;
 
   if (hydrationState === "loading") {
     return <div className="app-shell app-shell-loading"><main className="main-panel"><section className="page-grid"><p className="card-muted">Loading your validated role...</p></section></main></div>;
   }
 
   if (hydrationState === "failed") {
-    return <Navigate to="/dashboard-picker" replace />;
+    return <Navigate to={dashboardPickerPath(protectedPath)} replace />;
   }
 
   return (
