@@ -96,6 +96,7 @@ migration; add a new numbered migration.
 | `src/main.tsx` | Observability initialization and React root |
 | `src/App.tsx` | Complete route table |
 | `src/observability.ts` | Sentry scrubbing and frontend logger bootstrap |
+| `src/plasmic-init.ts` | Optional Plasmic visual-editing loader and code component registration; see `docs/plasmic-integration.md` |
 
 ### UI
 
@@ -103,6 +104,7 @@ migration; add a new numbered migration.
 | --- | --- |
 | `components/app/` | Shell, route protection, language controls |
 | `components/auth/` | Authentication forms and layout |
+| `components/dashboard/` | Presentational dashboard building blocks (`MetricCell`, `DashboardMetricsGrid`), Plasmic-registrable |
 | `pages/auth/` | Login/signup, access bootstrap, invite/reset flows |
 | `pages/dashboard/` | Role baselines, routing, metrics, pending payments |
 | `pages/business/` | Business and unit structure |
