@@ -1221,3 +1221,70 @@ sorting, which was visually heavy and had no way to scan or reorder entries.
 - Live browser verification of the new dashboard gating and scoped entity
   table is still outstanding and should be done against seeded accounts when
   the local stack is available.
+
+## 2026-07-01 - Revert Optional Plasmic Visual-Editing Integration
+
+**Related change:** `2026-07-01T19:56:23Z`
+
+**Requested behavior:** Fully remove the optional Plasmic visual-editing
+integration added earlier the same day. Product decision: not worth the
+added third-party dependency and workflow complexity.
+
+**Root cause / engineering reason:** Not a defect fix; a scope reversal. The
+Plasmic integration (project ID/token lookup, code component registration,
+Plasmic-aware fallback wrapper) was opt-in and gated behind empty env vars, so
+removing it cleanly is a straight revert of the commit that introduced it.
+
+**Files changed:**
+
+- `REPOSITORY_MAP.md`
+- `debug.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+- `docs/plasmic-integration.md` (deleted)
+- `mbam-web/.env.example`
+- `mbam-web/package.json`, `mbam-web/package-lock.json`
+- `mbam-web/src/pages/dashboard/BaselineDashboards.tsx`
+- `mbam-web/src/components/dashboard/MetricCell.tsx` (deleted)
+- `mbam-web/src/components/dashboard/DashboardMetricsGrid.tsx` (deleted)
+- `mbam-web/src/components/dashboard/DashboardMetricsGrid.test.tsx` (deleted)
+- `mbam-web/src/plasmic-init.ts` (deleted)
+
+**Implementation:**
+
+- `git revert 4700d4d` (the Plasmic integration commit), applied with no
+  conflicts since no later commit touched the same files.
+- Confirmed `BaselineDashboards.tsx` is now byte-identical to its state
+  immediately before the Plasmic commit (`git diff 6b2874a HEAD -- ...`
+  produced no output).
+- Removed the `@plasmicapp/loader-react` dependency via the reverted
+  `package.json`/`package-lock.json`, then ran `npm install` to regenerate
+  `node_modules` cleanly against the reverted lockfile.
+
+**Debugging and verification performed:**
+
+- `npx tsc --noEmit` passed.
+- `npm test` passed (19 test files / 51 tests).
+- `npx vite build --outDir <temp dir>` succeeded; the third-party
+  `[EVAL] Use of direct eval` warning previously logged from Plasmic's bundle
+  no longer appears.
+- `grep -rli plasmic` across the tracked repo tree returned no matches.
+
+**Errors encountered:**
+
+- None for this change.
+
+**Checks not run:**
+
+- Backend Rust tests were not rerun; no Rust files changed.
+- Live browser verification was not run; no local Docker/Keycloak stack in
+  this environment.
+
+**Remaining risks and follow-up checks:**
+
+- The user's locally gitignored `mbam-web/.env.development` still had
+  `VITE_PLASMIC_PROJECT_ID`/`VITE_PLASMIC_PROJECT_TOKEN` set from the earlier
+  integration; these are untracked by git and were removed separately, outside
+  this commit.
+- The user's mounted local working copy is now stale relative to `main` and
+  needs a `git fetch` + `git reset --hard` to pick up both this revert and the
+  original Plasmic commit that preceded it.
