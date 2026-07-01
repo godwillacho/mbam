@@ -119,6 +119,13 @@ const en = {
       noWorkers: "No workers with sales in this scope yet.",
       salesCount: "{{count}} sales",
     },
+    noAuthorizedMetrics: "No authorized metrics are available for your current role.",
+  },
+  scopedEntityReport: {
+    nameColumn: "Name",
+    detailsColumn: "Details",
+    selected: "Selected",
+    selectRow: "View report for {{name}}",
   },
   metricDetails: {
     eyebrow: "Dashboard detail",
@@ -290,6 +297,13 @@ const fr = {
       noWorkers: "Aucun employé avec des ventes dans ce périmètre pour le moment.",
       salesCount: "{{count}} ventes",
     },
+    noAuthorizedMetrics: "Aucune statistique autorisée n’est disponible pour votre rôle actuel.",
+  },
+  scopedEntityReport: {
+    nameColumn: "Nom",
+    detailsColumn: "Détails",
+    selected: "Sélectionné",
+    selectRow: "Voir le rapport pour {{name}}",
   },
   metricDetails: {
     eyebrow: "Détail du tableau de bord",

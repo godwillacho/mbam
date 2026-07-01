@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
 import TimeframeControl from "../../components/charts/TimeframeControl";
 import { workspace } from "../../data/mockWorkspace";
@@ -22,6 +23,14 @@ interface EntityItem {
   id: string;
   name: string;
   description: string;
+}
+
+type SortColumn = "name" | "description";
+type SortDirection = "asc" | "desc";
+
+function compareEntities(a: EntityItem, b: EntityItem, column: SortColumn, direction: SortDirection): number {
+  const comparison = a[column].localeCompare(b[column], undefined, { sensitivity: "base" });
+  return direction === "asc" ? comparison : -comparison;
 }
 
 const pageCopy: Record<
@@ -85,6 +94,7 @@ function reportFilters(
 }
 
 export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
+  const { t } = useTranslation();
   const copy = pageCopy[kind];
   const member = getCurrentMember();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -92,6 +102,8 @@ export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
   const [selectedId, setSelectedId] = useState(searchParams.get("selected") ?? "");
   const [timeframe, setTimeframe] = useState<ReportTimeframe>("daily");
   const [series, setSeries] = useState<ReportSeries | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [listState, setListState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
@@ -151,9 +163,28 @@ export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
     [items, selectedId],
   );
 
+  const sortedItems = useMemo(
+    () => [...items].sort((a, b) => compareEntities(a, b, sortColumn, sortDirection)),
+    [items, sortColumn, sortDirection],
+  );
+
   const select = (id: string) => {
     setSelectedId(id);
     setSearchParams({ selected: id }, { replace: true });
+  };
+
+  const toggleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortColumn(column);
+    setSortDirection("asc");
+  };
+
+  const sortIndicator = (column: SortColumn) => {
+    if (sortColumn !== column) return null;
+    return <span aria-hidden="true">{sortDirection === "asc" ? " ▲" : " ▼"}</span>;
   };
 
   return (
@@ -180,30 +211,71 @@ export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
       </div>
 
       <div className="scoped-split-page">
-        <aside className="card scoped-entity-list">
-          <h3>{copy.eyebrow}</h3>
-          {listState === "loading" && <p role="status">Loading…</p>}
+        <article className="table-card scoped-entity-table-card">
+          <header>
+            <h3>{copy.eyebrow}</h3>
+          </header>
+          {listState === "loading" && (
+            <p className="scoped-entity-table-state" role="status">Loading…</p>
+          )}
           {listState === "error" && (
-            <p className="validation-summary" role="alert">
+            <p className="validation-summary scoped-entity-table-state" role="alert">
               The authorized list could not be loaded.
             </p>
           )}
           {listState === "ready" && items.length === 0 && (
-            <p className="card-muted">No authorized entities are available.</p>
+            <p className="card-muted scoped-entity-table-state">No authorized entities are available.</p>
           )}
-          {items.map((item) => (
-            <button
-              aria-pressed={selectedId === item.id}
-              className={selectedId === item.id ? "active" : ""}
-              key={item.id}
-              onClick={() => select(item.id)}
-              type="button"
-            >
-              <strong>{item.name}</strong>
-              <small>{item.description}</small>
-            </button>
-          ))}
-        </aside>
+          {listState === "ready" && items.length > 0 && (
+            <div className="scoped-entity-table-wrap">
+              <table className="data-table scoped-entity-table">
+                <thead>
+                  <tr>
+                    <th>
+                      <button className="table-sort-button" onClick={() => toggleSort("name")} type="button">
+                        {t("scopedEntityReport.nameColumn")}
+                        {sortIndicator("name")}
+                      </button>
+                    </th>
+                    <th>
+                      <button className="table-sort-button" onClick={() => toggleSort("description")} type="button">
+                        {t("scopedEntityReport.detailsColumn")}
+                        {sortIndicator("description")}
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedItems.map((item) => {
+                    const isSelected = selectedId === item.id;
+                    return (
+                      <tr
+                        aria-current={isSelected ? "true" : undefined}
+                        className={isSelected ? "scoped-entity-row active" : "scoped-entity-row"}
+                        key={item.id}
+                        onClick={() => select(item.id)}
+                      >
+                        <td>
+                          <button
+                            aria-label={t("scopedEntityReport.selectRow", { name: item.name })}
+                            aria-pressed={isSelected}
+                            className="scoped-entity-row-button"
+                            onClick={() => select(item.id)}
+                            type="button"
+                          >
+                            <strong>{item.name}</strong>
+                            {isSelected && <span className="badge">{t("scopedEntityReport.selected")}</span>}
+                          </button>
+                        </td>
+                        <td>{item.description}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </article>
 
         <article className="card scoped-chart-panel">
           <header>

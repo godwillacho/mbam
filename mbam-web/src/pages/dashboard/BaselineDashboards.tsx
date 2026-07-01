@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
 import { workspace } from "../../data/mockWorkspace";
-import { canAccessRoute, getCurrentMember } from "../../security/accessControl";
+import {
+  canAccessRoute,
+  getCurrentMember,
+  type AppRouteKey,
+} from "../../security/accessControl";
 import {
   loadDashboardSummary,
   type DashboardLeader,
@@ -26,6 +31,7 @@ interface MetricDefinition {
   key: MetricKey;
   label: string;
   fallbackPath: string;
+  routeKey: AppRouteKey;
   quantity?: boolean;
 }
 
@@ -53,47 +59,52 @@ const dashboardCopy: Record<
 
 const metricDefinitions: Record<BaselineKind, MetricDefinition[]> = {
   master: [
-    { key: "business", label: "Top business", fallbackPath: "/businesses" },
-    { key: "shop", label: "Top shop", fallbackPath: "/shops" },
-    { key: "employee", label: "Top employee", fallbackPath: "/employees" },
+    { key: "business", label: "Top business", fallbackPath: "/businesses", routeKey: "businesses" },
+    { key: "shop", label: "Top shop", fallbackPath: "/shops", routeKey: "shops" },
+    { key: "employee", label: "Top employee", fallbackPath: "/employees", routeKey: "team" },
     {
       key: "product",
       label: "Most-sold product",
       fallbackPath: "/products",
+      routeKey: "products",
       quantity: true,
     },
   ],
   business: [
-    { key: "business", label: "Top business", fallbackPath: "/businesses" },
-    { key: "shop", label: "Top shop", fallbackPath: "/shops" },
-    { key: "employee", label: "Top employee", fallbackPath: "/employees" },
+    { key: "business", label: "Top business", fallbackPath: "/businesses", routeKey: "businesses" },
+    { key: "shop", label: "Top shop", fallbackPath: "/shops", routeKey: "shops" },
+    { key: "employee", label: "Top employee", fallbackPath: "/employees", routeKey: "team" },
     {
       key: "product",
       label: "Most-sold product",
       fallbackPath: "/products",
+      routeKey: "products",
       quantity: true,
     },
   ],
   shop: [
-    { key: "shop", label: "Top assigned shop", fallbackPath: "/shops" },
+    { key: "shop", label: "Top assigned shop", fallbackPath: "/shops", routeKey: "shops" },
     {
       key: "employee",
       label: "Top cashier",
       fallbackPath: "/employees",
+      routeKey: "team",
     },
     {
       key: "product",
       label: "Most-sold product",
       fallbackPath: "/products",
+      routeKey: "products",
       quantity: true,
     },
   ],
   cashier: [
-    { key: "shop", label: "My shop sales", fallbackPath: "/shops" },
+    { key: "shop", label: "My shop sales", fallbackPath: "/shops", routeKey: "shops" },
     {
       key: "product",
       label: "My most-sold product",
       fallbackPath: "/products",
+      routeKey: "products",
       quantity: true,
     },
   ],
@@ -179,13 +190,18 @@ function RecentTransactions({
 }
 
 function BaselineDashboard({ kind }: BaselineDashboardProps) {
+  const { t } = useTranslation();
   const member = getCurrentMember();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [transactions, setTransactions] = useState<CloudTransaction[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const currency = workspace.businesses[0]?.currency ?? "XAF";
-  const definitions = useMemo(() => metricDefinitions[kind], [kind]);
-  const showRecent = kind === "shop" || kind === "cashier";
+  const definitions = useMemo(
+    () => metricDefinitions[kind].filter((definition) => canAccessRoute(member, definition.routeKey)),
+    [kind, member],
+  );
+  const showRecent =
+    (kind === "shop" || kind === "cashier") && canAccessRoute(member, "transactions");
 
   useEffect(() => {
     let ignore = false;
@@ -242,16 +258,23 @@ function BaselineDashboard({ kind }: BaselineDashboardProps) {
       )}
       {state === "ready" && (
         <>
-          <div className="metrics-grid dashboard-leader-grid">
-            {definitions.map((definition) => (
-              <MetricCell
-                currency={currency}
-                definition={definition}
-                key={definition.key}
-                leader={summary?.[definition.key]}
-              />
-            ))}
-          </div>
+          {definitions.length > 0 && (
+            <div className="metrics-grid dashboard-leader-grid">
+              {definitions.map((definition) => (
+                <MetricCell
+                  currency={currency}
+                  definition={definition}
+                  key={definition.key}
+                  leader={summary?.[definition.key]}
+                />
+              ))}
+            </div>
+          )}
+          {definitions.length === 0 && !showRecent && (
+            <div className="card dashboard-state">
+              {t("roleDashboard.noAuthorizedMetrics")}
+            </div>
+          )}
           {showRecent && (
             <RecentTransactions
               currency={currency}

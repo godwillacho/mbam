@@ -1127,3 +1127,97 @@ public bundle.
   local Keycloak/API stack is available.
 - If any account still bounces after route preservation, inspect API status
   codes during the background cloud-workspace hydration requests.
+
+## 2026-07-01 - Dashboard Access Gating And Scoped Entity Table
+
+**Related change:** `2026-07-01T13:43:11Z` (pushed directly to `main` from a
+clean clone; see error log for why the mounted working copy could not commit).
+
+**Requested behavior:** Stop rendering dashboard metric boxes (and the
+Shops/Products/Employees list panel) for users who are not authorized for the
+underlying resource, instead of showing them unconditionally. Also replace the
+chunky button-list panel on the Shops/Products/Employees screens with a proper
+sortable table.
+
+**Root cause / engineering reason:** `BaselineDashboards.tsx` (used for
+`/dashboard/master`, `/dashboard/business`, `/dashboard/shop`, and
+`/dashboard/personal`) picked its metric cells purely from the role's
+baseline `kind`, never checking `canAccessRoute`. This meant a member with a
+narrower custom permission set (e.g. a cashier without `screen.products`)
+still saw the "My most-sold product" box and its link to `/products`, even
+though that route is hidden from the sidebar nav for the same member. The
+sidebar and the dashboard boxes were enforcing two different authorization
+rules for the same underlying resource. Separately, `ScopedEntityReportPage.tsx`
+rendered its authorized entity list as a stack of large button cards with no
+sorting, which was visually heavy and had no way to scan or reorder entries.
+
+**Files changed:**
+
+- `mbam-web/src/pages/dashboard/BaselineDashboards.tsx`
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.tsx`
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.css`
+- `mbam-web/src/i18n/roleDashboardResources.ts`
+- `debug.log`
+- `error.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Added a `routeKey: AppRouteKey` to every `MetricDefinition` in
+  `BaselineDashboards.tsx` and filtered each dashboard's metric cells through
+  `canAccessRoute(member, definition.routeKey)`, matching the sidebar's own
+  authorization check.
+- Gated the recent-transactions section behind
+  `canAccessRoute(member, "transactions")` in addition to the existing
+  role-kind check.
+- Added a translated empty-state message (`roleDashboard.noAuthorizedMetrics`)
+  for the case where a member has zero authorized metrics for their baseline.
+- Replaced the `scoped-entity-list` button stack in `ScopedEntityReportPage.tsx`
+  with a `data-table`-based table with clickable Name/Details column headers
+  that toggle ascending/descending sort, an arrow indicator on the active sort
+  column, a selectable row button per entity, and `aria-current` on the
+  selected row.
+- Added `scopedEntityReport.*` and `roleDashboard.noAuthorizedMetrics`
+  translation keys in both English and French.
+
+**Debugging and verification performed:**
+
+- Read `security/accessControl.ts`, `dashboardPermissions.ts`, `App.tsx`
+  route table, `AppShell.tsx` nav filtering, and both changed pages to confirm
+  which authorization helper was already the source of truth for route/nav
+  visibility, and reused it rather than introducing a third access-check path.
+- `npm run type-check` passed.
+- `npm run lint` passed.
+- `npm test` passed (51/51 tests, 19 test files), including the existing
+  `ScopedEntityReportPage.test.tsx` fail-closed direct-URL case.
+- `npm run build`'s `tsc --noEmit` step passed; the `vite build` bundling step
+  was verified by building to an alternate `--outDir` (see error log for why
+  the default `dist/` cleanup fails in this sandbox).
+
+**Errors encountered:**
+
+- See `error.log` for the sandbox-specific `dist/` unlink failure and the
+  `.git/index.lock` failure that required committing from a clean clone
+  instead of the mounted working copy.
+
+**Checks not run:**
+
+- Backend Rust tests were not rerun; no Rust files changed.
+- Live seeded-account browser verification was not run; no local Docker/Keycloak
+  stack is available in this environment.
+
+**Remaining risks and follow-up checks:**
+
+- Per-role dashboard metric gating now matches route-level `canAccessRoute`,
+  but neither is yet driven by the richer per-permission system in
+  `dashboardPermissions.ts` (`ownSales`, `businessRevenue`, etc.), which is
+  only used by `PendingPaymentsPage.tsx` and `DashboardMetricDetailPage.tsx`.
+  These two dashboard-authorization systems should eventually be unified.
+- The mounted working copy at `mbam-web/package-lock.json` still has an
+  unintended local diff (optional-dependency `libc` metadata dropped by an
+  `npm install` run in this sandbox) that could not be reverted because of the
+  stuck `.git/index.lock`; run `git checkout -- mbam-web/package-lock.json`
+  locally to discard it once the lock clears.
+- Live browser verification of the new dashboard gating and scoped entity
+  table is still outstanding and should be done against seeded accounts when
+  the local stack is available.
