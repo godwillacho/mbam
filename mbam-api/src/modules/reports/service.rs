@@ -324,21 +324,32 @@ fn leader(
         };
         right_value.total_cmp(&left_value)
     });
-    series.into_iter().next().map(|series| DashboardLeader {
-        entity_id: series.entity_id,
-        entity_name: series.entity_name,
-        primary_value: if quantity_primary {
-            series.total_quantity
+    series.into_iter().next().map(|series| {
+        // Shops, employees, and products each have a dedicated per-entity
+        // report route (e.g. `/shops/:entityId`). Businesses do not have an
+        // equivalent per-entity page yet, so keep pointing at the plain
+        // businesses list for that one segment.
+        let detail_path = if detail_segment == "businesses" {
+            format!("/{detail_segment}?selected={}", series.entity_id)
         } else {
-            series.total_revenue
-        },
-        secondary_value: if quantity_primary {
-            series.total_revenue
-        } else {
-            series.transaction_count as f64
-        },
-        detail_path: format!("/{detail_segment}?selected={}", series.entity_id),
-        points: series.points,
+            format!("/{detail_segment}/{}", series.entity_id)
+        };
+        DashboardLeader {
+            entity_id: series.entity_id,
+            entity_name: series.entity_name,
+            primary_value: if quantity_primary {
+                series.total_quantity
+            } else {
+                series.total_revenue
+            },
+            secondary_value: if quantity_primary {
+                series.total_revenue
+            } else {
+                series.transaction_count as f64
+            },
+            detail_path,
+            points: series.points,
+        }
     })
 }
 

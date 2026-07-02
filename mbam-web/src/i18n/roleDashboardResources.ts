@@ -124,8 +124,25 @@ const en = {
   scopedEntityReport: {
     nameColumn: "Name",
     detailsColumn: "Details",
-    selected: "Selected",
     selectRow: "View report for {{name}}",
+    loadingList: "Loading…",
+    listLoadError: "The authorized list could not be loaded.",
+    noAuthorizedEntities: "No authorized entities are available.",
+    loadingEntity: "Loading…",
+    loadingChart: "Loading chart…",
+    noSalesForTimeframe: "No sales exist for this timeframe.",
+    outOfScope: "This entity is unavailable or outside your current authorization.",
+    unitsSold: "{{count}} sold",
+    detailEyebrow: {
+      shops: "Shop performance",
+      employees: "Employee performance",
+      products: "Product performance",
+    },
+    detailBackTo: {
+      shops: "Back to shops",
+      employees: "Back to employees",
+      products: "Back to products",
+    },
   },
   metricDetails: {
     eyebrow: "Dashboard detail",
@@ -302,8 +319,25 @@ const fr = {
   scopedEntityReport: {
     nameColumn: "Nom",
     detailsColumn: "Détails",
-    selected: "Sélectionné",
     selectRow: "Voir le rapport pour {{name}}",
+    loadingList: "Chargement…",
+    listLoadError: "La liste autorisée n'a pas pu être chargée.",
+    noAuthorizedEntities: "Aucune entité autorisée n'est disponible.",
+    loadingEntity: "Chargement…",
+    loadingChart: "Chargement du graphique…",
+    noSalesForTimeframe: "Aucune vente n'existe pour cette période.",
+    outOfScope: "Cette entité n'est pas disponible ou se trouve en dehors de votre autorisation actuelle.",
+    unitsSold: "{{count}} vendu(s)",
+    detailEyebrow: {
+      shops: "Performance de la boutique",
+      employees: "Performance de l'employé",
+      products: "Performance du produit",
+    },
+    detailBackTo: {
+      shops: "Retour aux boutiques",
+      employees: "Retour aux employés",
+      products: "Retour aux produits",
+    },
   },
   metricDetails: {
     eyebrow: "Détail du tableau de bord",

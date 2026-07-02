@@ -1,20 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
-import TimeframeControl from "../../components/charts/TimeframeControl";
-import { workspace } from "../../data/mockWorkspace";
 import { canManageProducts, getCurrentMember } from "../../security/accessControl";
 import { loadAuthorizationBootstrap } from "../../services/authorizationService";
 import { listAuthorizedProductsOnline } from "../../services/productService";
-import {
-  loadReport,
-  type ReportDimension,
-  type ReportSeries,
-  type ReportTimeframe,
-} from "../../services/reportService";
 import { loadTeamWorkspace } from "../../services/teamService";
-import { formatMoney } from "../../utils/formatters";
 import "./ScopedEntityReportPage.css";
 
 type PageKind = "shops" | "employees" | "products";
@@ -80,38 +70,17 @@ async function loadItems(kind: PageKind): Promise<EntityItem[]> {
   }));
 }
 
-function reportFilters(
-  kind: PageKind,
-  selected: string,
-  timeframe: ReportTimeframe,
-) {
-  return {
-    timeframe,
-    ...(kind === "shops" ? { businessUnitId: selected } : {}),
-    ...(kind === "employees" ? { employeeId: selected } : {}),
-    ...(kind === "products" ? { productId: selected } : {}),
-  };
-}
-
 export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
   const { t } = useTranslation();
   const copy = pageCopy[kind];
   const member = getCurrentMember();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [items, setItems] = useState<EntityItem[]>([]);
-  const [selectedId, setSelectedId] = useState(searchParams.get("selected") ?? "");
-  const [timeframe, setTimeframe] = useState<ReportTimeframe>("daily");
-  const [series, setSeries] = useState<ReportSeries | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [listState, setListState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
-  const [chartState, setChartState] = useState<"idle" | "loading" | "ready" | "error">(
-    "idle",
-  );
-  const currency = workspace.businesses[0]?.currency ?? "XAF";
-  const dimension = kind as ReportDimension;
 
   useEffect(() => {
     let ignore = false;
@@ -120,7 +89,6 @@ export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
       .then((nextItems) => {
         if (ignore) return;
         setItems(nextItems);
-        setSelectedId((current) => current || nextItems[0]?.id || "");
         setListState("ready");
       })
       .catch(() => {
@@ -133,45 +101,12 @@ export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
     };
   }, [kind]);
 
-  useEffect(() => {
-    if (!selectedId) {
-      setSeries(null);
-      setChartState("idle");
-      return;
-    }
-    let ignore = false;
-    setSeries(null);
-    setChartState("loading");
-    loadReport(dimension, reportFilters(kind, selectedId, timeframe))
-      .then((report) => {
-        if (ignore) return;
-        setSeries(report.series.find((item) => item.entity_id === selectedId) ?? null);
-        setChartState("ready");
-      })
-      .catch(() => {
-        if (ignore) return;
-        setSeries(null);
-        setChartState("error");
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [dimension, kind, selectedId, timeframe]);
-
-  const selectedItem = useMemo(
-    () => items.find((item) => item.id === selectedId),
-    [items, selectedId],
-  );
-
   const sortedItems = useMemo(
     () => [...items].sort((a, b) => compareEntities(a, b, sortColumn, sortDirection)),
     [items, sortColumn, sortDirection],
   );
 
-  const select = (id: string) => {
-    setSelectedId(id);
-    setSearchParams({ selected: id }, { replace: true });
-  };
+  const detailPath = (id: string) => `/${kind}/${id}`;
 
   const toggleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -206,115 +141,72 @@ export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
               Manage products
             </Link>
           )}
-          <TimeframeControl onChange={setTimeframe} value={timeframe} />
         </div>
       </div>
 
-      <div className="scoped-split-page">
-        <article className="table-card scoped-entity-table-card">
-          <header>
-            <h3>{copy.eyebrow}</h3>
-          </header>
-          {listState === "loading" && (
-            <p className="scoped-entity-table-state" role="status">Loading…</p>
-          )}
-          {listState === "error" && (
-            <p className="validation-summary scoped-entity-table-state" role="alert">
-              The authorized list could not be loaded.
-            </p>
-          )}
-          {listState === "ready" && items.length === 0 && (
-            <p className="card-muted scoped-entity-table-state">No authorized entities are available.</p>
-          )}
-          {listState === "ready" && items.length > 0 && (
-            <div className="scoped-entity-table-wrap">
-              <table className="data-table scoped-entity-table">
-                <thead>
-                  <tr>
-                    <th>
-                      <button className="table-sort-button" onClick={() => toggleSort("name")} type="button">
-                        {t("scopedEntityReport.nameColumn")}
-                        {sortIndicator("name")}
-                      </button>
-                    </th>
-                    <th>
-                      <button className="table-sort-button" onClick={() => toggleSort("description")} type="button">
-                        {t("scopedEntityReport.detailsColumn")}
-                        {sortIndicator("description")}
-                      </button>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedItems.map((item) => {
-                    const isSelected = selectedId === item.id;
-                    return (
-                      <tr
-                        aria-current={isSelected ? "true" : undefined}
-                        className={isSelected ? "scoped-entity-row active" : "scoped-entity-row"}
-                        key={item.id}
-                        onClick={() => select(item.id)}
+      <article className="table-card scoped-entity-table-card scoped-entity-table-card-full">
+        <header>
+          <h3>{copy.eyebrow}</h3>
+        </header>
+        {listState === "loading" && (
+          <p className="scoped-entity-table-state" role="status">
+            {t("scopedEntityReport.loadingList")}
+          </p>
+        )}
+        {listState === "error" && (
+          <p className="validation-summary scoped-entity-table-state" role="alert">
+            {t("scopedEntityReport.listLoadError")}
+          </p>
+        )}
+        {listState === "ready" && items.length === 0 && (
+          <p className="card-muted scoped-entity-table-state">
+            {t("scopedEntityReport.noAuthorizedEntities")}
+          </p>
+        )}
+        {listState === "ready" && items.length > 0 && (
+          <div className="scoped-entity-table-wrap">
+            <table className="data-table scoped-entity-table">
+              <thead>
+                <tr>
+                  <th>
+                    <button className="table-sort-button" onClick={() => toggleSort("name")} type="button">
+                      {t("scopedEntityReport.nameColumn")}
+                      {sortIndicator("name")}
+                    </button>
+                  </th>
+                  <th>
+                    <button className="table-sort-button" onClick={() => toggleSort("description")} type="button">
+                      {t("scopedEntityReport.detailsColumn")}
+                      {sortIndicator("description")}
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedItems.map((item) => (
+                  <tr
+                    className="scoped-entity-row"
+                    key={item.id}
+                    onClick={() => navigate(detailPath(item.id))}
+                  >
+                    <td>
+                      <Link
+                        aria-label={t("scopedEntityReport.selectRow", { name: item.name })}
+                        className="scoped-entity-row-button"
+                        onClick={(event) => event.stopPropagation()}
+                        to={detailPath(item.id)}
                       >
-                        <td>
-                          <button
-                            aria-label={t("scopedEntityReport.selectRow", { name: item.name })}
-                            aria-pressed={isSelected}
-                            className="scoped-entity-row-button"
-                            onClick={() => select(item.id)}
-                            type="button"
-                          >
-                            <strong>{item.name}</strong>
-                            {isSelected && <span className="badge">{t("scopedEntityReport.selected")}</span>}
-                          </button>
-                        </td>
-                        <td>{item.description}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </article>
-
-        <article className="card scoped-chart-panel">
-          <header>
-            <div>
-              <span className="eyebrow">{timeframe}</span>
-              <h3>{selectedItem?.name ?? "Selected entity"}</h3>
-            </div>
-            {series && (
-              <div className="scoped-chart-total">
-                <strong>
-                  {kind === "products"
-                    ? `${series.total_quantity.toLocaleString()} sold`
-                    : formatMoney(series.total_revenue, currency)}
-                </strong>
-                <small>{formatMoney(series.total_revenue, currency)}</small>
-              </div>
-            )}
-          </header>
-          {chartState === "idle" && (
-            <p className="card-muted">Select an entity to view its report.</p>
-          )}
-          {chartState === "loading" && <p role="status">Loading chart…</p>}
-          {chartState === "error" && (
-            <p className="validation-summary" role="alert">
-              This entity is unavailable or outside your current authorization.
-            </p>
-          )}
-          {chartState === "ready" && !series && (
-            <p className="card-muted">No sales exist for this timeframe.</p>
-          )}
-          {chartState === "ready" && series && (
-            <AuthorizedLineChart
-              label={series.entity_name}
-              points={series.points}
-              quantity={kind === "products"}
-            />
-          )}
-        </article>
-      </div>
+                        <strong>{item.name}</strong>
+                      </Link>
+                    </td>
+                    <td>{item.description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </article>
     </section>
   );
 }

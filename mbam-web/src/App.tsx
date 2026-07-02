@@ -16,6 +16,7 @@ import DashboardMetricDetailPage from "./pages/dashboard/DashboardMetricDetailPa
 import { BaselineDashboardRoute, DashboardRouter } from "./pages/dashboard/DashboardRouter";
 import PendingPaymentsPage from "./pages/dashboard/PendingPaymentsPage";
 import ProductRevenuePage from "./pages/products/ProductRevenuePage";
+import EntityReportDetailPage from "./pages/reports/EntityReportDetailPage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import ScopedEntityReportPage from "./pages/reports/ScopedEntityReportPage";
 import TeamAccessPage from "./pages/team/TeamAccessPage";
@@ -45,10 +46,13 @@ export default function App() {
           <Route path="/dashboard/products" element={<Navigate to="/products" replace />} />
           <Route path="/pending-payments" element={<PendingPaymentsPage />} />
           <Route path="/shops" element={<ProtectedRoute routeKey="shops"><ScopedEntityReportPage kind="shops" /></ProtectedRoute>} />
+          <Route path="/shops/:entityId" element={<ProtectedRoute routeKey="shops"><EntityReportDetailPage kind="shops" /></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute routeKey="team"><ScopedEntityReportPage kind="employees" /></ProtectedRoute>} />
           <Route path="/employees/manage" element={<ProtectedRoute routeKey="team"><TeamAccessPage /></ProtectedRoute>} />
+          <Route path="/employees/:entityId" element={<ProtectedRoute routeKey="team"><EntityReportDetailPage kind="employees" /></ProtectedRoute>} />
           <Route path="/products" element={<ProtectedRoute routeKey="products"><ScopedEntityReportPage kind="products" /></ProtectedRoute>} />
           <Route path="/products/manage" element={<ProtectedRoute routeKey="products"><ProductRevenuePage /></ProtectedRoute>} />
+          <Route path="/products/:entityId" element={<ProtectedRoute routeKey="products"><EntityReportDetailPage kind="products" /></ProtectedRoute>} />
           <Route path="/transactions/new" element={<ProtectedRoute routeKey="recordTransaction"><TransactionRecordPage /></ProtectedRoute>} />
           <Route path="/transactions/drafts" element={<ProtectedRoute routeKey="transactionDrafts"><TransactionDraftsPage /></ProtectedRoute>} />
           <Route path="/transactions/:transactionId/invoice" element={<ProtectedRoute routeKey="transactions"><TransactionInvoicePage /></ProtectedRoute>} />

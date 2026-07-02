@@ -1542,3 +1542,122 @@ clutter the user wanted removed.
   "No data yet" style message) is an intentional, explicit user choice for
   now; if user feedback later prefers a neutral (non-alarming) placeholder
   instead of fully blank, that's a one-line change back in `MetricCell`.
+
+## 2026-07-02 - Split Combined List+Chart Pages into a Full Table and a Dedicated Detail Page
+
+**Related change:** `2026-07-02T21:53:41Z`
+
+**Requested behavior:** From an annotated screenshot of `/products?selected=...`,
+the user asked that wherever the app shows this "narrow list + inline chart
+panel" combination (shops, employees, products), it be replaced with a
+full-width table (holding product/employee/record details, with clickable
+sortable columns and a "Manage X" button) whose rows link out to a dedicated
+per-entity page showing the time-series graph with Daily/Weekly/Monthly/Yearly
+interval toggles, instead of everything being crammed into one split view.
+
+**Root cause / engineering reason:** Not a defect; a product/UX decision.
+`ScopedEntityReportPage.tsx` previously rendered a narrow (0.44fr) list
+column next to a chart panel in the same view, driven by a `?selected=`
+query parameter and local component state. This is the exact pattern the
+user found "gimmicky and unnecessarily complex."
+
+**Files changed:**
+
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.tsx`
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.css`
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.test.tsx`
+- `mbam-web/src/pages/reports/EntityReportDetailPage.tsx` (new)
+- `mbam-web/src/pages/reports/EntityReportDetailPage.test.tsx` (new)
+- `mbam-web/src/App.tsx`
+- `mbam-web/src/i18n/roleDashboardResources.ts`
+- `mbam-api/src/modules/reports/service.rs`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- `ScopedEntityReportPage.tsx` is now list-only: full-width `.data-table`
+  with sortable Name/Details columns (unchanged sorting logic), the existing
+  "Manage employees"/"Manage products" buttons, and each row is a `<Link>`
+  to `/{kind}/{entityId}` (via `react-router-dom`) rather than an in-page
+  selection. Removed all chart/timeframe state, the `useSearchParams`
+  `?selected=` handling, and the `.scoped-split-page` grid CSS.
+- New `EntityReportDetailPage.tsx` (mounted at `/shops/:entityId`,
+  `/employees/:entityId`, `/products/:entityId`) owns the entity name lookup
+  (same `loadItems(kind)` source as the list page, for a11y/reliable naming
+  even when there's no sales data for the current timeframe), the
+  `TimeframeControl`, `loadReport`, `AuthorizedLineChart`, and a "Back to
+  shops/employees/products" link. Preserves the exact fail-closed behavior
+  the old page had: if the report API rejects the entity as out of scope
+  (403), an explicit "unavailable or outside your current authorization"
+  message renders instead of any chart, regardless of what the (separately
+  loaded) authorized list returned.
+- `App.tsx`: added the three new `:entityId` routes alongside the existing
+  static `/employees/manage` and `/products/manage` routes. React Router v6
+  ranks static path segments above dynamic ones during matching, so no
+  route-ordering conflict was introduced.
+- Backend `leader()` helper in `reports/service.rs` previously built every
+  dashboard leader card's `detail_path` as `/{segment}?selected={id}` for
+  all four segments (`businesses`, `shops`, `employees`, `products`).
+  Updated it to emit the new `/{segment}/{id}` form for shops/employees/
+  products so a dashboard leader card click lands directly on that entity's
+  new detail page instead of the bare list. Left the `businesses` segment on
+  the old query-string form since there is no per-business detail route yet
+  (a `/businesses/{id}` link would have hit the router's catch-all and
+  bounced the user to the dashboard picker — confirmed `BusinessStructurePage`
+  never actually read the old `?selected=` param anyway, so this preserves
+  its current harmless no-op behavior rather than introducing a regression).
+- Added `scopedEntityReport.*` i18n keys (English + French) for every new
+  user-facing string on both pages (loading/error states, "no sales for this
+  timeframe", the out-of-scope message, per-kind eyebrow and back-link
+  labels), and removed the now-unused `scopedEntityReport.selected` key
+  (the row "Selected" badge no longer exists now that navigation replaces
+  in-page selection).
+
+**Debugging and verification performed:**
+
+- Read `App.tsx`'s full route table before changing it to confirm React
+  Router v6's static-over-dynamic route ranking, avoiding a `/products/manage`
+  vs `/products/:entityId` conflict.
+- Traced `detail_path` end-to-end (`mbam-api/src/modules/reports/model.rs`
+  field, `service.rs` construction, `reportService.ts` frontend type,
+  `MetricCell`'s `leader?.detail_path ?? definition.fallbackPath` consumer in
+  `BaselineDashboards.tsx`) before touching the backend, to make sure
+  dashboard leader-card links would still work after the frontend routing
+  change instead of silently landing on a generic list with no clear "why
+  did I lose the entity selection" gap.
+- Confirmed via `grep` that no other frontend or backend code reads the old
+  `?selected=` query parameter for shops/employees/products.
+- `npx tsc --noEmit`, `npm run lint` (`--max-warnings 0`), `npm test`
+  (20 files / 52 tests — including the rewritten fail-closed security test,
+  now exercised via a route param instead of a query string), and
+  `npm run build` all passed.
+
+**Errors encountered:**
+
+- The rewritten fail-closed test initially asserted on the English
+  translation text, but this repo's test setup never initializes a real
+  i18next instance (confirmed this is the existing convention across every
+  test file, not something introduced here), so `t()` calls return the raw
+  key path in tests. Updated the assertion to check for the key path itself
+  (`scopedEntityReport.outOfScope`), which still validates the same security
+  property (an out-of-scope entity never renders its chart).
+
+**Checks not run:**
+
+- No Rust toolchain in this sandbox: `cargo check`/`cargo test` for the
+  `service.rs` change were not run locally. Relying on the `Mbam API Cargo
+  Check` GitHub Action after push; the change is a same-type `String` field
+  value change with no new dependencies, so risk is low, but this should be
+  treated as unconfirmed until that check is observed passing.
+- No live browser verification (no local Docker/Keycloak stack here).
+
+**Remaining risks and follow-up checks:**
+
+- `businesses` still has no dedicated per-entity detail page; if one is
+  added later, update the `leader()` helper's `detail_segment == "businesses"`
+  special case in `service.rs` to match, and add a `/businesses/:entityId`
+  route.
+- Recommend the user click through a leader card on each dashboard kind
+  (master/business/shop/cashier) plus the shops/employees/products list
+  pages in their own running `npm run dev` session to visually confirm the
+  new table and detail page layouts.
