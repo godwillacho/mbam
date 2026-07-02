@@ -1434,3 +1434,111 @@ to apply as defense-in-depth.
 - Consider adding a unit test that round-trips `create_offline_grant` /
   verifies an ES256-signed offline grant, so future dependency bumps in this
   area have real regression coverage instead of relying on manual audit.
+
+## 2026-07-02 - Dashboard Header Cleanup and Metric Card Overflow Fix
+
+**Related change:** `2026-07-02T21:37:50Z`
+
+**Requested behavior:** From annotated screenshots of the shop manager
+dashboard: (1) the "No authorized activity" text inside metric cards
+overflowed its box and should instead render empty, with the real reason
+logged for debugging rather than shown to the user; (2) remove the topbar's
+role/name heading entirely, keeping the sidebar's position and expanding
+both the sidebar nav links and the topbar's action controls to use the
+freed space more naturally; (3) remove the per-dashboard "TODAY / <title> /
+<description> / Record transaction" heading block entirely, with the page
+still flowing naturally afterward. All changes requested across every
+dashboard kind (master/business/shop/cashier).
+
+**Root cause / engineering reason:** `MetricCell`'s fallback string
+("No authorized activity") was shown whenever a metric had no leader data —
+which in practice mostly means "no sales recorded yet," not an actual
+authorization gap (unauthorized metrics are already fully hidden earlier via
+the `canAccessRoute`-filtered `definitions` list added in the previous
+dashboard-gating change). The misleading copy read like an auth error to the
+user, and its length (23 characters, `white-space: nowrap`) exceeded the
+metric card's available width because the `<strong>` element lacked
+`min-width: 0`, so it overflowed the card border instead of truncating. The
+topbar role/name heading and the per-dashboard title block were redundant
+with information already shown elsewhere (sidebar's current-access card,
+sidebar nav's active link, and the dashboard's own content) and added visual
+clutter the user wanted removed.
+
+**Files changed:**
+
+- `mbam-web/src/pages/dashboard/BaselineDashboards.tsx`
+- `mbam-web/src/pages/dashboard/MasterDashboard.css`
+- `mbam-web/src/components/app/AppShell.tsx`
+- `mbam-web/src/components/app/AppShell.css`
+- `debug.log`
+- `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- `MetricCell`: fallback `<strong>`/`<small>` values are now empty strings
+  instead of "No authorized activity"/"No sales yet" when `leader` is
+  undefined; added a `useEffect` that calls `logger.debug(...)` with the
+  metric/route key whenever this happens, so the reason is still visible in
+  logs (and Sentry, if configured) without surfacing user-facing text that
+  reads like an authorization error. Added `min-width: 0` and `min-height:
+  1em` to `.dashboard-metric-link strong` in `MasterDashboard.css` as
+  defense-in-depth so a genuinely long real entity name can't reproduce the
+  same overflow, and so the card doesn't visually collapse when the headline
+  is empty.
+- Removed the entire `.page-heading.clean-dashboard-heading` block (eyebrow
+  "Today", `<h2>` title, description, "Record transaction" link) from
+  `BaselineDashboard` in `BaselineDashboards.tsx`, along with the now-unused
+  `dashboardCopy` record. This function backs all four exported dashboards
+  (`MasterOwnerDashboard`, `BusinessAdminDashboard`, `ShopManagerDashboard`,
+  `CashierDashboard`), so the change applies uniformly. The removed
+  "Record transaction" shortcut remains reachable via the sidebar's own nav
+  link, which is already gated by `canAccessRoute(member, "recordTransaction")`.
+- Removed the topbar's `<span className="eyebrow">{roleName}</span><h1>{fullName}</h1>`
+  block from `AppShell.tsx`, which wraps every protected route (not just
+  dashboards), per the user's request. `.topbar` now contains only
+  `.topbar-actions`.
+- Rebalanced the freed space, per explicit user confirmation to do both:
+  increased `.sidebar-nav` gap (8px → 14px) and `.nav-link` padding
+  (11px 12px → 15px 16px), and set `.sidebar-nav { flex: 1; align-content:
+  start; }` so the nav list itself grows to fill more of the sidebar's
+  height instead of leaving a large empty gap above the pinned bottom card.
+  Changed `.topbar-actions` to `justify-content: space-between; width:
+  100%;` (was `flex-end`) and simplified `.topbar` to a plain centered flex
+  row, so the Dev account switcher, language switcher, "Ready to sync" pill,
+  and Sign out button spread across the topbar's full width instead of
+  staying cramped flush-right. Removed the now-dead `.topbar h1,` prefix
+  from the shared `.topbar h1, .page-heading h2` CSS rule (the standalone
+  `.page-heading h2` rule is untouched and still used by many other pages).
+
+**Debugging and verification performed:**
+
+- Confirmed via `grep` that `.page-heading.clean-dashboard-heading` is used
+  by many other pages (Reports, TeamAccessPage, TransactionInvoicePage,
+  ProductRevenuePage, BusinessStructurePage, PendingPaymentsPage,
+  DashboardMetricDetailPage, etc.) before removing it — the change is scoped
+  to only the JSX in `BaselineDashboards.tsx`, not the shared CSS class.
+- Confirmed no existing test references the removed copy strings
+  ("No authorized activity", "Shop manager dashboard", topbar h1 markup).
+- `npx tsc --noEmit` passed with no errors.
+- `npm run lint` passed (`--max-warnings 0`).
+- `npm test` passed (19 test files / 51 tests).
+- `npm run build` succeeded end-to-end, including the `vite build` bundling
+  and the `dist/` cleanup step.
+
+**Errors encountered:**
+
+- None.
+
+**Checks not run:**
+
+- No live browser verification in this sandbox (no local Docker/Keycloak
+  stack running here); recommend the user visually confirm the new layout
+  in their own `npm run dev` session across at least one account of each
+  role (master/business/shop/cashier) before considering this fully done.
+
+**Remaining risks and follow-up checks:**
+
+- The metric card's headline being empty (rather than an explicit
+  "No data yet" style message) is an intentional, explicit user choice for
+  now; if user feedback later prefers a neutral (non-alarming) placeholder
+  instead of fully blank, that's a one-line change back in `MetricCell`.

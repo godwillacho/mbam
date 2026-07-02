@@ -71,9 +71,11 @@
 }
 
 .dashboard-metric-link strong {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-height: 1em;
 }
 
 .dashboard-state {

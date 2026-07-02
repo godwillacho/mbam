@@ -13,6 +13,7 @@ import {
   type DashboardLeader,
   type DashboardSummary,
 } from "../../services/reportService";
+import { logger } from "../../services/logging/logger";
 import {
   listRecentCloudTransactions,
   type CloudTransaction,
@@ -34,28 +35,6 @@ interface MetricDefinition {
   routeKey: AppRouteKey;
   quantity?: boolean;
 }
-
-const dashboardCopy: Record<
-  BaselineKind,
-  { title: string; description: string }
-> = {
-  master: {
-    title: "Master owner dashboard",
-    description: "Today's leaders across your authorized account scope.",
-  },
-  business: {
-    title: "Business admin dashboard",
-    description: "Today's leaders across your assigned businesses and shops.",
-  },
-  shop: {
-    title: "Shop manager dashboard",
-    description: "Today's sales leaders inside your assigned shops.",
-  },
-  cashier: {
-    title: "Cashier dashboard",
-    description: "Today's personal sales activity in your assigned shop.",
-  },
-};
 
 const metricDefinitions: Record<BaselineKind, MetricDefinition[]> = {
   master: [
@@ -124,7 +103,16 @@ function MetricCell({
     ? definition.quantity
       ? `${leader.primary_value.toLocaleString()} sold`
       : formatMoney(leader.primary_value, currency)
-    : "No sales yet";
+    : "";
+
+  useEffect(() => {
+    if (!leader) {
+      logger.debug("Dashboard metric cell has no leader data", {
+        metricKey: definition.key,
+        routeKey: definition.routeKey,
+      });
+    }
+  }, [leader, definition.key, definition.routeKey]);
 
   return (
     <Link
@@ -133,7 +121,7 @@ function MetricCell({
       to={path}
     >
       <span>{definition.label}</span>
-      <strong>{leader?.entity_name ?? "No authorized activity"}</strong>
+      <strong>{leader?.entity_name ?? ""}</strong>
       <small>{value}</small>
       <AuthorizedLineChart
         compact
@@ -227,25 +215,8 @@ function BaselineDashboard({ kind }: BaselineDashboardProps) {
     };
   }, [showRecent]);
 
-  const copy = dashboardCopy[kind];
-
   return (
     <section className="page-grid role-dashboard-page">
-      <div className="page-heading clean-dashboard-heading">
-        <div>
-          <span className="eyebrow">Today</span>
-          <h2>{copy.title}</h2>
-          <p className="card-muted">{copy.description}</p>
-        </div>
-        {canAccessRoute(member, "recordTransaction") && (
-          <div className="dashboard-heading-action">
-            <Link className="primary-btn" to="/transactions/new">
-              Record transaction
-            </Link>
-          </div>
-        )}
-      </div>
-
       {state === "loading" && (
         <div className="card dashboard-state" role="status">
           Loading authorized dashboard metrics…
