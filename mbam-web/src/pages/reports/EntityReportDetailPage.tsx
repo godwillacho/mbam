@@ -186,6 +186,9 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
             label={series.entity_name}
             points={series.points}
             quantity={kind === "products"}
+            valueFormatter={kind === "products"
+              ? (value) => t("scopedEntityReport.unitsSold", { count: Math.round(value) })
+              : (value) => formatMoney(value, currency)}
           />
         )}
       </article>

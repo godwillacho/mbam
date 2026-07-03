@@ -26,6 +26,10 @@
   gap: 16px;
 }
 
+.report-distribution-card header {
+  margin-bottom: 16px;
+}
+
 .report-series-card header {
   display: flex;
   justify-content: space-between;

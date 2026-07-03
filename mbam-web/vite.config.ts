@@ -49,6 +49,17 @@ export default defineConfig(({ mode }) => {
             ) {
               return "vendor-react";
             }
+            if (
+              id.includes("/recharts/") ||
+              id.includes("/d3-") ||
+              id.includes("/victory-vendor/") ||
+              id.includes("/@reduxjs/") ||
+              id.includes("/react-redux/") ||
+              id.includes("/redux/") ||
+              id.includes("/reselect/")
+            ) {
+              return "vendor-charts";
+            }
             return undefined;
           },
         },

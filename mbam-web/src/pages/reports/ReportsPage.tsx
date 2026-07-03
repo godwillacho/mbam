@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
+import AuthorizedPieChart from "../../components/charts/AuthorizedPieChart";
 import TimeframeControl from "../../components/charts/TimeframeControl";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
@@ -27,6 +29,7 @@ function baseline(roleId: string): string {
 }
 
 export default function ReportsPage() {
+  const { t } = useTranslation();
   const member = getCurrentMember();
   const role = baseline(member.roleId);
   const dimensions = useMemo<ReportDimension[]>(
@@ -43,6 +46,21 @@ export default function ReportsPage() {
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const currency = workspace.businesses[0]?.currency ?? "XAF";
+  const isQuantityDimension = dimension === "products";
+  const distributionValueFormatter = useMemo(
+    () => (isQuantityDimension
+      ? (value: number) => t("reportsPage.unitsSold", { count: Math.round(value) })
+      : (value: number) => formatMoney(value, currency)),
+    [currency, isQuantityDimension, t],
+  );
+  const distributionData = useMemo(
+    () => (report?.series ?? []).map((series) => ({
+      id: series.entity_id,
+      name: series.entity_name,
+      value: isQuantityDimension ? series.total_quantity : series.total_revenue,
+    })),
+    [report, isQuantityDimension],
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -108,6 +126,23 @@ export default function ReportsPage() {
           No sales were recorded in this authorized scope and timeframe.
         </article>
       )}
+      {state === "ready" && report && report.series.length > 1 && (
+        <article className="card report-distribution-card">
+          <header>
+            <div>
+              <span className="eyebrow">{t("reportsPage.distributionEyebrow")}</span>
+              <h3>{t(`reportsPage.distributionTitle.${dimension}`)}</h3>
+              <p className="card-muted">{t("reportsPage.distributionHint")}</p>
+            </div>
+          </header>
+          <AuthorizedPieChart
+            ariaLabel={t(`reportsPage.distributionTitle.${dimension}`)}
+            data={distributionData}
+            emptyLabel={t("reportsPage.distributionEmpty")}
+            valueFormatter={distributionValueFormatter}
+          />
+        </article>
+      )}
       {state === "ready" && report && report.series.length > 0 && (
         <div className="report-series-grid">
           {report.series.map((series) => (
@@ -132,6 +167,7 @@ export default function ReportsPage() {
                 label={series.entity_name}
                 points={series.points}
                 quantity={dimension === "products"}
+                valueFormatter={distributionValueFormatter}
               />
             </article>
           ))}

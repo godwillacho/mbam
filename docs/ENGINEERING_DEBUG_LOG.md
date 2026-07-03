@@ -1845,3 +1845,143 @@ CSV file in their own `npm run dev` session.
   (e.g. "Cashiers" vs "Cashier") will show as unresolved rather than being
   fuzzy-matched, which is intentional (fail closed to a visible manual
   choice rather than guessing wrong).
+
+## 2026-07-03 - Recharts Chart Overhaul and New Distribution Pie Chart
+
+**Related change:** `2026-07-03T05:56:58Z`
+
+**Requested behavior:** "Have all the charts built with react recharts for
+a more immersive and professional look," and for businesses, add a pie
+chart for variable breakdowns — e.g. total daily sales for a shop mapped
+to sales per employee.
+
+**Root cause / engineering reason:** Not a defect; a visual/library
+upgrade requested directly by the user. The only chart in the app,
+`AuthorizedLineChart.tsx`, was built on Chart.js/react-chartjs-2.
+
+**Files changed:**
+
+- `mbam-web/package.json`, `mbam-web/package-lock.json`
+- `mbam-web/vite.config.ts`
+- `mbam-web/src/components/charts/AuthorizedLineChart.tsx`
+- `mbam-web/src/components/charts/AuthorizedPieChart.tsx` (new)
+- `mbam-web/src/components/charts/Charts.css`
+- `mbam-web/src/pages/reports/ReportsPage.tsx`
+- `mbam-web/src/pages/reports/ReportsPage.css`
+- `mbam-web/src/pages/reports/EntityReportDetailPage.tsx`
+- `mbam-web/src/i18n/reportsPageResources.ts` (new)
+- `mbam-web/src/main.tsx`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Installed `recharts@3.9.1` (peer-compatible with the app's React
+  18.3.1); removed `chart.js`/`react-chartjs-2`, confirmed via `grep` to
+  have no other importers.
+- `AuthorizedLineChart.tsx`: same public props (`points`, `label`,
+  `quantity`, `compact`, plus a new optional `valueFormatter`) so every
+  existing call site (dashboard metric-card sparklines, `ReportsPage`,
+  `EntityReportDetailPage`) kept working unchanged. Full mode is a
+  gradient-filled `AreaChart` with a styled tooltip, cartesian grid, and
+  axes matching the app's forest-green palette; `compact` mode strips all
+  chrome down to a bare sparkline for the dashboard metric cards. Used
+  `useId()` for the SVG gradient id so multiple charts on one page (e.g.
+  four dashboard metric cards) don't collide.
+- New `AuthorizedPieChart.tsx`: donut chart (`innerRadius`/`outerRadius`),
+  percentage slice labels, a right-side legend, a tooltip showing the
+  formatted value plus percentage share, and a dashed empty-state box when
+  there's no positive data.
+- `ReportsPage.tsx`: added a "Distribution" card above the existing
+  per-entity chart grid, rendered only when the current dimension tab
+  (Businesses/Shops/Employees/Products) has more than one entity with
+  data. It reuses the report already being fetched — `report.series`
+  mapped to revenue share (or unit-sold share for Products) — so no new
+  API calls were needed. This directly maps to the user's ask: selecting
+  the Employees tab shows a "sales per employee" pie, selecting Shops
+  shows "sales per shop."
+- Also passed a proper `valueFormatter` (currency via `formatMoney`, or
+  "N sold" via i18n) into the existing line charts on `ReportsPage` and
+  `EntityReportDetailPage`, so their tooltips show real formatted values
+  instead of raw numbers — previously not exposed by the Chart.js version.
+- Added `i18n/reportsPageResources.ts` for the new pie card's heading/hint
+  text (EN/FR). `ReportsPage.tsx` itself predates the i18n rollout and
+  still has hardcoded English copy elsewhere — an existing, unrelated gap,
+  intentionally not retrofitted here — but any newly introduced visible
+  text is wired through i18n per `docs/frontend-i18n-guidelines.md`.
+- Added a `vendor-charts` manual chunk in `vite.config.ts` covering
+  recharts and its transitive deps (`d3-*`, `victory-vendor`, the small
+  Redux slice recharts v3 pulls in for internal state). This keeps the
+  ~150 KB gzipped chart library out of the main app bundle, which dropped
+  from ~171 KB to ~62 KB gzipped as a result — most routes that don't
+  render a chart no longer need to parse it.
+
+**Debugging and verification performed:**
+
+- `npx tsc --noEmit` initially failed on both new/rewritten chart
+  components: Recharts v3's `Tooltip` `formatter` prop type doesn't accept
+  an explicitly-typed `(value: number) => ...` callback (its `ValueType`
+  includes `string`/arrays/`undefined`). Fixed by dropping the explicit
+  parameter annotation (letting TypeScript infer the parameter type from
+  context) and coercing with `Number(value)` inside the callback body.
+  Clean after the fix.
+- `npm run lint` (`--max-warnings 0`) clean.
+- `npm test` passed unchanged (21 files / 57 tests): every existing test
+  that renders a chart-bearing page (`ReportsPage.test.tsx`,
+  `EntityReportDetailPage.test.tsx`) already mocks `AuthorizedLineChart`
+  at the module level (an existing codebase convention — no test anywhere
+  renders the real chart internals), so none needed changes. The new pie
+  chart is gated behind `series.length > 1`, and no existing test fixture
+  supplies more than one series entry, so it never renders in the current
+  suite either — confirmed this is intentional gating (a pie with one
+  slice isn't a useful "distribution"), not a coverage gap being papered
+  over.
+- `npm run build` succeeded via `npx vite build --outDir /tmp/...` (known
+  sandbox `dist/` lock quirk workaround, unrelated to this change).
+  Confirmed the new `vendor-charts` chunk actually isolates the weight as
+  intended by comparing bundle output before/after adding the
+  `manualChunks` rule.
+
+**Errors encountered:** None beyond the two typing errors above, both
+resolved before this was considered done.
+
+**Checks not run:** No live browser verification (no local Docker/Keycloak
+stack in this sandbox) — recommend the user open the Reports page (try
+switching between the Employees/Shops tabs to see the new pie chart) and
+a dashboard in their own `npm run dev` session. No dedicated unit test was
+added for the two chart components themselves, matching the pre-existing
+convention in this codebase (charts are always mocked at the page level,
+never unit-tested directly against real Recharts/DOM internals, which
+would additionally require a `ResizeObserver` polyfill in the jsdom test
+environment).
+
+**Remaining risks and follow-up checks:**
+
+- `package-lock.json` picked up the sandbox's known Linux-vs-macOS `npm
+  install` noise (dropped `libc` metadata arrays on ~12 pre-existing,
+  unrelated platform-specific optional devDependencies) mixed in with the
+  real recharts/chart.js dependency changes. Left as-is — harmless, and
+  regenerates naturally the next time anyone runs `npm install` on any
+  platform.
+- The main JS bundle is still flagged by Vite's 400 KB chunk-size warning
+  (the new `vendor-charts` chunk itself is ~520 KB / ~154 KB gzipped, all
+  Recharts + d3 + a slice of Redux). This is an inherent cost of Recharts;
+  reducing it further would mean lazy-loading the chart chunk only on
+  routes that render a chart (dynamic `import()` for `ReportsPage`,
+  `EntityReportDetailPage`, and the dashboard pages), which is a
+  reasonable follow-up if bundle size becomes a real-world concern on slow
+  connections, but wasn't done here to keep this change focused.
+- A more literal reading of "sales per employee for a shop" would be a
+  single-shop-scoped employee breakdown on the shop's own detail page
+  (`EntityReportDetailPage` kind="shops"). That was deliberately not built
+  this round: the backend's `employee_sales` report query does not
+  currently accept a `business_unit_id` filter (it's wired for `shop`/
+  `business`/`product` dimensions but not `employee`), so building it
+  today would mean either a real backend query change (touching shared SQL
+  binding logic with no local Rust toolchain to compile-verify against, a
+  real cargo check risk) or a client-side filter on already-scope-wide
+  employee data that can misattribute revenue for any employee who records
+  sales at more than one shop in the window. The `ReportsPage` Employees
+  tab pie chart (correct-by-construction, since it's the same data already
+  authorized and fetched) covers the "sales per employee" part of the ask
+  today; a precise single-shop drill-down is a good candidate for a
+  dedicated backend endpoint if wanted next.
