@@ -7,6 +7,25 @@
   height: 76px;
 }
 
+.authorized-chart-empty {
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  background: #faf7f0;
+  text-align: center;
+  padding: 12px;
+}
+
+.authorized-chart-empty.compact {
+  border-radius: 10px;
+  padding: 6px;
+}
+
+.authorized-chart-empty p {
+  margin: 0;
+}
+
 .authorized-pie-chart {
   height: 260px;
   position: relative;

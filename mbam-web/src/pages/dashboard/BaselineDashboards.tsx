@@ -98,12 +98,15 @@ function MetricCell({
   leader?: DashboardLeader;
   currency: string;
 }) {
+  const { t } = useTranslation();
   const path = leader?.detail_path ?? definition.fallbackPath;
-  const value = leader
-    ? definition.quantity
-      ? `${leader.primary_value.toLocaleString()} sold`
-      : formatMoney(leader.primary_value, currency)
-    : "";
+  const valueFormatter = useMemo(
+    () => (definition.quantity
+      ? (amount: number) => t("scopedEntityReport.unitsSold", { count: Math.round(amount) })
+      : (amount: number) => formatMoney(amount, currency)),
+    [currency, definition.quantity, t],
+  );
+  const value = leader ? valueFormatter(leader.primary_value) : "";
 
   useEffect(() => {
     if (!leader) {
@@ -120,15 +123,20 @@ function MetricCell({
       className="metric-card dashboard-metric-link"
       to={path}
     >
-      <span>{definition.label}</span>
-      <strong>{leader?.entity_name ?? ""}</strong>
-      <small>{value}</small>
-      <AuthorizedLineChart
-        compact
-        label={definition.label}
-        points={leader?.points ?? []}
-        quantity={definition.quantity}
-      />
+      <div className="dashboard-metric-header">
+        <span>{definition.label}</span>
+        <strong>{leader?.entity_name ?? ""}</strong>
+        <small>{value}</small>
+      </div>
+      <div className="dashboard-metric-chart">
+        <AuthorizedLineChart
+          emptyLabel={t("roleDashboard.drill.graphEmpty")}
+          label={definition.label}
+          points={leader?.points ?? []}
+          quantity={definition.quantity}
+          valueFormatter={valueFormatter}
+        />
+      </div>
     </Link>
   );
 }

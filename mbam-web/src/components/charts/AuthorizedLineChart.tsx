@@ -16,6 +16,7 @@ interface AuthorizedLineChartProps {
   quantity?: boolean;
   compact?: boolean;
   valueFormatter?: (value: number) => string;
+  emptyLabel?: string;
 }
 
 const chartColor = "#236347";
@@ -37,6 +38,7 @@ export default function AuthorizedLineChart({
   quantity = false,
   compact = false,
   valueFormatter = defaultFormatter,
+  emptyLabel,
 }: AuthorizedLineChartProps) {
   const gradientId = useId();
   const data = useMemo(
@@ -47,6 +49,18 @@ export default function AuthorizedLineChart({
       })),
     [points, quantity, compact],
   );
+
+  if (data.length === 0 && emptyLabel) {
+    return (
+      <div
+        aria-label={`${label} chart`}
+        className={compact ? "authorized-chart compact authorized-chart-empty" : "authorized-chart authorized-chart-empty"}
+        role="img"
+      >
+        <p className="card-muted">{emptyLabel}</p>
+      </div>
+    );
+  }
 
   return (
     <div

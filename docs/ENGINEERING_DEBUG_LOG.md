@@ -1985,3 +1985,98 @@ environment).
   authorized and fetched) covers the "sales per employee" part of the ask
   today; a precise single-shop drill-down is a good candidate for a
   dedicated backend endpoint if wanted next.
+
+## 2026-07-03 - Dashboard Metric Cards: 2x2 Layout With Full Immersive Charts
+
+**Related change:** `2026-07-03T06:06:56Z`
+
+**Requested behavior:** From a screenshot of `/dashboard/business` showing
+the 4 metric cards as small boxes with a large empty area below them on a
+wide screen: "let this 4 boxes actually occupy the whole dashboard and the
+should be immersive graph for what the [they] portray." Follow-up
+clarification: arrange as 2 cards on top, 2 on bottom (not 4 in a row).
+
+**Root cause / engineering reason:** Not a defect; a layout/visual density
+request. The cards previously used a fixed-height (76px) bare sparkline
+with no axes/tooltip/empty-state, in a 4-column row with no minimum card
+height, so on wide screens the cards were small relative to the page and,
+combined with no sales data on the screenshot's dev/test account, looked
+almost entirely blank.
+
+**Files changed:**
+
+- `mbam-web/src/pages/dashboard/BaselineDashboards.tsx`
+- `mbam-web/src/pages/dashboard/MasterDashboard.css`
+- `mbam-web/src/components/charts/AuthorizedLineChart.tsx`
+- `mbam-web/src/components/charts/Charts.css`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- `.dashboard-leader-grid` changed from a 4-column row to
+  `repeat(2, minmax(0, 1fr))` — 2x2 for the 4-metric master/business
+  dashboards, 2+1 for shop's 3 metrics, one row for cashier's 2 metrics.
+- `.dashboard-metric-link` is now a flex column with `min-height: 380px`
+  and larger entity-name text (30px, up from the shared `.metric-card
+  strong` default 26px, via a more specific selector so the shared class
+  used elsewhere — Transactions filter buttons, Pending payments tiles —
+  is untouched).
+- `MetricCell` now renders the full (non-`compact`) `AuthorizedLineChart`
+  inside a `.dashboard-metric-chart` wrapper (`flex: 1; min-height: 240px`,
+  with a scoped `.dashboard-metric-chart .authorized-chart { height: 100%
+  }` override), instead of the old 76px bare sparkline — this brings back
+  gridlines, axis labels, and a formatted tooltip inside the dashboard
+  cards, matching the "immersive" ask.
+- Added a proper `valueFormatter` to `MetricCell` (currency via
+  `formatMoney`, or "N sold" via the existing `scopedEntityReport.
+  unitsSold` i18n key) — this also fixed a pre-existing hardcoded English
+  "sold" string in the same function that predated i18n being wired into
+  this component.
+- `AuthorizedLineChart.tsx` gained an `emptyLabel` prop: when there are no
+  chart points, it now renders a dashed-border placeholder box with that
+  text instead of an empty/confusing chart area. `MetricCell` passes the
+  existing `roleDashboard.drill.graphEmpty` key ("No sales data to
+  visualize yet.") — already translated EN/FR, no new i18n key needed.
+- Removed the now-dead `@media (max-width: 1020px) { .dashboard-leader-
+  grid { grid-template-columns: repeat(2, ...) } }` rule, since 2 columns
+  is now the unconditional default; the existing 760px breakpoint still
+  collapses to 1 column on mobile.
+
+**Debugging and verification performed:**
+
+- `npx tsc --noEmit` and `npm run lint` (`--max-warnings 0`) clean.
+- `npm test` surfaced a genuinely flaky (pre-existing, unrelated to this
+  change) failure in `CsvImportPanel.test.tsx`: its `uploadFile` test
+  helper waited a single fixed `setTimeout(resolve, 0)` tick for
+  `FileReader.onload` to fire, which jsdom does not guarantee completes
+  within one tick — different runs of the full suite non-deterministically
+  failed different assertions in that file. Fixed by polling for the
+  resulting DOM state (the mapping overlay or the error box appearing) up
+  to 100ms instead of a single fixed wait. Confirmed stable across 5
+  repeated isolated runs plus the full suite (21 files / 57 tests, all
+  green, no flakiness observed after the fix).
+- `npm run build` succeeded via `npx vite build --outDir /tmp/...` (known
+  sandbox `dist/` lock quirk workaround, unrelated to this change).
+
+**Errors encountered:** The `CsvImportPanel.test.tsx` flakiness described
+above; fixed as part of this change since it was blocking a clean
+`npm test` run.
+
+**Checks not run:** No live browser verification (no local Docker/Keycloak
+stack in this sandbox). The dev/test account used in the user's screenshot
+had zero sales recorded for today, so its cards will still show the new
+"No sales data to visualize yet" empty state rather than a populated
+chart — correct behavior, but means the actual chart visuals can't be
+confirmed end-to-end until there's real transaction data in that account
+(the user's very next request was to seed test data for exactly this
+reason — tracked as a separate, following change).
+
+**Remaining risks and follow-up checks:**
+
+- The 380px/240px card and chart sizing is a fixed value tuned for typical
+  laptop/desktop viewports, not a viewport-relative fill (deliberately
+  avoided chaining `flex: 1` through the shared, multi-page `.main-panel`
+  container in `AppShell.css`, which would have risked affecting every
+  other page's layout). On very tall monitors the 2x2 grid may not reach
+  the very bottom of the viewport; on short viewports it will scroll. This
+  is an intentional, lower-risk tradeoff versus precise 100vh-chasing CSS.

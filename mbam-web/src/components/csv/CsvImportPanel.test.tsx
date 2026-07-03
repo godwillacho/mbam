@@ -19,8 +19,20 @@ async function uploadFile(container: HTMLDivElement, contents: string) {
   Object.defineProperty(input, "files", { value: [csvFile(contents)], configurable: true });
   await act(async () => {
     input.dispatchEvent(new Event("change", { bubbles: true }));
-    await new Promise((resolve) => setTimeout(resolve, 0));
   });
+
+  // FileReader.onload resolves asynchronously and jsdom doesn't guarantee it
+  // completes within a single microtask/macrotask tick, so poll for the
+  // resulting DOM state (mapping overlay or error message) instead of a
+  // single fixed-length wait, which was flaky under the full test run.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (container.querySelector(".csv-mapping-overlay") || container.querySelector(".csv-import-error")) {
+      return;
+    }
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+  }
 }
 
 describe("CsvImportPanel", () => {
