@@ -7,11 +7,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends pkg-config libssl-dev ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-COPY Cargo.toml ./
+COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY migrations ./migrations
 
-RUN cargo build --release
+RUN cargo build --release --locked
 
 FROM debian:bookworm-slim
 

@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+target/
+logs/
+*.log
+.git
+.gitignore
+README*.md
+docs/
+DEVELOPMENT_TEST_ACCOUNTS.md

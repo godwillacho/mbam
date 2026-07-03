@@ -76,19 +76,7 @@ Expected response:
 RUST_LOG=mbam_api=debug,tower_http=debug cargo run
 ```
 
-## 6. Terminal switch testing rule
-
-Every API feature must include a terminal switch/manual runner that can exercise the new logic from the command line.
-
-For auth, run:
-
-```bash
-cargo run --bin auth_switch
-```
-
-This switch runner gives numbered options for local auth checks and prints/runs the relevant local requests.
-
-## 7. Current startup dependency
+## 6. Current startup dependency
 
 The API currently requires:
 

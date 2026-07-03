@@ -225,31 +225,3 @@ created_at
 updated_at
 ```
 
----
-
-## Terminal switch testing rule
-
-Every auth feature must have a terminal switch/manual test option.
-
-Auth runner:
-
-```bash
-cargo run --bin auth_switch
-```
-
-Minimum switch options:
-
-```text
-1. Print Google OAuth start URL
-2. Print Microsoft OAuth start URL
-3. Simulate owner OAuth callback with mock provider identity
-4. Create invite for cashier email
-5. Inspect invite by token/email
-6. Simulate invited cashier profile completion
-7. Login as seeded owner
-8. Login as seeded cashier
-9. Call /auth/me with a token
-0. Exit
-```
-
-The switch runner is not a replacement for tests. It is a fast local debugging tool so we can verify flows from the terminal before wiring or debugging the frontend.

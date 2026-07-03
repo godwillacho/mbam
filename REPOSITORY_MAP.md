@@ -31,14 +31,30 @@ Rust API
 | --- | --- |
 | `AGENTS.md` | Mandatory repository workflow and logging rules |
 | `REPOSITORY_MAP.md` | This living navigation map |
-| `docker-compose.private.yml` | Local PostgreSQL and Keycloak |
+| `docker-compose.private.yml` | Local PostgreSQL and Keycloak (API and web run on the host — see `docs/private-testing.md`) |
+| `docker-compose.private.env.example` | Template for the private-stack env vars (copy, do not commit the real file) |
 | `keycloak/mbam-realm.json` | Reproducible local realm, clients, audience, and baseline roles |
-| `docs/` | Security, observability, testing, and future-product documents |
+| `docs/` | Security, observability, testing, deployment, and future-product documents |
 | `debug.log`, `error.log` | Required engineering change records |
-| `.github/workflows/` | API, security, and integration automation |
+| `.github/workflows/` | API, security, and integration automation (runs on push to `main` and on pull requests) |
 
 Generated local directories such as `mbam-api/target`, `mbam-web/node_modules`,
 and `mbam-web/dist` are not source modules and can be recreated.
+
+## Deployment
+
+| Path | Purpose |
+| --- | --- |
+| `mbam-api/Dockerfile` | Multi-stage build: compiles `mbam-api` in release mode (`--locked`, using `Cargo.lock`), runs the binary in a slim Debian image |
+| `mbam-api/.dockerignore` | Keeps `.env`, `target/`, `logs/`, and docs out of the build context/image |
+| `mbam-web/Dockerfile` | Multi-stage build: `npm run build` then serves `dist/` via `mbam-web/nginx.conf` |
+| `mbam-web/.dockerignore` | Keeps `.env*`, `node_modules`, `dist`, and docs out of the build context/image |
+| `mbam-web/nginx.conf` | SPA fallback routing plus a `/api/` reverse proxy to a service named `api` |
+
+No compose file currently wires the API/web container images together with
+`db`/`keycloak` for a full containerized stack — see `docs/private-testing.md`
+for what actually runs today (API and web on the host, Postgres/Keycloak in
+Docker) versus what the Dockerfiles are staged for.
 
 ## Rust API: `mbam-api`
 
@@ -57,6 +73,13 @@ and `mbam-web/dist` are not source modules and can be recreated.
 | `src/routes/health.rs` | Health endpoint |
 | `src/dev_seed*.rs` | Development-only deterministic test fixture (used by `checklist_tests.rs`) |
 | `src/dev_demo_data.rs` | Development-only isolated demo business account: historical backfill plus a live-traffic background worker |
+
+`mbam-api/docs/AUTHENTICATION_DESIGN.md` documents the auth/OAuth/invite
+design; `mbam-api/README.md` and `mbam-api/README_MAC_DEBUG.md` cover local
+setup; `mbam-api/DEVELOPMENT_TEST_ACCOUNTS.md` lists the `dev_seed.rs`
+dashboard-test credentials (the separate `dev_demo_data.rs` demo account's
+credentials are documented in `debug.log`/`docs/ENGINEERING_DEBUG_LOG.md`'s
+2026-07-03 entry, not a standalone file).
 
 ### Active API domains
 
@@ -85,7 +108,7 @@ conflicts, and provides the reusable request authorization context.
 
 ### Database
 
-`migrations/0001...0009` are ordered schema history. Never edit an applied
+`migrations/0001...0012` are ordered schema history. Never edit an applied
 migration; add a new numbered migration.
 
 ## React PWA: `mbam-web`

@@ -2,7 +2,14 @@
 
 This guide explains how to host Mbam privately for early family testing.
 
-The first testing goal is simple: run the current frontend privately, then add the Rust API and PostgreSQL behind the same private access layer as features become real.
+`docker-compose.private.yml` currently starts only PostgreSQL and Keycloak;
+the Rust API and Vite web server are run directly on the host (see
+`mbam-api/README_MAC_DEBUG.md` and `mbam-api/DEVELOPMENT_TEST_ACCOUNTS.md`
+for the exact commands and default local credentials). Container images for
+the API and web app exist (`mbam-api/Dockerfile`, `mbam-web/Dockerfile`,
+`mbam-web/nginx.conf`) for a future fully-containerized deployment, but no
+compose file wires them together with `db`/`keycloak` yet — that is tracked
+as a follow-up, not covered by this guide.
 
 ## Recommended private access options
 
@@ -19,11 +26,11 @@ Good for:
 
 Basic flow:
 
-1. Install Docker on the host machine.
-2. Install Tailscale on the host machine.
-3. Invite your dad to your Tailscale network.
-4. Run Mbam with Docker Compose.
-5. Expose `localhost:8080` through Tailscale Serve.
+1. Install Tailscale on the host machine.
+2. Invite your dad to your Tailscale network.
+3. Run the private stack (below) plus the API and web server on the host.
+4. Expose the web server's port (default `5173` for `npm run dev`, or
+   whatever port the production build is served on) through Tailscale Serve.
 
 ### Option 2: Cloudflare Tunnel with Access
 
@@ -38,9 +45,9 @@ Good for:
 
 Basic flow:
 
-1. Put the app behind a Cloudflare Tunnel.
+1. Put the web server behind a Cloudflare Tunnel.
 2. Use Cloudflare Access to allow only approved emails.
-3. Point the tunnel to `http://localhost:8080`.
+3. Point the tunnel to the host/port the web server is running on.
 
 ### Option 3: Local LAN only
 
@@ -52,56 +59,54 @@ Good for:
 - No external access
 - No public exposure
 
-Update `docker-compose.private.yml` from `127.0.0.1:8080:80` to `8080:80`, then access the host machine's LAN IP.
+Change `docker-compose.private.yml`'s `POSTGRES_HOST_PORT`/`KEYCLOAK_HOST_PORT`
+bindings from `127.0.0.1:...` to `0.0.0.0:...` only if another device on the
+LAN needs to reach Postgres or Keycloak directly (rare) — for most private
+LAN testing, just point the other device's browser at the host machine's LAN
+IP and the web server's port; the database and identity provider stay
+loopback-only.
 
 ## Run the private stack
 
 From the repository root:
 
 ```bash
-docker compose -f docker-compose.private.yml up --build
+docker compose -f docker-compose.private.yml up -d
 ```
 
-Open locally:
-
-```text
-http://localhost:8080
-```
-
-## Services
-
-- `web` serves the React app through Nginx.
-- `api` runs the Rust Axum backend.
-- `db` runs PostgreSQL 16.
+This starts PostgreSQL (`127.0.0.1:5432` by default) and Keycloak
+(`127.0.0.1:8180` by default, realm auto-imported from
+`keycloak/mbam-realm.json`). Then, in separate terminals, run the API and web
+server on the host per `mbam-api/README_MAC_DEBUG.md` and the web app's
+`README.md`.
 
 ## Security notes before real testing
 
-Change these values in `docker-compose.private.yml` before giving access to anyone:
+Change these values in a local `docker-compose.private.env` (or exported
+environment variables — see `docker-compose.private.env.example`) before
+giving access to anyone:
 
 - `POSTGRES_PASSWORD`
-- `DATABASE_URL`
-- `JWT_ACCESS_SECRET`
+- `KEYCLOAK_ADMIN_PASSWORD`
+- `JWT_ACCESS_SECRET` (set when running `mbam-api`, not in the compose file)
 
-For the first private test, avoid storing real customer-sensitive data until real authentication and transaction persistence are fully implemented.
+For any private test involving people outside the immediate household, avoid
+storing real customer-sensitive data until the offline-sync and encryption
+layers have had a security review pass (see `docs/security-review-2026-06-11.md`
+and `docs/security-rules.md`).
 
 ## What works now
 
-- Frontend design pages
-- Auth design flow
-- Dashboard design
-- Transaction record design
-- Team access design
-- Business and shop structure design
-- Reports design
-- Rust API health endpoint
-- PostgreSQL container
+Authentication (Keycloak-based and legacy email/password), role-scoped
+dashboards, business/shop/product/team management, transaction recording and
+invoices, CSV import for products and employees, scoped reporting with
+Recharts visualizations, and API-authoritative offline sync are all
+implemented — see `REPOSITORY_MAP.md` for the current module map and
+`docs/MBAM_REFACTOR_CHECKLIST.md` for what has shipped.
 
 ## What still needs implementation
 
-- Real signup and login in Rust
-- Password hashing connected to user records
-- Token issuance and refresh token storage
-- Transaction persistence
-- IndexedDB offline queue
-- Sync push and pull endpoints
-- Role-based backend permission checks
+See `docs/future-receipt-import.md`, `docs/future-receipts-and-invoices.md`,
+and `docs/future-stock-management.md` for planned features not yet built, and
+the "Remaining risks and follow-up checks" sections of recent entries in
+`docs/ENGINEERING_DEBUG_LOG.md` for known gaps in already-shipped features.

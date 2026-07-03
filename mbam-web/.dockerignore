@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.local
+.git
+.gitignore
+.DS_Store
+*.log
+README.md
+STANDARDS.md
+.husky
+.vscode

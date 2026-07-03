@@ -2215,3 +2215,161 @@ local Docker/Keycloak stack in this sandbox).
 - The user's next request (repo-wide dead-code cleanup, `REPOSITORY_MAP.md`
   update, deployment reorganization) is tracked as a separate, following
   change and intentionally not touched here.
+
+## 2026-07-03 - Repo-Wide Dead Code Cleanup, Repository Map Update, and Deployment File Review
+
+**Related change:** `2026-07-03T06:42:27Z`
+
+**Requested behavior:** "go through the code repo clear any useless code ..
+edit the repo maping file with neccesary changes and arrange the code
+files in the best and secure way to ease the deployment face."
+
+**Root cause / engineering reason:** Not a defect; routine hygiene ahead
+of a deployment push. Several rounds of prior feature work (Keycloak
+migration, CSV import, Recharts overhaul, demo-data seeding) had left
+behind superseded scaffolding that was never cleaned up, and two
+deployment-facing docs/configs had drifted out of sync with the actual
+running architecture.
+
+**Files changed:**
+
+- Deleted: `mbam-api/src/bin/auth_switch.rs`, `mbam-api/docs/
+  API_DEVELOPMENT_RULES.md`, `mbam-web/src/components/auth/LoginForm.tsx`,
+  `SignupForm.tsx`, `SSOButtons.tsx`, `icons.tsx`
+- Untracked: `.DS_Store` (root)
+- Added: `mbam-api/.dockerignore`, `mbam-web/.dockerignore`
+- Modified: `mbam-api/docs/AUTHENTICATION_DESIGN.md`, `mbam-api/
+  README_MAC_DEBUG.md`, `mbam-api/Dockerfile`, `docs/private-testing.md`,
+  `mbam-web/README.md`, `REPOSITORY_MAP.md`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- **Dead code removal (backend):** `mbam-api/src/bin/auth_switch.rs` was
+  a never-finished debug CLI whose menu mostly printed "Pending
+  implementation" text — including for Google/Microsoft OAuth flows that
+  were later actually implemented for real in `modules/auth/routes.rs`,
+  which the tool never caught up to. It was a standalone Cargo-
+  auto-discovered `[[bin]]` with zero callers from the library crate or
+  `checklist_tests.rs`, so deleting it carries no runtime or test risk.
+  Deleted the matching `mbam-api/docs/API_DEVELOPMENT_RULES.md`, which
+  documented an abandoned "every feature needs a terminal switch runner"
+  convention (`transaction_switch`/`product_switch`/
+  `pending_payment_switch` were required by the doc but never built,
+  despite those features shipping long ago) — real integration tests in
+  `checklist_tests.rs` are what actually verifies backend behavior today.
+  Trimmed the matching "Terminal switch testing rule" sections out of
+  `AUTHENTICATION_DESIGN.md` and `README_MAC_DEBUG.md` (renumbering the
+  latter's remaining steps).
+- **Dead code removal (frontend):** `components/auth/LoginForm.tsx`,
+  `SignupForm.tsx`, `SSOButtons.tsx`, and the `icons.tsx` they exclusively
+  imported were confirmed dead by grepping the whole tree for references
+  outside their own files (none found). `AuthPage.tsx` — the only screen
+  that renders sign-in — exclusively calls `loginWithKeycloak()`/
+  `recoverKeycloakAccount()` plus an offline-passphrase unlock; it never
+  renders any of the four. These were leftover in-app login/signup forms
+  from before the frontend fully moved to Keycloak-hosted sign-in.
+- **Repo hygiene:** `.DS_Store` was tracked at the repo root despite being
+  listed in `.gitignore` (added to `.gitignore` after the file was already
+  committed once). Removed from git tracking with `git rm --cached` and
+  deleted the stray local copies.
+- **Deployment fix:** `mbam-api/Dockerfile` copied `Cargo.toml` into the
+  build stage but not `Cargo.lock`, so `cargo build --release` would
+  silently resolve fresh dependency versions instead of the locked,
+  CI-verified ones on every image build. Fixed to `COPY Cargo.toml
+  Cargo.lock ./` and `cargo build --release --locked` (fails loudly on a
+  stale lockfile instead of silently drifting — matches the `--locked`
+  flag CI's `cargo test` step already uses).
+- **Deployment hardening (user-gated):** The repo has a `cicd-workflow`
+  skill whose protocol is to ask before applying Docker/CI best practices
+  rather than silently deciding. Surfaced the two real gaps found (no
+  `.dockerignore` on either Dockerfile; both containers run as root) as an
+  explicit multi-select decision. The user approved only the
+  `.dockerignore` additions and declined the non-root-user and
+  privileged-port-80-nginx-image changes, so only `mbam-api/.dockerignore`
+  and `mbam-web/.dockerignore` were added (excluding `.env*`, `target/`/
+  `node_modules`/`dist`, `.git`, logs, and docs from each build context);
+  the container-user question was left as-is per that answer.
+- **Docs accuracy:** `docs/private-testing.md` described a three-service
+  (`web`/`api`/`db`) Compose stack on port 8080 that no longer matches the
+  real `docker-compose.private.yml` (which only runs `db`+`keycloak`; the
+  API and web app run on the host — see `mbam-api/README_MAC_DEBUG.md`),
+  plus a "What works now" checklist frozen at an early pre-auth,
+  pre-transactions snapshot of the project. Rewrote it to match current
+  reality and pointed the feature checklist at `REPOSITORY_MAP.md`/
+  `docs/MBAM_REFACTOR_CHECKLIST.md` instead of a hand-maintained list that
+  will just go stale again. `mbam-web/README.md` was generic
+  boilerplate (referenced nonexistent `hooks/`/`lib/` directories, said
+  "JWT + SSO" with no mention of Keycloak, had an unfilled
+  `YOUR_USERNAME` GitHub placeholder); rewrote its Stack/Structure
+  sections to match the real `src/` layout and current auth setup.
+- **`REPOSITORY_MAP.md`:** Fixed the migrations range (`0001...0009` was
+  stale — there are 12 now), added a new "Deployment" section documenting
+  both Dockerfiles, both new `.dockerignore` files, and `nginx.conf`,
+  plus the current gap (no compose file wires the API/web images together
+  with `db`/`keycloak` yet), and added notes on where each auth-related
+  doc and both dev seed modules' credentials live.
+
+**Debugging and verification performed:**
+
+- `npx knip` (which caught real issues in the 2026-06-18 cleanup) crashed
+  in this sandbox on a native `oxc-parser` `ArrayBuffer` allocation
+  failure unrelated to the codebase. Fell back to manual `grep`-based
+  reference checks: every frontend file cross-referenced against the rest
+  of the tree for import usage, plus a per-dependency `package.json`
+  usage grep (all listed dependencies confirmed in use). Backend
+  dead-code detection used `grep`/manual module-graph tracing from
+  `main.rs` (confirmed every `mod` declaration resolves to a directory
+  still reachable from `build_router`, and that the deleted `bin` had no
+  callers) — no `cargo`/`rustc`/Docker available in this sandbox.
+- Frontend: `npx tsc --noEmit` clean; `npm run lint` clean
+  (`--max-warnings 0`); `npm test` passed (21 files / 57 tests, unchanged
+  — confirms no test referenced any of the four deleted auth components);
+  `npx vite build --mode production --outDir <temp dir>` succeeded.
+- Backend: no Rust toolchain in this sandbox, so verification was
+  read-only review, not compilation — confirmed `auth_switch.rs` was the
+  only file under `src/bin/` before deleting it, confirmed via `grep` it
+  had zero callers anywhere in the tree, and confirmed the Dockerfile
+  edit is a two-line, low-risk change with no path/logic implications.
+  Relies on the `Mbam API Cargo Check` GitHub Action (triggers on push to
+  `main`) as the real compiler gate for the Rust-side deletion, same as
+  the previous change.
+
+**Errors encountered:** `npx knip` crashed with `RangeError: Array buffer
+allocation failed` inside `oxc-parser`'s native raw-transfer buffer setup
+— a sandbox-specific resource/allocation issue, not a codebase problem
+(confirmed by retrying with `NODE_OPTIONS=--max-old-space-size=1024`,
+same crash, despite the sandbox having ~2.8 GB free). Worked around with
+manual grep-based checks instead; see "Remaining risks" below.
+
+**Checks not run:** `cargo check`/`cargo test`/`cargo clippy` and a real
+`docker build` for either Dockerfile (no Rust toolchain or Docker in this
+sandbox — same standing limitation as every other backend change this
+session). `npx knip` did not complete (see above) — worth retrying in a
+normal dev environment or CI to double-check for anything the manual
+sweep missed, since it's a more thorough check than grep alone.
+
+**Remaining risks and follow-up checks:**
+
+- No compose file currently builds/runs the `mbam-api`/`mbam-web` Docker
+  images together with `db`/`keycloak` for a full containerized
+  deployment — the Dockerfiles exist and were reviewed/fixed (lockfile
+  copy, `.dockerignore`) but are not yet wired into an actual deploy
+  pipeline. Documented as a known gap in `REPOSITORY_MAP.md` and
+  `docs/private-testing.md` rather than guessed at, since fabricating an
+  untested production compose file or CD pipeline would be a bigger risk
+  than leaving the gap clearly documented.
+- Declined by the user (tracked as a deliberate choice, not an oversight):
+  neither Dockerfile runs its container as a non-root user, and
+  `mbam-web`'s image uses the standard (privileged-port-80) `nginx:1.27-
+  alpine` base rather than an unprivileged variant. Revisit before a real
+  production deployment if that matters for the target hosting
+  environment.
+- Did not physically relocate any directories (e.g. consolidating
+  root-level deployment files into a `deploy/` folder) because Dockerfile
+  `COPY` paths, the Compose file's build context, and CI `working-
+  directory` settings are all relative paths that cannot be verified
+  without a working Docker/Rust environment in this sandbox — a silent
+  breakage from a move would only surface when the user tries to build,
+  which is worse than leaving the current, now-documented flat layout in
+  place.
