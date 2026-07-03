@@ -2216,6 +2216,29 @@ local Docker/Keycloak stack in this sandbox).
   update, deployment reorganization) is tracked as a separate, following
   change and intentionally not touched here.
 
+**Follow-up correction (2026-07-03T11:39:27Z):** The credentials above do
+not work as browser sign-in passwords — this was not caught before the
+change shipped and the user hit it directly ("default credentials not
+working even after db reset"). Root cause: `dev_demo_data.rs` (like the
+pre-existing `dev_seed.rs`) only creates Postgres rows. The web app's
+sign-in screen unconditionally redirects to Keycloak's hosted login
+(`AuthPage.tsx` has no legacy-login branch — confirmed after removing the
+dead in-app login/signup forms in the repo-cleanup change further below),
+and the Keycloak realm import creates zero human users with
+`registrationAllowed: false`, so none of these emails exist in Keycloak.
+No database reset can fix that, since the missing piece isn't in
+Postgres. Additionally, even after manually linking a Keycloak user by
+email, sign-in still requires that Keycloak user to hold the matching
+realm role (`master_owner`/`business_admin`/`shop_manager`/`cashier`) —
+`AuthorizationContext::new` in `authentication/context.rs` requires
+Keycloak's asserted roles and the local membership's baseline role to
+resolve to the same single value, or the request fails closed with 401.
+This is a pre-existing dev-experience gap (identical for the original
+`dev_seed.rs` accounts, not something introduced by this change).
+Documented the full manual-linking procedure, including the
+previously-omitted role-assignment step, in
+`mbam-api/DEVELOPMENT_TEST_ACCOUNTS.md`.
+
 ## 2026-07-03 - Repo-Wide Dead Code Cleanup, Repository Map Update, and Deployment File Review
 
 **Related change:** `2026-07-03T06:42:27Z`
