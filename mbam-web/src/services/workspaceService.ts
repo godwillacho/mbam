@@ -1,4 +1,4 @@
-import { updateCloudWorkspace, workspace } from "../data/mockWorkspace";
+import { activateCloudWorkspace, updateCloudWorkspace, workspace } from "../data/mockWorkspace";
 import { setCurrentMemberId } from "../security/accessControl";
 import type { PaymentMethod, ScopeLevel, TeamMember, TransactionStatus } from "../types/workspace";
 import { listBusinesses, listBusinessUnits } from "./businessService";
@@ -96,6 +96,14 @@ export async function hydrateAuthorizationWorkspace(): Promise<TeamWorkspace | u
   const session = getCurrentSession();
   if (!session) return undefined;
   if (!session.accessToken) return hydrateOfflineWorkspace(session.user.id);
+
+  // Replace the static demo/mock fixture with a placeholder tied to the real
+  // signed-in user before any authenticated data loads. Without this,
+  // `workspace.masterAccount.id` would keep the mock fixture's static id
+  // forever (`updateCloudWorkspace` below only ever merges `name`/`currency`
+  // into `masterAccount`, never `id`), so `isDemoWorkspace()` would remain
+  // true for the rest of the session even though the account is real.
+  activateCloudWorkspace(session.user);
 
   const team = authorizationBootstrapToTeamWorkspace(
     await loadAuthorizationBootstrap(),

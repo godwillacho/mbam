@@ -2540,3 +2540,80 @@ stack in this sandbox).
   tabs open against a shared, non-local API) they should be revisited
   together, likely by extracting a shared `usePollingFetch` hook instead
   of the three near-identical closures now living in each page.
+
+## 2026-07-03 - Wire Up Dead `activateCloudWorkspace` To Fix Permanent "Dev Account" Switcher
+
+**Related change:** `2026-07-03T15:16:56Z`
+
+**Requested behavior:** While live-debugging the user's "still not seeing
+live data" report (browser-verified via Claude in Chrome tools), found the
+real root cause was an account mismatch (the user was signed in as the
+original `dev_seed.rs` test account, business `10000000-...-201`, which
+has zero transactions — not the demo business `30000000-...-201` fed by
+the live-traffic worker; documented and resolved separately in chat, not a
+code change). While in the browser confirming that, noticed an unrelated,
+pre-existing bug: the topbar's "Dev account" switcher — meant only for
+browsing the app before any real sign-in — was visible even for that
+fully real, Keycloak-authenticated session. The user asked to fix it.
+
+**Root cause / engineering reason:** `data/mockWorkspace.ts` exports
+`isDemoWorkspace()` (`workspace.masterAccount.id === "master-001"`, the
+static mock fixture's id) to gate the dev-only switcher, and a matching
+`activateCloudWorkspace(user)` function whose own unit test asserts it
+"removes demo data before rendering an authenticated account" — including
+setting `masterAccount.id` to the real user's id. That function was never
+called anywhere outside its own test. The real hydration path in
+`services/workspaceService.ts` only ever merges `name`/`currency` into
+`masterAccount` (never `id`), so the mock fixture's static id survived
+every real sign-in indefinitely, and `isDemoWorkspace()` stayed `true`
+forever once a session started, regardless of authentication.
+
+**Files changed:**
+
+- `mbam-web/src/services/workspaceService.ts`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Added one call: `activateCloudWorkspace(session.user)` at the top of
+  `hydrateAuthorizationWorkspace()`, right after confirming an online
+  session exists and before `loadAuthorizationBootstrap()` fetches real
+  data. This is the already-written, already-tested reset function —
+  no new logic was introduced, it was simply wired into the one code path
+  that never called it.
+- The existing `applyTeamAuthorization`/`updateCloudWorkspace` calls
+  immediately after (unchanged) then populate the real team, business,
+  product, and transaction data on top of the now-correctly-id'd
+  workspace.
+
+**Debugging and verification performed:**
+
+- `npx tsc --noEmit` and `npm run lint` (`--max-warnings 0`) clean.
+- `npm test` passed (21 files / 57 tests, unchanged) — `mockWorkspace.
+  test.ts` already exercised `activateCloudWorkspace`'s exact contract and
+  continued to pass unmodified.
+- Live-verified directly against the user's own running `npm run dev`
+  session using the Claude in Chrome browser tools (connected, local):
+  read the console and network requests to first confirm the dashboard
+  really was hitting the live API as a real authenticated user (not mock
+  data), then reloaded `/dashboard/master` after the fix and took a
+  screenshot confirming the "Dev account" switcher no longer renders,
+  while the rest of the topbar and the correct workspace/role labels in
+  the sidebar are unaffected.
+
+**Errors encountered:** None.
+
+**Checks not run:** `npm run build` was not re-run in isolation for this
+specific change (verified minutes earlier as part of the same session's
+polling changes, with no intervening untested edits to build-relevant
+files); the live browser verification above is a stronger, more direct
+signal for a UI-visibility fix like this one than a build check alone.
+
+**Remaining risks and follow-up checks:**
+
+- Offline authorization snapshots saved to IndexedDB *before* this fix
+  (if any exist from earlier testing) would still carry the stale mock
+  `masterAccount.id` until the next real online sign-in re-saves a fresh
+  snapshot — not a functional problem (offline mode doesn't gate anything
+  on `isDemoWorkspace()`), just noted for completeness since snapshots are
+  a clone of whatever `workspace` held at save time.
