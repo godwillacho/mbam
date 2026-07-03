@@ -2396,3 +2396,78 @@ sweep missed, since it's a more thorough check than grep alone.
   breakage from a move would only surface when the user tries to build,
   which is worse than leaving the current, now-documented flat layout in
   place.
+
+## 2026-07-03 - Dashboard Auto-Refresh Polling For Live Demo Traffic
+
+**Related change:** `2026-07-03T14:57:35Z`
+
+**Requested behavior:** The user confirmed (via the `cargo run` logs) that
+the demo-data live-traffic worker from the earlier change was correctly
+inserting a new transaction roughly every 75 seconds, but reported "the
+data is being put into the api from the cargo logs but it is not
+reflecting in the front end in real time." Asked via a clarifying question
+whether they wanted auto-refresh polling, a manual refresh button, or to
+just reload the page — they chose auto-refresh polling.
+
+**Root cause / engineering reason:** Not a defect in the strict sense —
+`BaselineDashboard` (`BaselineDashboards.tsx`) was written for a normal
+user session where dashboard data doesn't change from second to second, so
+it fetched once on mount and never again. That assumption stopped holding
+once a background worker started continuously writing new transactions;
+an already-open tab had no mechanism to learn about them.
+
+**Files changed:**
+
+- `mbam-web/src/pages/dashboard/BaselineDashboards.tsx`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Added `DASHBOARD_POLL_INTERVAL_MS = 30_000` and refactored the single
+  fetch effect into a reusable `fetchDashboardData(isInitialLoad)` closure.
+- Initial load behavior is unchanged: sets `state` to `"loading"` (full
+  page spinner) and clears data to `null`/`[]` on failure.
+- A `window.setInterval` re-runs the same fetch every 30 seconds with
+  `isInitialLoad = false`: success silently swaps in the new
+  `summary`/`transactions` state (no spinner, no flicker — since the
+  metric cards and their `AuthorizedLineChart`s are driven directly by
+  `summary` state, they re-render with the new data automatically, no
+  chart-specific changes needed); failure logs via the existing
+  `logger.debug` pattern and intentionally leaves the last good data on
+  screen rather than replacing it with the error view, so one transient
+  network blip doesn't blank out an otherwise-working dashboard.
+- The interval is cleared in the effect's cleanup function alongside the
+  existing `ignore` flag, so it stops cleanly on unmount or when
+  `showRecent` changes and the effect re-runs.
+
+**Debugging and verification performed:**
+
+- `npx tsc --noEmit` and `npm run lint` (`--max-warnings 0`) clean.
+- `npm test` passed (21 files / 57 tests, unchanged) — confirmed via
+  `grep` that no existing test renders `BaselineDashboards.tsx` or any of
+  its four exported dashboard components, so the new interval isn't
+  exercised by (and can't hang) the test suite.
+- `npm run build` succeeded via `npx vite build --outDir /tmp/...`.
+
+**Errors encountered:** None.
+
+**Checks not run:** No live browser verification (no local Docker/Keycloak
+stack in this sandbox) — the user will need to confirm in their own
+`npm run dev` session that a demo dashboard's numbers/charts visibly
+change within one or two 30-second polls without a manual reload.
+
+**Remaining risks and follow-up checks:**
+
+- 30 seconds is a reasonable middle ground against the live-traffic
+  worker's 75-second insert interval (catches each new transaction within
+  1-3 polls); tune `DASHBOARD_POLL_INTERVAL_MS` if that cadence feels
+  wrong once observed live.
+- Polling has no `document.visibilitychange` gating, so it keeps running
+  even in a backgrounded/hidden tab. Fine for a local dev tool hitting
+  `localhost`; would need gating (or a shared/shorter-lived subscription
+  model) before this pattern is reused against a shared or production API.
+- This same "fetch once on mount" pattern exists on `ReportsPage.tsx` and
+  `EntityReportDetailPage.tsx`, which also render charts that won't
+  reflect live demo traffic without a reload — tracked as a separate,
+  immediately-following change per the user's follow-up request that
+  "graphs should be built an updated in real time."

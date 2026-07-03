@@ -36,6 +36,11 @@ interface MetricDefinition {
   quantity?: boolean;
 }
 
+// Live-traffic demo/test data (see mbam-api's dev_demo_data.rs) keeps
+// inserting new transactions in the background, so poll for fresh dashboard
+// data periodically instead of only fetching once on mount.
+const DASHBOARD_POLL_INTERVAL_MS = 30_000;
+
 const metricDefinitions: Record<BaselineKind, MetricDefinition[]> = {
   master: [
     { key: "business", label: "Top business", fallbackPath: "/businesses", routeKey: "businesses" },
@@ -201,25 +206,44 @@ function BaselineDashboard({ kind }: BaselineDashboardProps) {
 
   useEffect(() => {
     let ignore = false;
-    setState("loading");
-    Promise.all([
-      loadDashboardSummary(),
-      showRecent ? listRecentCloudTransactions() : Promise.resolve([]),
-    ])
-      .then(([nextSummary, nextTransactions]) => {
-        if (ignore) return;
-        setSummary(nextSummary);
-        setTransactions(nextTransactions);
-        setState("ready");
-      })
-      .catch(() => {
-        if (ignore) return;
-        setSummary(null);
-        setTransactions([]);
-        setState("error");
-      });
+
+    const fetchDashboardData = (isInitialLoad: boolean) => {
+      if (isInitialLoad) setState("loading");
+      return Promise.all([
+        loadDashboardSummary(),
+        showRecent ? listRecentCloudTransactions() : Promise.resolve([]),
+      ])
+        .then(([nextSummary, nextTransactions]) => {
+          if (ignore) return;
+          setSummary(nextSummary);
+          setTransactions(nextTransactions);
+          setState("ready");
+        })
+        .catch((error: unknown) => {
+          if (ignore) return;
+          if (isInitialLoad) {
+            setSummary(null);
+            setTransactions([]);
+            setState("error");
+          } else {
+            // A background refresh failed (e.g. a transient network blip).
+            // Keep showing the last good data instead of replacing it with
+            // an error state.
+            logger.debug("Background dashboard refresh failed; keeping last known data", {
+              error,
+            });
+          }
+        });
+    };
+
+    void fetchDashboardData(true);
+    const intervalId = window.setInterval(() => {
+      void fetchDashboardData(false);
+    }, DASHBOARD_POLL_INTERVAL_MS);
+
     return () => {
       ignore = true;
+      window.clearInterval(intervalId);
     };
   }, [showRecent]);
 
