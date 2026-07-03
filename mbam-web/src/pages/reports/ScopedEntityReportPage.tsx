@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { canManageProducts, getCurrentMember } from "../../security/accessControl";
+import { canManageProducts, getCurrentMember, getScopedUnits } from "../../security/accessControl";
 import { loadAuthorizationBootstrap } from "../../services/authorizationService";
 import { listAuthorizedProductsOnline } from "../../services/productService";
 import { loadTeamWorkspace } from "../../services/teamService";
@@ -23,25 +23,12 @@ function compareEntities(a: EntityItem, b: EntityItem, column: SortColumn, direc
   return direction === "asc" ? comparison : -comparison;
 }
 
-const pageCopy: Record<
-  PageKind,
-  { eyebrow: string; title: string; description: string }
-> = {
-  shops: {
-    eyebrow: "Authorized shops",
-    title: "Shop revenue",
-    description: "Select an assigned shop to view its API-scoped revenue.",
-  },
-  employees: {
-    eyebrow: "Authorized employees",
-    title: "Employee sales",
-    description: "Select an employee to view sales within your management scope.",
-  },
-  products: {
-    eyebrow: "Authorized products",
-    title: "Product sales",
-    description: "Select a product to view sold quantity and revenue.",
-  },
+// Reuse the same labels the sidebar nav already shows for these pages
+// ("employees" pages are labeled "Employees" via the "team" nav key).
+const featureLabelKey: Record<PageKind, string> = {
+  shops: "app.nav.shops",
+  employees: "app.nav.team",
+  products: "app.nav.products",
 };
 
 async function loadItems(kind: PageKind): Promise<EntityItem[]> {
@@ -72,8 +59,10 @@ async function loadItems(kind: PageKind): Promise<EntityItem[]> {
 
 export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
   const { t } = useTranslation();
-  const copy = pageCopy[kind];
   const member = getCurrentMember();
+  const scopedUnits = useMemo(() => getScopedUnits(member), [member]);
+  const singleShopName = kind === "shops" && scopedUnits.length === 1 ? scopedUnits[0].name : null;
+  const pageLabel = singleShopName ?? t(featureLabelKey[kind]);
   const navigate = useNavigate();
   const [items, setItems] = useState<EntityItem[]>([]);
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
@@ -124,12 +113,8 @@ export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
 
   return (
     <section className="page-grid">
-      <div className="page-heading clean-dashboard-heading">
-        <div>
-          <span className="eyebrow">{copy.eyebrow}</span>
-          <h2>{copy.title}</h2>
-          <p className="card-muted">{copy.description}</p>
-        </div>
+      <div className="page-heading scoped-entity-heading">
+        <h2>{pageLabel}</h2>
         <div className="dashboard-heading-action">
           {kind === "employees" && (
             <Link className="secondary-btn" to="/employees/manage">
@@ -145,9 +130,6 @@ export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
       </div>
 
       <article className="table-card scoped-entity-table-card scoped-entity-table-card-full">
-        <header>
-          <h3>{copy.eyebrow}</h3>
-        </header>
         {listState === "loading" && (
           <p className="scoped-entity-table-state" role="status">
             {t("scopedEntityReport.loadingList")}

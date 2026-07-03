@@ -136,9 +136,8 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
 
   return (
     <section className="page-grid">
-      <div className="page-heading clean-dashboard-heading">
+      <div className="page-heading scoped-entity-heading">
         <div>
-          <span className="eyebrow">{t(`scopedEntityReport.detailEyebrow.${kind}`)}</span>
           <h2>{selectedItem?.name ?? t("scopedEntityReport.loadingEntity")}</h2>
           {selectedItem?.description && (
             <p className="card-muted">{selectedItem.description}</p>

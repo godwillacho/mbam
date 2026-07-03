@@ -1661,3 +1661,83 @@ user found "gimmicky and unnecessarily complex."
   (master/business/shop/cashier) plus the shops/employees/products list
   pages in their own running `npm run dev` session to visually confirm the
   new table and detail page layouts.
+
+## 2026-07-03 - Simplify Shops/Employees/Products Page Labels
+
+**Related change:** `2026-07-03T05:22:11Z`
+
+**Requested behavior:** From an annotated screenshot of `/shops`, remove two
+redundant heading labels (a page-level eyebrow/title/description block, and
+a duplicate table-card title repeating the same text) and replace both with
+one minimal label: the generic feature name ("Shops") for members who can
+access more than one shop, or the specific shop's own name for members
+confined to exactly one shop. Scoped (per clarifying question) to only the
+Shops/Employees/Products list pages and their new per-entity detail pages,
+not the ~9 other pages sharing the same heading block pattern.
+
+**Root cause / engineering reason:** Not a defect; a UI simplification.
+`ScopedEntityReportPage.tsx` showed the same "Authorized shops" text twice —
+once as a page eyebrow, once as the table card's own `<h3>` — and
+`EntityReportDetailPage.tsx`'s generic "Shop performance" eyebrow was
+redundant with its own `<h2>`, which already displays the specific entity's
+name.
+
+**Files changed:**
+
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.tsx`
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.css`
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.test.tsx`
+- `mbam-web/src/pages/reports/EntityReportDetailPage.tsx`
+- `mbam-web/src/i18n/roleDashboardResources.ts`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Added `getScopedUnits(member).length` as the basis for "can access more
+  than one shop" per explicit user confirmation (reflects the member's
+  actual current access, not a fixed role-tier assumption).
+- `ScopedEntityReportPage.tsx`: single `<h2>` label reusing the existing
+  sidebar nav i18n keys (`app.nav.shops`, `app.nav.team` for employees,
+  `app.nav.products`) instead of new duplicate copy; falls back to the
+  single shop's own name when `kind === "shops"` and exactly one shop is in
+  scope. Removed the table card's own duplicate `<header><h3>` entirely.
+- `EntityReportDetailPage.tsx`: removed the generic per-kind eyebrow; the
+  `<h2>` (entity's own name) is now the sole heading.
+- Removed the now-unused `scopedEntityReport.detailEyebrow.*` EN/FR keys.
+- Added `.scoped-entity-heading` (a plain flex row: label + optional
+  "Manage X" action) as a shared, explicit replacement for the previous
+  `.clean-dashboard-heading` pairing on these two pages.
+
+**Debugging and verification performed:**
+
+- While tracing why the old `.page-heading.clean-dashboard-heading` combo
+  visually laid out as title-then-action-on-its-own-row rather than a single
+  flex row, confirmed via `grep` across every CSS file that `.page-heading`
+  has no base `display: flex` (or `display: grid`) rule anywhere in the
+  codebase — `.clean-dashboard-heading`'s `align-items`/`gap` properties are
+  effectively inert without it. This is a pre-existing, unrelated latent gap
+  in the shared class (out of scope to fix universally here), which is why
+  the new `.scoped-entity-heading` class explicitly declares its own
+  `display: flex` rather than relying on the ambiguous shared pattern.
+- `npx tsc --noEmit`, `npm run lint` (`--max-warnings 0`), `npm test`
+  (20 files / 54 tests — added two new tests: single-shop-name path and
+  multi-shop generic-label path), and `npm run build` all passed.
+
+**Errors encountered:**
+
+- None.
+
+**Checks not run:**
+
+- No live browser verification (no local Docker/Keycloak stack in this
+  sandbox).
+
+**Remaining risks and follow-up checks:**
+
+- The same `.page-heading.clean-dashboard-heading` pattern still exists,
+  unchanged, on Reports, Transactions, Team management, Product management,
+  Business structure, Pending payments, and transaction drafts/invoice —
+  intentionally out of scope for this pass per explicit user decision.
+- The underlying `.page-heading` missing-`display:flex` gap noted above
+  still affects those other pages; worth a dedicated cleanup pass if it ever
+  causes a visible layout issue there.

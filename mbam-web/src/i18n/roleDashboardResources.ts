@@ -133,11 +133,6 @@ const en = {
     noSalesForTimeframe: "No sales exist for this timeframe.",
     outOfScope: "This entity is unavailable or outside your current authorization.",
     unitsSold: "{{count}} sold",
-    detailEyebrow: {
-      shops: "Shop performance",
-      employees: "Employee performance",
-      products: "Product performance",
-    },
     detailBackTo: {
       shops: "Back to shops",
       employees: "Back to employees",
@@ -328,11 +323,6 @@ const fr = {
     noSalesForTimeframe: "Aucune vente n'existe pour cette période.",
     outOfScope: "Cette entité n'est pas disponible ou se trouve en dehors de votre autorisation actuelle.",
     unitsSold: "{{count}} vendu(s)",
-    detailEyebrow: {
-      shops: "Performance de la boutique",
-      employees: "Performance de l'employé",
-      products: "Performance du produit",
-    },
     detailBackTo: {
       shops: "Retour aux boutiques",
       employees: "Retour aux employés",

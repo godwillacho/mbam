@@ -1,3 +1,11 @@
+.scoped-entity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
 .scoped-entity-table-card {
   display: flex;
   flex-direction: column;
