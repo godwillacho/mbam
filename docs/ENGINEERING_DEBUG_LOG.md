@@ -2080,3 +2080,138 @@ reason — tracked as a separate, following change).
   other page's layout). On very tall monitors the 2x2 grid may not reach
   the very bottom of the viewport; on short viewports it will scroll. This
   is an intentional, lower-risk tradeoff versus precise 100vh-chasing CSS.
+
+## 2026-07-03 - Isolated Demo Business Account With Live Traffic Generator
+
+**Related change:** `2026-07-03T06:32:44Z`
+
+**Requested behavior:** "lets create a good amount of data so our dash
+boards are not empty and we can start testing fine grain funtionality
+before attacking the offline saving layer." When asked (via a clarifying
+question) whether to risk extending the existing test fixture or build a
+new isolated account, the user's actual answer went further: "remove all
+data in the code even if it means removing the test account completely
+....the testing data and account should mic mic realtime traffic and thus
+be in the data base if posiible create a stream that should always add
+some test data in real time so we can always confirm the dashboard and
+features are funtiional" — interpreted as: a separate demo account with
+both a historical backfill and a continuously running live-traffic
+generator, not just a static one-time seed.
+
+**Root cause / engineering reason:** Not a defect; the existing
+`dev_seed.rs` fixture only creates 2 products and zero transactions, so
+every dashboard/report/chart was empty during development. That fixture
+could not safely be extended with bulk data because `checklist_tests.rs`
+(a Rust integration test suite) asserts exact product/transaction lists
+against it, and this sandbox has no Rust toolchain to verify a change to
+that shared, security-relevant fixture wouldn't break `cargo test`.
+
+**Files changed:**
+
+- `mbam-api/src/dev_demo_data.rs` (new)
+- `mbam-api/src/main.rs`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- New UUID namespace (`30000000-0000-4000-8000-...`), fully disjoint from
+  `dev_seed.rs`'s `10000000-...` fixture and never referenced by
+  `checklist_tests.rs` — so this module carries zero risk to `cargo test`
+  and can grow freely.
+- `seed_demo_business(db)`: idempotent upserts of a "Mbam Demo Retail
+  Group" business account with 3 shops (Douala/Yaounde/Bafoussam), a
+  master owner, a business admin, 3 shop managers, and 3 cashiers
+  (`*.demo@mbam.local`), and 12 products across Groceries/Electronics
+  (the only two categories with existing i18n coverage). Runs at every
+  startup, gated on `config.app_env == "development"`, mirroring exactly
+  how `dev_seed::seed_test_accounts` is already invoked.
+- Historical backfill: deletes and regenerates only rows tagged
+  `idempotency_key like 'demo-seed-backfill-%'` on every startup, so it
+  always represents "the last 20 days" relative to *now* rather than
+  going stale between dev sessions. ~20 days x 4-7 transactions/day,
+  varied line counts/products/customers/payment methods/occasional
+  pending or refunded status, all derived deterministically from a
+  sequence counter via modulo arithmetic (no `rand` dependency, fully
+  reproducible run-to-run).
+- `spawn_demo_traffic_worker(db)`: a `tokio::spawn` background loop
+  (same shape as the existing `modules::keycloak_sync::service::
+  spawn_worker`) that waits 15s after startup, then inserts one new
+  transaction every 75 seconds for the life of the process, tagged
+  `demo-live-<uuid>` (never deleted, so live activity accumulates the
+  longer the dev server stays up — directly fulfilling "create a stream
+  that should always add some test data in real time").
+- Both the backfill and live paths share one field generator
+  (`demo_transaction_fields`) so their data looks the same shape/style.
+- Wired into `main.rs`: added `mod dev_demo_data;`, called
+  `seed_demo_business` right after the existing `dev_seed::
+  seed_test_accounts` call inside the same development-only block
+  (non-fatal `tracing::warn!` on error, matching the existing pattern),
+  and called `spawn_demo_traffic_worker(state.db.clone())` after
+  `AppState::new`, also gated on `config.app_env == "development"`.
+
+**Debugging and verification performed:**
+
+- No Rust toolchain available in this sandbox (`cargo`/`rustc` missing;
+  `apt-get install` blocked — no root; `rustup` install blocked — no
+  outbound network to `sh.rustup.rs`), so verification was manual line-
+  by-line review rather than a compiler:
+  - Every table/column referenced in every `sqlx::query`/`query_scalar`
+    call was cross-checked against the actual migration files
+    (`0001_initial_schema.sql`, `0005_products.sql`, `0006_transactions.
+    sql`, `0008_product_unit_scope.sql`), not assumed from memory.
+  - Every upsert helper (`upsert_user`, `upsert_business`, `upsert_unit`,
+    `upsert_role`, `upsert_membership`, `grant_business_scope`,
+    `grant_unit_scope`, `upsert_product`) was diffed statement-by-
+    statement against `dev_seed.rs`'s already-working equivalents — same
+    columns, same `on conflict` targets, same bind order.
+  - Confirmed `products.business_unit_id` is `not null` with a unique
+    `(business_unit_id, lower(sku))` index; all 12 demo SKUs are unique
+    per shop.
+  - Confirmed every `transactions`/`transaction_lines` CHECK constraint
+    is satisfiable on every code path, including the refunded branch
+    (forces `payment_status = 'paid'`, `outstanding_amount = 0` — never
+    both refunded and pending simultaneously).
+  - Caught and fixed a lifetime subtlety before this review: changed
+    `const PRODUCTS` to `static PRODUCTS` so references collected into a
+    `Vec<&DemoProduct>` that escapes a function are guaranteed `'static`.
+  - Caught and fixed a deprecation-adjacent choice: switched a
+    `NaiveDateTime -> DateTime<Utc>` conversion from `Utc.
+    from_utc_datetime(&naive)` (requires importing the `TimeZone` trait)
+    to `naive.and_utc()`, the simpler current idiom, after confirming the
+    resolved `chrono` version (0.4.45, via `Cargo.lock`) supports it.
+  - Confirmed `state.db` is used identically (same `PgPool` type) to how
+    `modules::keycloak_sync::service::spawn_worker` already consumes it.
+
+**Errors encountered:** None at the review level described above, but see
+"Checks not run" — this has not been compiled.
+
+**Checks not run:** `cargo check`/`cargo test`/`cargo clippy` (no Rust
+toolchain in this sandbox). The repo's `validate-and-merge-codex.yml`
+GitHub Actions workflow (which does run a real `cargo check`/`clippy`/
+`cargo test`) only triggers on pull requests from `codex/`-prefixed
+branches, not on direct pushes to `main`, so this change does not get an
+automatic compiler gate from CI either — the user running their own
+`cargo check`/`npm run dev` (or `docker compose up` for the full stack)
+is the first real compile of this code. No live browser verification (no
+local Docker/Keycloak stack in this sandbox).
+
+**Remaining risks and follow-up checks:**
+
+- This is unexercised Rust code with no local or CI compiler check yet.
+  If the user hits a startup error, the two most likely spots to check
+  first are: (1) the 15-positional-argument `insert_transaction_with_lines`
+  call sites, since a transposed argument pair sharing the same type
+  (e.g. two `&str`s) would not necessarily be caught by the type checker;
+  and (2) `demo_transaction_fields`'s `unit_products[...]` indexing,
+  which is safe by construction today (every shop has exactly 4 products)
+  but would panic if products are ever added/removed unevenly per shop
+  without updating the modulo logic.
+- Demo login credentials (development-only, never intended for production
+  data): `master.demo@mbam.local` / `DemoMaster123`, `admin.demo@mbam.local`
+  / `DemoAdmin123`, `manager1.demo@mbam.local` / `manager2.demo@mbam.local`
+  / `manager3.demo@mbam.local` / `DemoManager123`, `cashier1.demo@mbam.local`
+  / `cashier2.demo@mbam.local` / `cashier3.demo@mbam.local` /
+  `DemoCashier123`.
+- The user's next request (repo-wide dead-code cleanup, `REPOSITORY_MAP.md`
+  update, deployment reorganization) is tracked as a separate, following
+  change and intentionally not touched here.

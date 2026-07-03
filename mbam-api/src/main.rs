@@ -6,6 +6,7 @@
 mod authentication;
 mod config;
 mod db;
+mod dev_demo_data;
 mod dev_seed;
 mod dev_seed_cleanup;
 mod error;
@@ -57,10 +58,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "development test account cleanup failed; seed skipped to avoid stale access"
             ),
         }
+
+        if let Err(error) = dev_demo_data::seed_demo_business(&pool).await {
+            tracing::warn!(?error, "development demo business seed failed");
+        }
     }
 
     let state = AppState::new(config.clone(), pool, authentication);
     modules::keycloak_sync::service::spawn_worker(state.db.clone(), config.clone());
+    if config.app_env == "development" {
+        dev_demo_data::spawn_demo_traffic_worker(state.db.clone());
+    }
     let app = build_router(state);
 
     let addr: SocketAddr = format!("{}:{}", config.api_host, config.api_port).parse()?;

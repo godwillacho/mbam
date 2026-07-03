@@ -55,7 +55,8 @@ and `mbam-web/dist` are not source modules and can be recreated.
 | `src/security/password.rs` | Argon2 password hashing and verification |
 | `src/security/tokens.rs` | Access tokens, opaque refresh tokens, offline grants |
 | `src/routes/health.rs` | Health endpoint |
-| `src/dev_seed*.rs` | Development-only deterministic test fixture |
+| `src/dev_seed*.rs` | Development-only deterministic test fixture (used by `checklist_tests.rs`) |
+| `src/dev_demo_data.rs` | Development-only isolated demo business account: historical backfill plus a live-traffic background worker |
 
 ### Active API domains
 
