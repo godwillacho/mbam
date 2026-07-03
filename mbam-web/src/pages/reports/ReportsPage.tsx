@@ -11,8 +11,14 @@ import {
   type ReportResponse,
   type ReportTimeframe,
 } from "../../services/reportService";
+import { logger } from "../../services/logging/logger";
 import { formatMoney } from "../../utils/formatters";
 import "./ReportsPage.css";
+
+// Live demo/test traffic (see mbam-api's dev_demo_data.rs) keeps inserting
+// new transactions in the background, so poll for fresh report data
+// periodically instead of only fetching once per dimension/timeframe change.
+const REPORT_POLL_INTERVAL_MS = 30_000;
 
 const labels: Record<ReportDimension, string> = {
   businesses: "Businesses",
@@ -64,21 +70,42 @@ export default function ReportsPage() {
 
   useEffect(() => {
     let ignore = false;
-    setReport(null);
-    setState("loading");
-    loadReport(dimension, { timeframe })
-      .then((next) => {
-        if (ignore) return;
-        setReport(next);
-        setState("ready");
-      })
-      .catch(() => {
-        if (ignore) return;
+
+    const fetchReport = (isInitialLoad: boolean) => {
+      if (isInitialLoad) {
         setReport(null);
-        setState("error");
-      });
+        setState("loading");
+      }
+      return loadReport(dimension, { timeframe })
+        .then((next) => {
+          if (ignore) return;
+          setReport(next);
+          setState("ready");
+        })
+        .catch((error: unknown) => {
+          if (ignore) return;
+          if (isInitialLoad) {
+            setReport(null);
+            setState("error");
+          } else {
+            // A background refresh failed (e.g. a transient network blip).
+            // Keep showing the last good report instead of replacing it
+            // with an error state.
+            logger.debug("Background report refresh failed; keeping last known data", {
+              error,
+            });
+          }
+        });
+    };
+
+    void fetchReport(true);
+    const intervalId = window.setInterval(() => {
+      void fetchReport(false);
+    }, REPORT_POLL_INTERVAL_MS);
+
     return () => {
       ignore = true;
+      window.clearInterval(intervalId);
     };
   }, [dimension, timeframe]);
 

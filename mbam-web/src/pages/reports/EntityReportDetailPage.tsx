@@ -13,8 +13,14 @@ import {
   type ReportTimeframe,
 } from "../../services/reportService";
 import { loadTeamWorkspace } from "../../services/teamService";
+import { logger } from "../../services/logging/logger";
 import { formatMoney } from "../../utils/formatters";
 import "./ScopedEntityReportPage.css";
+
+// Live demo/test traffic (see mbam-api's dev_demo_data.rs) keeps inserting
+// new transactions in the background, so poll for a fresh chart
+// periodically instead of only fetching once per timeframe change.
+const CHART_POLL_INTERVAL_MS = 30_000;
 
 export type EntityKind = "shops" | "employees" | "products";
 
@@ -107,21 +113,42 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
   useEffect(() => {
     if (!entityId) return;
     let ignore = false;
-    setSeries(null);
-    setChartState("loading");
-    loadReport(dimension, reportFilters(kind, entityId, timeframe))
-      .then((report) => {
-        if (ignore) return;
-        setSeries(report.series.find((item) => item.entity_id === entityId) ?? null);
-        setChartState("ready");
-      })
-      .catch(() => {
-        if (ignore) return;
+
+    const fetchSeries = (isInitialLoad: boolean) => {
+      if (isInitialLoad) {
         setSeries(null);
-        setChartState("error");
-      });
+        setChartState("loading");
+      }
+      return loadReport(dimension, reportFilters(kind, entityId, timeframe))
+        .then((report) => {
+          if (ignore) return;
+          setSeries(report.series.find((item) => item.entity_id === entityId) ?? null);
+          setChartState("ready");
+        })
+        .catch((error: unknown) => {
+          if (ignore) return;
+          if (isInitialLoad) {
+            setSeries(null);
+            setChartState("error");
+          } else {
+            // A background refresh failed (e.g. a transient network blip).
+            // Keep showing the last good chart instead of replacing it
+            // with an error state.
+            logger.debug("Background entity report refresh failed; keeping last known data", {
+              error,
+            });
+          }
+        });
+    };
+
+    void fetchSeries(true);
+    const intervalId = window.setInterval(() => {
+      void fetchSeries(false);
+    }, CHART_POLL_INTERVAL_MS);
+
     return () => {
       ignore = true;
+      window.clearInterval(intervalId);
     };
   }, [dimension, entityId, kind, timeframe]);
 

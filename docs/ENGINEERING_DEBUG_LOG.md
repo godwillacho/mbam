@@ -2471,3 +2471,72 @@ change within one or two 30-second polls without a manual reload.
   reflect live demo traffic without a reload — tracked as a separate,
   immediately-following change per the user's follow-up request that
   "graphs should be built an updated in real time."
+
+## 2026-07-03 - Extend Auto-Refresh Polling To Reports And Entity Detail Charts
+
+**Related change:** `2026-07-03T15:01:31Z`
+
+**Requested behavior:** Direct follow-up to the dashboard-polling change
+above: "graphs should be built an updated in real time." The dashboard
+metric cards already refresh, but Reports and the per-entity detail chart
+did not.
+
+**Root cause / engineering reason:** Same root cause as the dashboard
+change — `ReportsPage.tsx` and `EntityReportDetailPage.tsx` were each
+written to fetch report data once (on dimension/timeframe change and on
+entity/timeframe change, respectively) for a normal session where nothing
+changes underneath an open tab. The live-traffic worker breaks that
+assumption for every chart-bearing page, not just the summary dashboard.
+
+**Files changed:**
+
+- `mbam-web/src/pages/reports/ReportsPage.tsx`
+- `mbam-web/src/pages/reports/EntityReportDetailPage.tsx`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Applied the identical pattern used for `BaselineDashboards.tsx`: extract
+  the effect's fetch into a `fetch<X>(isInitialLoad)` closure, keep initial
+  load/error behavior unchanged, add a `window.setInterval` on a 30-second
+  cadence (`REPORT_POLL_INTERVAL_MS` / `CHART_POLL_INTERVAL_MS`) that
+  re-fetches silently, and clear the interval in the effect's cleanup.
+- `ReportsPage.tsx`: the per-entity `AuthorizedLineChart` grid and the
+  `AuthorizedPieChart` distribution card both derive from the same
+  `report` state, so no chart-specific code changed — they re-render with
+  fresh data automatically once `report` updates.
+- `EntityReportDetailPage.tsx`: only the second effect (loading the
+  selected entity's `series`/chart) was polled. The first effect, which
+  loads the list of shops/employees/products for the page header and
+  "back to list" link, was deliberately left unpolled — that's identity
+  metadata, not something live sales traffic changes.
+- Background failures on both pages log via `logger.debug` and
+  deliberately keep the last good chart on screen rather than swapping to
+  an error state, matching the dashboard change's failure handling.
+
+**Debugging and verification performed:**
+
+- `npx tsc --noEmit` and `npm run lint` (`--max-warnings 0`) clean.
+- `npm test` passed (21 files / 57 tests, unchanged). Specifically
+  inspected `ReportsPage.test.tsx` and `EntityReportDetailPage.test.tsx`
+  (both mock `loadReport` and exist already) since they were the two files
+  most likely to be affected by adding a `setInterval` to code they
+  render; confirmed both unmount via `root.unmount()` in `afterEach`,
+  which triggers the effect cleanup and clears the interval well before
+  the real 30-second timer could ever fire during a millisecond-scale
+  test run.
+- `npm run build` succeeded via `npx vite build --outDir /tmp/...`.
+
+**Errors encountered:** None.
+
+**Checks not run:** No live browser verification (no local Docker/Keycloak
+stack in this sandbox).
+
+**Remaining risks and follow-up checks:**
+
+- All three chart-bearing pages in the app now share the same 30-second
+  polling cadence and the same no-visibility-gating caveat noted in the
+  dashboard-polling entry above; if that becomes a concern (e.g. many idle
+  tabs open against a shared, non-local API) they should be revisited
+  together, likely by extracting a shared `usePollingFetch` hook instead
+  of the three near-identical closures now living in each page.
