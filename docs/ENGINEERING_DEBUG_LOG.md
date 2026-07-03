@@ -1741,3 +1741,107 @@ name.
 - The underlying `.page-heading` missing-`display:flex` gap noted above
   still affects those other pages; worth a dedicated cleanup pass if it ever
   causes a visible layout issue there.
+
+## 2026-07-03 - CSV Import With Column Mapping for Products and Employees
+
+**Related change:** `2026-07-03T05:45:22Z`
+
+**Requested behavior:** Add CSV import for products and "other information."
+Via a clarifying question, the user confirmed: scope is Products (extend the
+existing import) plus Employees; and mapping should be a manual step — after
+upload, show detected columns and let the user pick which field each maps
+to, with the previous alias-guessing kept as a smart default rather than
+fully automatic.
+
+**Root cause / engineering reason:** New feature request, not a defect. The
+existing Products CSV import (`ProductRevenuePage.tsx`) silently guessed
+column meaning from a fixed alias list with no way for the user to see or
+correct a wrong guess, and no CSV import existed for Employees at all.
+
+**Files changed:**
+
+- `mbam-web/src/utils/csv.ts` (new)
+- `mbam-web/src/components/csv/CsvImportPanel.tsx` (new)
+- `mbam-web/src/components/csv/CsvImportPanel.css` (new)
+- `mbam-web/src/components/csv/CsvImportPanel.test.tsx` (new)
+- `mbam-web/src/i18n/csvImportResources.ts` (new)
+- `mbam-web/src/main.tsx`
+- `mbam-web/src/pages/products/ProductRevenuePage.tsx`
+- `mbam-web/src/i18n/productRevenueResources.ts`
+- `mbam-web/src/pages/team/TeamAccessPage.tsx`
+- `mbam-web/src/pages/team/TeamAccessPage.css`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Moved `parseCsv`/`normalizeCsvHeader` out of `ProductRevenuePage.tsx` into
+  a shared `utils/csv.ts` so both import flows use one parser.
+- New `CsvImportPanel` component takes a list of field definitions
+  (`key`/`label`/`aliases`/`required`), parses the uploaded file, and
+  auto-guesses a column-to-field mapping using the alias lists (unchanged
+  guessing logic, now surfaced instead of applied silently). It renders an
+  overlay — CSV column, sample value, target-field dropdown per column —
+  that the user can adjust; the confirm button stays disabled until every
+  `required` field has a column mapped. On confirm it hands the caller
+  generic `Record<string, string>[]` rows; the caller owns what happens
+  next.
+- `ProductRevenuePage.tsx`: replaced the old automatic `importCsvProducts`
+  handler with `handleProductCsvImport`, which takes the panel's mapped
+  records straight into the existing editable "add products" review table
+  (no behavior change to that review/save step).
+- `TeamAccessPage.tsx`: added an "Import CSV" trigger next to "Invite
+  employee" with fields email (required)/role/business/unit. Role, business,
+  and unit text values are resolved to IDs via case-insensitive exact match
+  against `workspace.roles`/`businesses`/`business_units` names or role
+  codes (`resolveByName`). Unresolved or ambiguous matches surface as a
+  blank dropdown in a new per-row review table so the user fixes them before
+  sending. "Send N invites" loops `inviteEmployee` sequentially (there is no
+  bulk-invite API endpoint) and reports success count plus any failed
+  emails; on any success it reloads the team workspace and marks the local
+  role-policy cache changed, matching the existing single-invite flow.
+- Added `csvImport.*` (shared panel strings) and `team.csv*`/
+  `team.importEmployees`/`team.csvFields.*` (EN/FR) in a new
+  `i18n/csvImportResources.ts`, registered as a side-effect import in
+  `main.tsx` next to the other per-feature resource bundles (all use
+  `i18n.addResourceBundle(..., true, true)` deep merge, so this doesn't
+  clobber the existing `team` namespace already defined across
+  `i18n.ts`/`cleanDashboardResources.ts`).
+
+**Debugging and verification performed:**
+
+- Confirmed the codebase-wide test convention (no test initializes a real
+  i18next instance) also applies here: `CsvImportPanel.test.tsx` asserts on
+  raw i18n key text (e.g. `"csvImport.confirmMapping"`), matching
+  `ScopedEntityReportPage.test.tsx`/`EntityReportDetailPage.test.tsx`.
+- New tests cover: auto-guessed mapping renders and confirming calls
+  `onImport` with the mapped rows and closes the overlay; confirm stays
+  disabled until a required field is mapped and a manual remap unblocks it;
+  a CSV with no data rows shows an error and never opens the mapping
+  overlay.
+- `npx tsc --noEmit` clean; `npm run lint` (`--max-warnings 0`) clean;
+  `npm test` passed (22 files / 60 tests — 3 new); `npm run build`
+  succeeded via `npx vite build --outDir /tmp/...` (known sandbox `dist/`
+  lock quirk workaround, unrelated to this change — the PWA precache
+  manifest regenerated with a fresh hash on this build, which is the
+  likely explanation for an earlier unrelated report of stale-looking
+  translated text: old service-worker precache entries can outlive a
+  source fix until the browser fetches the new precache manifest).
+
+**Errors encountered:** None.
+
+**Checks not run:** No live browser verification (no local Docker/Keycloak
+stack in this sandbox) — recommend the user try both imports against a real
+CSV file in their own `npm run dev` session.
+
+**Remaining risks and follow-up checks:**
+
+- Employee CSV import has no partial-failure rollback: if invite 3 of 10
+  fails, invites 1-2 already went out. This mirrors the existing
+  single-invite flow (no bulk endpoint exists), but a dedicated bulk-invite
+  API endpoint would let this become a single atomic (or explicitly
+  partial-with-transaction-log) operation if large imports become common.
+- Role/business/unit resolution in the Employees review table is a strict
+  case-insensitive name/code match; near-miss spellings in the source CSV
+  (e.g. "Cashiers" vs "Cashier") will show as unresolved rather than being
+  fuzzy-matched, which is intentional (fail closed to a visible manual
+  choice rather than guessing wrong).

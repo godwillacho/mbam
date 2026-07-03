@@ -6,6 +6,7 @@ import "./components/charts/Charts.css";
 import "./i18n/roleDashboardResources";
 import "./i18n/productRevenueResources";
 import "./i18n/cleanDashboardResources";
+import "./i18n/csvImportResources";
 import * as Sentry from "@sentry/react";
 import { initializeObservability } from "./observability";
 import { initializeKeycloak } from "./services/keycloakService";

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import CsvImportPanel, { type CsvFieldDef } from "../../components/csv/CsvImportPanel";
 import DevOnly from "../../components/app/DevOnly";
 import { getCurrentMember } from "../../security/accessControl";
 import { ApiClientError } from "../../services/apiClient";
@@ -43,6 +44,22 @@ const screenAccessOptions = [
 
 type ScreenAccessId = (typeof screenAccessOptions)[number]["id"];
 
+interface EmployeeCsvDraft {
+  email: string;
+  roleId: string;
+  businessId: string;
+  unitId: string;
+}
+
+function resolveByName(value: string, options: Array<{ id: string; name: string; code?: string }>): string {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  const match = options.find(
+    (option) => option.name.trim().toLowerCase() === normalized || option.code?.trim().toLowerCase() === normalized,
+  );
+  return match?.id ?? "";
+}
+
 export default function TeamAccessPage() {
   const { t } = useTranslation();
   const currentActor = getCurrentMember();
@@ -62,6 +79,8 @@ export default function TeamAccessPage() {
   const [customBaseRoleId, setCustomBaseRoleId] = useState("");
   const [customScreens, setCustomScreens] = useState<Set<ScreenAccessId>>(new Set());
   const [syncStatuses, setSyncStatuses] = useState<KeycloakSyncStatus[]>([]);
+  const [csvEmployeeDrafts, setCsvEmployeeDrafts] = useState<EmployeeCsvDraft[] | null>(null);
+  const [isSendingCsvInvites, setIsSendingCsvInvites] = useState(false);
 
   const reload = useCallback(async () => {
     const [data, statuses] = await Promise.all([
@@ -87,6 +106,12 @@ export default function TeamAccessPage() {
     () => workspace?.roles.filter((role) => !role.code.startsWith(customRolePrefix)) ?? [],
     [workspace],
   );
+  const employeeCsvFields: CsvFieldDef[] = useMemo(() => [
+    { key: "email", label: t("team.csvFields.email"), aliases: ["email", "emailaddress"], required: true },
+    { key: "role", label: t("team.csvFields.role"), aliases: ["role", "position", "jobtitle"] },
+    { key: "business", label: t("team.csvFields.business"), aliases: ["business", "company", "businessname"] },
+    { key: "unit", label: t("team.csvFields.unit"), aliases: ["unit", "shop", "shopname", "businessunit"] },
+  ], [t]);
   const baselineRoles = useMemo(
     () => standardRoles.filter((role) => isCustomBaseRole(role.code)),
     [standardRoles],
@@ -169,6 +194,70 @@ export default function TeamAccessPage() {
     }
   };
 
+  const handleEmployeeCsvImport = (records: Array<Record<string, string>>) => {
+    if (!workspace) return;
+    const drafts = records
+      .map((record) => ({
+        email: (record.email ?? "").trim(),
+        roleId: resolveByName(record.role ?? "", standardRoles),
+        businessId: resolveByName(record.business ?? "", workspace.businesses),
+        unitId: resolveByName(record.unit ?? "", workspace.business_units),
+      }))
+      .filter((draft) => draft.email.length > 0);
+
+    if (drafts.length === 0) {
+      setError(t("team.csvNoRows"));
+      return;
+    }
+    setError("");
+    setMessage("");
+    setCsvEmployeeDrafts(drafts);
+  };
+
+  const updateCsvDraft = (index: number, field: keyof EmployeeCsvDraft, value: string) => {
+    setCsvEmployeeDrafts((current) => current?.map((draft, draftIndex) => (
+      draftIndex === index
+        ? { ...draft, [field]: value, ...(field === "businessId" ? { unitId: "" } : {}) }
+        : draft
+    )) ?? current);
+  };
+
+  const sendCsvInvites = async () => {
+    if (!csvEmployeeDrafts) return;
+    const validDrafts = csvEmployeeDrafts.filter((draft) => draft.email && draft.roleId);
+    if (validDrafts.length === 0) return;
+
+    setIsSendingCsvInvites(true);
+    setError("");
+    const failedEmails: string[] = [];
+    let successCount = 0;
+
+    for (const draft of validDrafts) {
+      try {
+        await inviteEmployee({
+          email: draft.email,
+          role_id: draft.roleId,
+          business_id: draft.businessId || undefined,
+          business_unit_id: draft.unitId || undefined,
+        });
+        successCount += 1;
+      } catch {
+        failedEmails.push(draft.email);
+      }
+    }
+
+    setIsSendingCsvInvites(false);
+    setCsvEmployeeDrafts(null);
+    if (successCount > 0) {
+      await reload();
+      await markRolePolicyChanged(String(Date.now()));
+    }
+    setMessage(t("team.csvImportResult", { success: successCount }));
+    if (failedEmails.length > 0) {
+      setError(t("team.csvImportPartialFailure", { count: failedEmails.length, emails: failedEmails.join(", ") }));
+    }
+  };
+
   const removeEmployee = async (employee: TeamEmployee) => {
     setSaving(true);
     setError("");
@@ -195,11 +284,92 @@ export default function TeamAccessPage() {
     <section className="page-grid">
       <div className="page-heading clean-dashboard-heading">
         <div><span className="eyebrow">{t("team.eyebrow")}</span><h2>{t("team.title")}</h2><DevOnly><p>{t("team.description")}</p></DevOnly></div>
-        <button className="primary-btn" type="button" onClick={() => setShowInvite((value) => !value)}>{showInvite ? t("common.cancel") : t("team.inviteWorker")}</button>
+        <div className="dashboard-heading-action">
+          <CsvImportPanel fields={employeeCsvFields} onImport={handleEmployeeCsvImport} triggerLabel={t("team.importEmployees")} />
+          <button className="primary-btn" type="button" onClick={() => setShowInvite((value) => !value)}>{showInvite ? t("common.cancel") : t("team.inviteWorker")}</button>
+        </div>
       </div>
 
       {error && <div className="validation-summary" role="alert">{error}</div>}
       {message && <div className="validation-success" role="status">{message}</div>}
+
+      {csvEmployeeDrafts && (
+        <article className="card employee-csv-review-card">
+          <header>
+            <span className="eyebrow">{t("csvImport.eyebrow")}</span>
+            <h3>{t("team.csvReviewTitle")}</h3>
+            <p className="card-muted">{t("team.csvReviewHint")}</p>
+          </header>
+
+          <div className="employee-csv-review-table-wrap">
+            <table className="data-table employee-csv-review-table">
+              <thead>
+                <tr>
+                  <th>{t("team.csvFields.email")}</th>
+                  <th>{t("team.csvFields.role")}</th>
+                  <th>{t("team.csvFields.business")}</th>
+                  <th>{t("team.csvFields.unit")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {csvEmployeeDrafts.map((draft, index) => (
+                  <tr key={`${draft.email}-${index}`}>
+                    <td>{draft.email}</td>
+                    <td>
+                      <select
+                        aria-label={t("team.csvFields.role")}
+                        onChange={(event) => updateCsvDraft(index, "roleId", event.target.value)}
+                        value={draft.roleId}
+                      >
+                        <option value="">{t("team.csvRoleUnresolved")}</option>
+                        {standardRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        aria-label={t("team.csvFields.business")}
+                        onChange={(event) => updateCsvDraft(index, "businessId", event.target.value)}
+                        value={draft.businessId}
+                      >
+                        <option value="">{t("team.csvBusinessUnresolved")}</option>
+                        {workspace.businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        aria-label={t("team.csvFields.unit")}
+                        onChange={(event) => updateCsvDraft(index, "unitId", event.target.value)}
+                        value={draft.unitId}
+                      >
+                        <option value="">{t("team.csvUnitUnresolved")}</option>
+                        {workspace.business_units
+                          .filter((unit) => !draft.businessId || unit.business_id === draft.businessId)
+                          .map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="csv-mapping-actions">
+            <button className="secondary-btn" disabled={isSendingCsvInvites} onClick={() => setCsvEmployeeDrafts(null)} type="button">
+              {t("team.csvCancelReview")}
+            </button>
+            <button
+              className="primary-btn"
+              disabled={isSendingCsvInvites || !csvEmployeeDrafts.some((draft) => draft.email && draft.roleId)}
+              onClick={() => void sendCsvInvites()}
+              type="button"
+            >
+              {isSendingCsvInvites
+                ? t("team.csvSendingInvites")
+                : t("team.csvSendInvites", { count: csvEmployeeDrafts.filter((draft) => draft.email && draft.roleId).length })}
+            </button>
+          </div>
+        </article>
+      )}
       {failedSyncCount > 0 && (
         <div className="validation-summary" role="alert">
           {failedSyncCount} employee role update{failedSyncCount === 1 ? "" : "s"} could not be reconciled with Keycloak. Local membership remains authoritative and mismatched sign-ins fail closed.

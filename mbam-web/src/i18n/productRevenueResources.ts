@@ -24,6 +24,7 @@ const en = {
     csvImported: "Imported {{count}} products from CSV.",
     csvNoRows: "No valid products were found in the CSV file.",
     csvImportFailed: "Could not read the CSV file.",
+    csvBusinessUnitField: "Shop ID (optional)",
     fields: {
       name: "Product name",
       sku: "SKU",
@@ -91,6 +92,7 @@ const fr = {
     csvImported: "{{count}} produits importés depuis le CSV.",
     csvNoRows: "Aucun produit valide trouvé dans le fichier CSV.",
     csvImportFailed: "Impossible de lire le fichier CSV.",
+    csvBusinessUnitField: "ID de la boutique (facultatif)",
     fields: {
       name: "Nom du produit",
       sku: "SKU",

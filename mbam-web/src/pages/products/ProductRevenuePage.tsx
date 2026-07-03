@@ -1,6 +1,7 @@
-import { type ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import CsvImportPanel, { type CsvFieldDef } from "../../components/csv/CsvImportPanel";
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
 import { canManageProducts, getCurrentMember, getScopedUnits } from "../../security/accessControl";
@@ -180,77 +181,6 @@ function sortRows(rows: ProductRevenueRow[], drafts: Record<string, ProductDraft
   });
 }
 
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let currentRow: string[] = [];
-  let currentCell = "";
-  let insideQuotes = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const nextChar = text[index + 1];
-
-    if (char === '"' && insideQuotes && nextChar === '"') {
-      currentCell += '"';
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      insideQuotes = !insideQuotes;
-      continue;
-    }
-
-    if (char === "," && !insideQuotes) {
-      currentRow.push(currentCell.trim());
-      currentCell = "";
-      continue;
-    }
-
-    if ((char === "\n" || char === "\r") && !insideQuotes) {
-      if (char === "\r" && nextChar === "\n") index += 1;
-      currentRow.push(currentCell.trim());
-      if (currentRow.some((cell) => cell.length > 0)) rows.push(currentRow);
-      currentRow = [];
-      currentCell = "";
-      continue;
-    }
-
-    currentCell += char;
-  }
-
-  currentRow.push(currentCell.trim());
-  if (currentRow.some((cell) => cell.length > 0)) rows.push(currentRow);
-  return rows;
-}
-
-function normalizeCsvHeader(header: string): string {
-  return header.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function getCsvValue(record: Record<string, string>, aliases: string[]): string {
-  return aliases.map((alias) => record[alias]).find(Boolean) ?? "";
-}
-
-function mapCsvRowsToDrafts(csvRows: string[][]): ProductDraft[] {
-  if (csvRows.length < 2) return [];
-
-  const headers = csvRows[0].map(normalizeCsvHeader);
-  return csvRows.slice(1).map((row) => {
-    const record = Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""]));
-    return {
-      name: getCsvValue(record, ["name", "product", "productname", "item", "itemname"]),
-      sku: getCsvValue(record, ["sku", "code", "productcode", "itemcode"]),
-      brand: getCsvValue(record, ["brand", "manufacturer"]),
-      category: getCsvValue(record, ["category", "type"]),
-      availableQuantity: getCsvValue(record, ["availablequantity", "quantity", "qty", "stock", "stockquantity"]),
-      expiryDate: getCsvValue(record, ["expirydate", "expirationdate", "expiry", "expires"]),
-      costPrice: getCsvValue(record, ["costprice", "cost", "unitcost", "purchaseprice"]),
-      businessUnitId: getCsvValue(record, ["businessunitid", "unitid", "shopid"]),
-    };
-  }).filter(hasProductDraftContent);
-}
-
 export default function ProductRevenuePage() {
   const { t } = useTranslation();
   const member = useMemo(() => getCurrentMember(), []);
@@ -272,6 +202,17 @@ export default function ProductRevenuePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const canManage = canManageProducts(member);
+
+  const productCsvFields: CsvFieldDef[] = useMemo(() => [
+    { key: "name", label: t("productRevenue.fields.name"), aliases: ["name", "product", "productname", "item", "itemname"], required: true },
+    { key: "sku", label: t("productRevenue.fields.sku"), aliases: ["sku", "code", "productcode", "itemcode"] },
+    { key: "brand", label: t("productRevenue.fields.brand"), aliases: ["brand", "manufacturer"] },
+    { key: "category", label: t("productRevenue.fields.category"), aliases: ["category", "type"] },
+    { key: "availableQuantity", label: t("productRevenue.fields.availableQuantity"), aliases: ["availablequantity", "quantity", "qty", "stock", "stockquantity"] },
+    { key: "expiryDate", label: t("productRevenue.fields.expiryDate"), aliases: ["expirydate", "expirationdate", "expiry", "expires"] },
+    { key: "costPrice", label: t("productRevenue.fields.costPrice"), aliases: ["costprice", "cost", "unitcost", "purchaseprice"] },
+    { key: "businessUnitId", label: t("productRevenue.csvBusinessUnitField"), aliases: ["businessunitid", "unitid", "shopid"] },
+  ], [t]);
 
   useEffect(() => {
     let ignore = false;
@@ -418,29 +359,32 @@ export default function ProductRevenuePage() {
     });
   };
 
-  const importCsvProducts = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleProductCsvImport = (records: Array<Record<string, string>>) => {
+    const importedDrafts = records
+      .map((record) => ({
+        name: record.name ?? "",
+        sku: record.sku ?? "",
+        brand: record.brand ?? "",
+        category: record.category ?? "",
+        availableQuantity: record.availableQuantity ?? "",
+        expiryDate: record.expiryDate ?? "",
+        costPrice: record.costPrice ?? "",
+        businessUnitId: record.businessUnitId ?? "",
+      }))
+      .filter(hasProductDraftContent);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const importedDrafts = mapCsvRowsToDrafts(parseCsv(String(reader.result ?? "")));
-      if (importedDrafts.length === 0) {
-        setCsvImportMessage(t("productRevenue.csvNoRows"));
-        return;
-      }
+    if (importedDrafts.length === 0) {
+      setCsvImportMessage(t("productRevenue.csvNoRows"));
+      return;
+    }
 
-      setIsEditingProducts(false);
-      setIsAddingProducts(true);
-      setNewProductDrafts((current) => {
-        const existingDrafts = current.filter(hasProductDraftContent);
-        return [...existingDrafts, ...importedDrafts, createEmptyProductDraft()];
-      });
-      setCsvImportMessage(t("productRevenue.csvImported", { count: importedDrafts.length }));
-    };
-    reader.onerror = () => setCsvImportMessage(t("productRevenue.csvImportFailed"));
-    reader.readAsText(file);
-    event.target.value = "";
+    setIsEditingProducts(false);
+    setIsAddingProducts(true);
+    setNewProductDrafts((current) => {
+      const existingDrafts = current.filter(hasProductDraftContent);
+      return [...existingDrafts, ...importedDrafts, createEmptyProductDraft()];
+    });
+    setCsvImportMessage(t("productRevenue.csvImported", { count: importedDrafts.length }));
   };
 
   if (!canViewDashboardMetric(member, "products")) {
@@ -518,10 +462,11 @@ export default function ProductRevenuePage() {
                   <option key={unit.id} value={unit.id}>{unit.name}</option>
                 ))}
               </select>
-              <label className="secondary-btn file-import-button">
-                {t("productRevenue.importCsv")}
-                <input type="file" accept=".csv,text/csv" onChange={importCsvProducts} />
-              </label>
+              <CsvImportPanel
+                fields={productCsvFields}
+                onImport={handleProductCsvImport}
+                triggerLabel={t("productRevenue.importCsv")}
+              />
               <button className="secondary-btn" type="button" onClick={() => setIsAddingProducts(false)}>{t("productRevenue.cancelAddProducts")}</button>
               <button className="primary-btn" type="button" disabled={isSaving || !selectedBusinessId || !selectedBusinessUnitId} onClick={saveNewProducts}>{t("productRevenue.saveNewProducts")}</button>
             </div>
