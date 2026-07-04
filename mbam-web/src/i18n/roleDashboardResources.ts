@@ -133,6 +133,7 @@ const en = {
     noSalesForTimeframe: "No sales exist for this timeframe.",
     outOfScope: "This entity is unavailable or outside your current authorization.",
     unitsSold: "{{count}} sold",
+    printReport: "Print report",
     detailBackTo: {
       shops: "Back to shops",
       employees: "Back to employees",
@@ -323,6 +324,7 @@ const fr = {
     noSalesForTimeframe: "Aucune vente n'existe pour cette période.",
     outOfScope: "Cette entité n'est pas disponible ou se trouve en dehors de votre autorisation actuelle.",
     unitsSold: "{{count}} vendu(s)",
+    printReport: "Imprimer le rapport",
     detailBackTo: {
       shops: "Retour aux boutiques",
       employees: "Retour aux employés",

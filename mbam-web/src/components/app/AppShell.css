@@ -537,3 +537,36 @@ body {
   border-radius: 16px;
   padding: 14px;
 }
+
+/*
+ * App-wide print rules. Any page can opt an element out of printing by
+ * adding the `no-print` class (e.g. nav bars, filter controls, action
+ * buttons). Printable content (invoices, reports) lives inside `.card`,
+ * which gets its screen-only chrome (border/shadow) stripped here so it
+ * reads like a plain document on paper.
+ */
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .sidebar,
+  .topbar,
+  .no-print {
+    display: none !important;
+  }
+
+  .app-shell {
+    display: block;
+  }
+
+  .main-panel {
+    padding: 0;
+  }
+
+  .card {
+    border: 0;
+    box-shadow: none;
+    page-break-inside: avoid;
+  }
+}

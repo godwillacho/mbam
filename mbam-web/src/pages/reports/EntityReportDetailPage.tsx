@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
 import TimeframeControl from "../../components/charts/TimeframeControl";
+import PrintButton from "../../components/app/PrintButton";
 import { workspace } from "../../data/mockWorkspace";
 import { loadAuthorizationBootstrap } from "../../services/authorizationService";
 import { listAuthorizedProductsOnline } from "../../services/productService";
@@ -170,10 +171,11 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
             <p className="card-muted">{selectedItem.description}</p>
           )}
         </div>
-        <div className="dashboard-heading-action">
+        <div className="dashboard-heading-action entity-detail-heading-actions no-print">
           <Link className="secondary-btn" to={listPath}>
             {t(`scopedEntityReport.detailBackTo.${kind}`)}
           </Link>
+          <PrintButton label={t("scopedEntityReport.printReport")} />
         </div>
       </div>
 
@@ -184,7 +186,9 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
             <h3>{selectedItem?.name ?? t("scopedEntityReport.loadingEntity")}</h3>
           </div>
           <div className="entity-detail-chart-actions">
-            <TimeframeControl onChange={setTimeframe} value={timeframe} />
+            <div className="no-print">
+              <TimeframeControl onChange={setTimeframe} value={timeframe} />
+            </div>
             {series && (
               <div className="scoped-chart-total">
                 <strong>
