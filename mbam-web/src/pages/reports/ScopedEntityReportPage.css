@@ -6,6 +6,12 @@
   gap: 16px;
 }
 
+.entity-detail-heading-actions {
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .scoped-entity-table-card {
   display: flex;
   flex-direction: column;
@@ -89,4 +95,19 @@
 .scoped-chart-total small {
   margin-top: 4px;
   color: var(--muted);
+}
+
+/*
+ * App-wide print rules (hiding the sidebar/topbar/.no-print, stripping
+ * .card chrome) live in AppShell.css.
+ */
+@media print {
+  .scoped-entity-table-wrap {
+    overflow: visible;
+  }
+
+  .scoped-chart-panel,
+  .scoped-entity-table-card {
+    page-break-inside: avoid;
+  }
 }

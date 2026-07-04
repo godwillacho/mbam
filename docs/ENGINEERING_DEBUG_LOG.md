@@ -18,6 +18,72 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-07-04 - Print Support For Reports + Shared Print Button
+
+**Related change:** Working tree pending commit at `2026-07-04T14:52:25Z`
+
+**Requested behavior:** Add print functionality for invoices and reports that
+routes through the host OS's print spooler.
+
+**Root cause / engineering reason:** Browsers deliberately do not expose a way
+for a web page to talk to the host OS print spooler (CUPS on macOS/Linux, the
+Windows Print Spooler) directly — the only supported integration point is
+`window.print()`, which opens the browser's native print dialog and hands the
+confirmed job to the OS spooler. That mechanism already existed for the
+transaction invoice page, but reports (`ReportsPage.tsx`,
+`EntityReportDetailPage.tsx`) had no print button or print-friendly layout at
+all, and the existing print CSS (hide sidebar/topbar, strip card borders/
+shadows) was scoped only to `TransactionsPage.css`, so it never applied to any
+other printable page.
+
+**Files changed:**
+
+- `mbam-web/src/components/app/AppShell.css` — moved the app-wide print rules
+  (hide `.sidebar`/`.topbar`/`.no-print`, un-collapse `.app-shell`, strip
+  `.card` chrome, avoid breaking a `.card` across pages) here so every page
+  benefits, not just transactions.
+- `mbam-web/src/components/app/PrintButton.tsx` (new) — small shared component
+  wrapping `window.print()` with a consistent label/className, replacing the
+  ad hoc inline button pattern.
+- `mbam-web/src/pages/transactions/TransactionInvoicePage.tsx` — now uses
+  `PrintButton`.
+- `mbam-web/src/pages/transactions/TransactionsPage.css` — trimmed to
+  invoice-only print polish (`@page` margin, row/section
+  `page-break-inside: avoid`) now that the shared rules live in
+  `AppShell.css`.
+- `mbam-web/src/pages/reports/ReportsPage.tsx` / `ReportsPage.css` — added a
+  "Print report" button next to the timeframe control, wrapped the dimension
+  tabs and heading action bar in `.no-print`, added
+  `page-break-inside: avoid` for report/chart cards.
+- `mbam-web/src/pages/reports/EntityReportDetailPage.tsx` /
+  `ScopedEntityReportPage.css` — added a "Print report" button to the heading
+  action bar, wrapped the timeframe control in `.no-print`, made the scoped
+  entity table `overflow: visible` and chart/table cards
+  `page-break-inside: avoid` for print.
+- `mbam-web/src/i18n/reportsPageResources.ts`,
+  `mbam-web/src/i18n/roleDashboardResources.ts` — added `printReport` (en/fr)
+  keys matching the existing `invoice.printInvoice` naming convention.
+
+**Debugging and verification performed:** `npm run lint` (clean),
+`npm run build` (`tsc --noEmit` + `vite build`, succeeded — pre-existing chunk
+size warning unrelated to this change), `npm test` (21 files / 57 tests
+passed).
+
+**Errors encountered:** None.
+
+**Checks not run:** No live browser print-preview screenshot of the new
+report print layouts (no print-preview capable tooling in this session); no
+test against a physical printer.
+
+**Remaining risks and follow-up checks:** Recommend the user open a report
+page and the invoice page and check File > Print Preview once, to confirm
+chart sizing and page breaks look right in practice before relying on this
+for real print-outs. True silent/direct printing that bypasses the browser
+dialog (e.g. for a POS receipt printer) is out of scope — that would need a
+separate local native print-agent process, since browsers cannot do this on
+their own; the user explicitly chose the standard browser-print-dialog
+approach instead.
+
 ## 2026-06-20 - Cashier Dashboard Sign-In Stabilization
 
 **Related change:** Working tree pending commit at `2026-06-20T03:21:00Z`

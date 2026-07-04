@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
 import AuthorizedPieChart from "../../components/charts/AuthorizedPieChart";
 import TimeframeControl from "../../components/charts/TimeframeControl";
+import PrintButton from "../../components/app/PrintButton";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
 import {
@@ -120,10 +121,13 @@ export default function ReportsPage() {
             ownership scope.
           </p>
         </div>
-        <TimeframeControl onChange={setTimeframe} value={timeframe} />
+        <div className="dashboard-heading-action report-heading-actions no-print">
+          <TimeframeControl onChange={setTimeframe} value={timeframe} />
+          <PrintButton label={t("reportsPage.printReport")} />
+        </div>
       </div>
 
-      <div className="report-dimension-tabs" role="tablist" aria-label="Report type">
+      <div className="report-dimension-tabs no-print" role="tablist" aria-label="Report type">
         {dimensions.map((item) => (
           <button
             aria-selected={dimension === item}

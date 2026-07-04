@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
+import PrintButton from "../../components/app/PrintButton";
 import { workspace } from "../../data/mockWorkspace";
 import { getLocalTransactionInvoice } from "../../services/transactions/transactionLocalRepository";
 import { getCloudTransaction } from "../../services/transactionService";
@@ -151,7 +152,7 @@ export default function TransactionInvoicePage() {
         </div>
         <div className="dashboard-heading-action">
           <Link className="secondary-btn" to="/transactions">{t("invoice.backToTransactions")}</Link>
-          <button className="primary-btn" type="button" onClick={() => window.print()}>{t("invoice.printInvoice")}</button>
+          <PrintButton label={t("invoice.printInvoice")} />
         </div>
       </div>
 

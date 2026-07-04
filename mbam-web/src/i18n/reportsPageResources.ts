@@ -17,6 +17,7 @@ const en = {
     distributionHint: "How the current timeframe's total splits across each authorized entity.",
     distributionEmpty: "Not enough data yet to show a distribution.",
     unitsSold: "{{count}} sold",
+    printReport: "Print report",
   },
 };
 
@@ -32,6 +33,7 @@ const fr = {
     distributionHint: "Comment le total de la période sélectionnée se répartit entre chaque entité autorisée.",
     distributionEmpty: "Pas encore assez de données pour afficher une répartition.",
     unitsSold: "{{count}} vendues",
+    printReport: "Imprimer le rapport",
   },
 };
 

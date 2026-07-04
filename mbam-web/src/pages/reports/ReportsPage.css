@@ -1,3 +1,9 @@
+.report-heading-actions {
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .report-dimension-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -68,5 +74,26 @@
 
   .report-total {
     text-align: left;
+  }
+}
+
+/*
+ * App-wide print rules (hiding the sidebar/topbar/.no-print, stripping
+ * .card chrome) live in AppShell.css. This just keeps report cards from
+ * splitting across a page break and lets the pie chart's SVG size to the
+ * printed page rather than a fixed on-screen container width.
+ */
+@media print {
+  .report-distribution-card,
+  .report-series-card {
+    page-break-inside: avoid;
+  }
+
+  .report-series-grid {
+    display: block;
+  }
+
+  .report-series-grid > * {
+    margin-bottom: 16px;
   }
 }

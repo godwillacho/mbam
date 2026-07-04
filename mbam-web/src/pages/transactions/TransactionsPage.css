@@ -134,27 +134,22 @@
   }
 }
 
+/*
+ * Invoice-specific print polish. Shared rules (hiding the sidebar/topbar,
+ * stripping .card chrome) live in AppShell.css and apply to every printable
+ * page, not just invoices.
+ */
 @media print {
-  body {
-    background: #fff;
+  @page {
+    margin: 14mm;
   }
 
-  .sidebar,
-  .topbar,
-  .no-print {
-    display: none !important;
+  .invoice-table tr {
+    page-break-inside: avoid;
   }
 
-  .app-shell {
-    display: block;
-  }
-
-  .main-panel {
-    padding: 0;
-  }
-
-  .invoice-card {
-    border: 0;
-    box-shadow: none;
+  .invoice-header,
+  .invoice-total-panel {
+    page-break-inside: avoid;
   }
 }
