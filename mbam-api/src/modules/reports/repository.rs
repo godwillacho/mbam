@@ -11,13 +11,16 @@ use super::model::{ReportDetailRow, ReportPoint, ReportSeries};
 const MAX_DETAIL_ROWS: i64 = 2000;
 
 /// Optional narrowing filters for the raw transaction/line-item detail
-/// report, applied on top of the caller's authorized `ReportScope`.
+/// report, applied on top of the caller's authorized `ReportScope`. An empty
+/// `Vec` means "no restriction from this filter" (matching the same
+/// empty-array convention already used for `ReportScope::business_unit_ids`
+/// in the aggregate queries below), not "match nothing".
 #[derive(Debug, Default)]
 pub struct DetailFilters {
-    pub business_id: Option<Uuid>,
-    pub business_unit_id: Option<Uuid>,
-    pub employee_id: Option<Uuid>,
-    pub product_id: Option<Uuid>,
+    pub business_ids: Vec<Uuid>,
+    pub business_unit_ids: Vec<Uuid>,
+    pub employee_ids: Vec<Uuid>,
+    pub product_ids: Vec<Uuid>,
 }
 
 /// Immutable parameters used by reporting aggregation queries.
@@ -215,10 +218,10 @@ pub async fn transaction_detail(
           and transaction.business_id = any($3)
           and ($4::uuid[] = array[]::uuid[] or transaction.business_unit_id = any($4))
           and ($5::uuid is null or transaction.recorded_by_user_id = $5)
-          and ($6::uuid is null or transaction.business_id = $6)
-          and ($7::uuid is null or transaction.business_unit_id = $7)
-          and ($8::uuid is null or transaction.recorded_by_user_id = $8)
-          and ($9::uuid is null or line.product_id = $9)
+          and ($6::uuid[] = array[]::uuid[] or transaction.business_id = any($6))
+          and ($7::uuid[] = array[]::uuid[] or transaction.business_unit_id = any($7))
+          and ($8::uuid[] = array[]::uuid[] or transaction.recorded_by_user_id = any($8))
+          and ($9::uuid[] = array[]::uuid[] or line.product_id = any($9))
         order by transaction.created_at desc, line.created_at asc
         limit $10
         "#,
@@ -228,10 +231,10 @@ pub async fn transaction_detail(
     .bind(&scope.business_ids)
     .bind(&scope.business_unit_ids)
     .bind(scope.recorded_by_user_id)
-    .bind(filters.business_id)
-    .bind(filters.business_unit_id)
-    .bind(filters.employee_id)
-    .bind(filters.product_id)
+    .bind(&filters.business_ids)
+    .bind(&filters.business_unit_ids)
+    .bind(&filters.employee_ids)
+    .bind(&filters.product_ids)
     .bind(MAX_DETAIL_ROWS + 1)
     .fetch_all(db)
     .await?;

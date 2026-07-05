@@ -51,6 +51,23 @@ const en = {
         transactionTotal: "Transaction total",
       },
     },
+    entityPicker: {
+      searchLabel: {
+        businesses: "Search businesses",
+        shops: "Search shops",
+        employees: "Search employees",
+        products: "Search products",
+      },
+      searchPlaceholder: {
+        businesses: "Search businesses…",
+        shops: "Search shops…",
+        employees: "Search employees…",
+        products: "Search products…",
+      },
+      remove: "Remove {{name}}",
+      noMatches: "No matches.",
+      loadError: "Couldn't load this list. Try again.",
+    },
   },
 };
 
@@ -99,6 +116,23 @@ const fr = {
         recordedBy: "Enregistré par",
         transactionTotal: "Total transaction",
       },
+    },
+    entityPicker: {
+      searchLabel: {
+        businesses: "Rechercher des entreprises",
+        shops: "Rechercher des boutiques",
+        employees: "Rechercher des employés",
+        products: "Rechercher des produits",
+      },
+      searchPlaceholder: {
+        businesses: "Rechercher des entreprises…",
+        shops: "Rechercher des boutiques…",
+        employees: "Rechercher des employés…",
+        products: "Rechercher des produits…",
+      },
+      remove: "Retirer {{name}}",
+      noMatches: "Aucun résultat.",
+      loadError: "Impossible de charger cette liste. Réessayez.",
     },
   },
 };

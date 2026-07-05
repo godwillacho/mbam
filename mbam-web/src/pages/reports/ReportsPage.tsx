@@ -4,11 +4,13 @@ import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
 import AuthorizedPieChart from "../../components/charts/AuthorizedPieChart";
 import TimeframeControl, { type CustomRange } from "../../components/charts/TimeframeControl";
 import PrintButton from "../../components/app/PrintButton";
+import EntityMultiSelect from "../../components/reports/EntityMultiSelect";
 import ReportDetailTable from "./ReportDetailTable";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
 import {
   loadReport,
+  type ReportDetailFilters,
   type ReportDimension,
   type ReportFilters,
   type ReportResponse,
@@ -72,6 +74,27 @@ export default function ReportsPage() {
         : {}),
     }),
     [timeframe, customRange.start, customRange.end],
+  );
+  // One selection list per dimension, so switching tabs in Detail view
+  // (Businesses/Shops/Employees/Products) does not clear a different
+  // dimension's already-built group -- only the active tab's picker and
+  // filter are shown/applied at a time.
+  const [selectedIdsByDimension, setSelectedIdsByDimension] = useState<
+    Record<ReportDimension, string[]>
+  >({ businesses: [], shops: [], employees: [], products: [] });
+  const selectedEntityIds = selectedIdsByDimension[dimension];
+  const detailFilters = useMemo<ReportDetailFilters>(
+    () => ({
+      timeframe,
+      ...(timeframe === "custom"
+        ? { startDate: customRange.start, endDate: customRange.end }
+        : {}),
+      ...(dimension === "businesses" ? { businessIds: selectedEntityIds } : {}),
+      ...(dimension === "shops" ? { businessUnitIds: selectedEntityIds } : {}),
+      ...(dimension === "employees" ? { employeeIds: selectedEntityIds } : {}),
+      ...(dimension === "products" ? { productIds: selectedEntityIds } : {}),
+    }),
+    [timeframe, customRange.start, customRange.end, dimension, selectedEntityIds],
   );
   const currency = workspace.businesses[0]?.currency ?? "XAF";
   const isQuantityDimension = dimension === "products";
@@ -180,26 +203,36 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {view === "summary" && (
-        <div className="report-dimension-tabs no-print" role="tablist" aria-label="Report type">
-          {dimensions.map((item) => (
-            <button
-              aria-selected={dimension === item}
-              className={dimension === item ? "active" : ""}
-              key={item}
-              onClick={() => setDimension(item)}
-              role="tab"
-              type="button"
-            >
-              {labels[item]}
-            </button>
-          ))}
+      <div className="report-dimension-tabs no-print" role="tablist" aria-label="Report type">
+        {dimensions.map((item) => (
+          <button
+            aria-selected={dimension === item}
+            className={dimension === item ? "active" : ""}
+            key={item}
+            onClick={() => setDimension(item)}
+            role="tab"
+            type="button"
+          >
+            {labels[item]}
+          </button>
+        ))}
+      </div>
+
+      {view === "detail" && (
+        <div className="report-entity-picker no-print">
+          <EntityMultiSelect
+            kind={dimension}
+            onChange={(ids) =>
+              setSelectedIdsByDimension((previous) => ({ ...previous, [dimension]: ids }))
+            }
+            selectedIds={selectedEntityIds}
+          />
         </div>
       )}
 
       {view === "detail" && (
         isCustomRangeValid ? (
-          <ReportDetailTable currency={currency} filters={reportFilters} />
+          <ReportDetailTable currency={currency} filters={detailFilters} />
         ) : (
           <article className="card report-state">{t("reportsPage.customRangePending")}</article>
         )

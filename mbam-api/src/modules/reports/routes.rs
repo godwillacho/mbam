@@ -8,7 +8,10 @@ use serde::Deserialize;
 use crate::{authentication::AuthorizationContext, error::ApiError, state::AppState};
 
 use super::{
-    model::{DashboardSummaryResponse, ReportDetailResponse, ReportQuery, ReportResponse},
+    model::{
+        DashboardSummaryResponse, ReportDetailQuery, ReportDetailResponse, ReportQuery,
+        ReportResponse,
+    },
     service,
 };
 
@@ -71,7 +74,7 @@ async fn product_sales(
 async fn transaction_detail(
     State(state): State<AppState>,
     authorization: AuthorizationContext,
-    Query(query): Query<ReportQuery>,
+    Query(query): Query<ReportDetailQuery>,
 ) -> Result<Json<ReportDetailResponse>, ApiError> {
     Ok(Json(
         service::transaction_detail(&state.db, &authorization, query).await?,

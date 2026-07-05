@@ -73,11 +73,19 @@ pub fn create_refresh_token() -> String {
 }
 
 /// Creates an ES256 grant that the web app can verify using the public key.
+///
+/// jsonwebtoken 10 dropped its built-in PEM convenience constructors (only
+/// `*_der` remains), so the caller-supplied PEM text is parsed into raw DER
+/// bytes here via the `pem` crate before being handed to
+/// `EncodingKey::from_ec_der`. Both current call sites discard the specific
+/// error value (`.map_err(|_| ApiError::Internal)`), so a boxed error is used
+/// to cover both the PEM-parsing failure and the JWT-encoding failure without
+/// depending on jsonwebtoken's internal `ErrorKind` variants.
 pub fn create_offline_grant(
     subject: OfflineGrantSubject,
     private_key_pem: &str,
     lifetime_days: i64,
-) -> Result<String, jsonwebtoken::errors::Error> {
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let now = Utc::now();
     let offline_until = now + Duration::days(lifetime_days);
     let claims = OfflineGrantClaims {
@@ -97,11 +105,10 @@ pub fn create_offline_grant(
         exp: offline_until.timestamp() as usize,
     };
 
-    encode(
-        &Header::new(Algorithm::ES256),
-        &claims,
-        &EncodingKey::from_ec_pem(private_key_pem.as_bytes())?,
-    )
+    let der = pem::parse(private_key_pem)?;
+    let encoding_key = EncodingKey::from_ec_der(der.contents());
+
+    Ok(encode(&Header::new(Algorithm::ES256), &claims, &encoding_key)?)
 }
 
 /// Verifies an access token and returns its claims.

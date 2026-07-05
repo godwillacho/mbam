@@ -59,6 +59,25 @@ export interface ReportFilters {
   productId?: string;
 }
 
+/**
+ * Filters for the raw detail report, distinct from `ReportFilters` because
+ * every dimension here accepts *several* entity ids at once (e.g. a
+ * hand-picked set of employees), matching mbam-api's `ReportDetailQuery`
+ * (comma-separated `business_ids`/`business_unit_ids`/`employee_ids`/
+ * `product_ids`). The aggregate charts (`ReportFilters`) remain single
+ * per-entity views and are unaffected.
+ */
+export interface ReportDetailFilters {
+  timeframe: ReportTimeframe;
+  timezone?: string;
+  startDate?: string;
+  endDate?: string;
+  businessIds?: string[];
+  businessUnitIds?: string[];
+  employeeIds?: string[];
+  productIds?: string[];
+}
+
 /** One printable transaction-line row from the raw detail report. */
 export interface ReportDetailRow {
   transaction_id: string;
@@ -122,17 +141,45 @@ export async function loadReport(
   );
 }
 
+function detailQuery(filters: ReportDetailFilters): string {
+  const params = new URLSearchParams({
+    timeframe: filters.timeframe,
+    timezone: filters.timezone ?? timezone(),
+  });
+  if (filters.timeframe === "custom") {
+    if (filters.startDate) params.set("start_date", filters.startDate);
+    if (filters.endDate) params.set("end_date", filters.endDate);
+  }
+  if (filters.businessIds?.length) {
+    params.set("business_ids", filters.businessIds.join(","));
+  }
+  if (filters.businessUnitIds?.length) {
+    params.set("business_unit_ids", filters.businessUnitIds.join(","));
+  }
+  if (filters.employeeIds?.length) {
+    params.set("employee_ids", filters.employeeIds.join(","));
+  }
+  if (filters.productIds?.length) {
+    params.set("product_ids", filters.productIds.join(","));
+  }
+  return params.toString();
+}
+
 /**
  * Loads the raw, printable transaction/line-item detail report. Restricted
  * server-side to Master Owner and Business Admin (see
  * mbam-api's reports::service::transaction_detail) — callers without that
  * baseline role receive a 403 even within their own scope.
+ *
+ * Unlike `loadReport`, every filter here may carry multiple comma-joined ids
+ * so the caller can build one report covering a hand-picked group of
+ * businesses/shops/employees/products at once.
  */
 export async function loadReportTransactionDetail(
-  filters: ReportFilters,
+  filters: ReportDetailFilters,
 ): Promise<ReportDetailResponse> {
   return getJson<ReportDetailResponse>(
-    `/api/v1/reports/transactions?${query(filters)}`,
+    `/api/v1/reports/transactions?${detailQuery(filters)}`,
   );
 }
 
