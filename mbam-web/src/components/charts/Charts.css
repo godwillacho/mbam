@@ -64,3 +64,41 @@
   background: var(--forest);
   color: #fff;
 }
+
+.timeframe-control-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.timeframe-custom-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.timeframe-custom-range label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.timeframe-custom-range input[type="date"] {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+
+.timeframe-custom-range-error {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}

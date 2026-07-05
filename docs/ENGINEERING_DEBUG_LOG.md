@@ -18,6 +18,120 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-07-05 - Precise, Role-Gated Reports: Custom Date Ranges + Raw Transaction Detail
+
+**Related change:** Working tree pending commit at `2026-07-05T00:16:21Z`
+
+**Requested behavior:** The user found the Reports section too vague to serve
+as "proof" and asked for (1) variable/custom timeframes and (2) printed
+tables of raw, fine-grained transaction data, with the explicit constraint
+that this respect role permissions and let higher-up roles choose how
+detailed a report they see.
+
+**Root cause / engineering reason:** Two real gaps existed. The timeframe
+was a fixed `daily|weekly|monthly|yearly` enum, always anchored to "now"
+server-side (`reports::service::build_window`) — there was no way, from the
+UI down to the SQL, to request an arbitrary date range. And no endpoint
+returned individual transaction/line-item records for a report at all — only
+pre-aggregated sums (`business_revenue`/`shop_revenue`/`employee_sales`/
+`product_sales`), so there was nothing to print as a line-item audit trail.
+
+**Files changed:**
+
+- `mbam-api/src/modules/reports/model.rs` — `ReportQuery` gained
+  `start_date`/`end_date` (inclusive `YYYY-MM-DD`, only used when
+  `timeframe=custom`); added `ReportDetailRow` (one row per transaction line,
+  transaction-level fields repeated) and `ReportDetailResponse`.
+- `mbam-api/src/modules/reports/service.rs` — `Timeframe` gained `Custom`;
+  new `parse_custom_range` validates format/ordering/a 731-day cap;
+  `build_window` takes an optional `(NaiveDate, NaiveDate)` custom range and
+  picks bucket granularity by span (`<=2d` hour, `<=186d` day, else month)
+  instead of a fixed preset bucket. New `transaction_detail` service function
+  gated by `require_baseline_role(&[MasterOwner, BusinessAdmin])` on top of
+  the existing `report.view` scope machinery; extracted
+  `validate_requested_business_scope` (shared with the existing
+  per-dimension `validate_requested_scope`) to validate explicit
+  `business_id`/`business_unit_id` filters; audits both denials
+  (`authorization.report.denied`) and successful raw-detail views
+  (`report.detail.viewed`).
+- `mbam-api/src/modules/reports/repository.rs` — new `DetailFilters` struct
+  and `transaction_detail` query joining `transactions`/`transaction_lines`/
+  `businesses`/`business_units`/`users`, including every transaction status
+  (not just non-refunded, since this is an audit record rather than a
+  revenue total), capped at 2000 rows with a `truncated` flag.
+- `mbam-api/src/modules/reports/routes.rs` — new `GET
+  /api/v1/reports/transactions` route.
+- `mbam-api/src/checklist_tests.rs` — new integration test
+  `transaction_detail_report_is_role_gated_and_scoped` covering: shop_manager
+  and cashier get `403` (role-gated out entirely, stricter than the
+  aggregate reports they can view); business_admin sees only their own
+  business's transactions, never the checklist fixture's second business;
+  an explicit cross-tenant `business_id` filter is `404`, not silently
+  ignored; master_owner's account-wide scope plus a custom range covering
+  "today" returns all three fixture transactions; an inverted custom range
+  is `400`; a successful view is audit-logged.
+- `mbam-web/src/services/reportService.ts` — `ReportTimeframe` gained
+  `"custom"`; `ReportFilters` gained `startDate`/`endDate`; new
+  `loadReportTransactionDetail()`.
+- `mbam-web/src/components/charts/TimeframeControl.tsx` — new `CustomRange`
+  type and a 5th "Custom" button revealing start/end `<input type="date">`
+  fields via a new `onCustomRangeChange` prop; CSS added to Charts.css.
+- `mbam-web/src/pages/reports/ReportsPage.tsx` — role-gated (master_owner/
+  business_admin, matching the backend gate exactly) Summary/Detail toggle;
+  wired the custom range into the existing chart-fetch effect (skipped while
+  incomplete/inverted or while Detail view is active); Detail mode renders
+  the new `ReportDetailTable`.
+- `mbam-web/src/pages/reports/ReportDetailTable.tsx` (new) /
+  `ReportDetailTable.css` (new) — printable flattened table of every
+  transaction line in scope/timeframe, its own Print button, a truncation
+  warning, and print-specific CSS.
+- `mbam-web/src/pages/reports/EntityReportDetailPage.tsx` — same custom-range
+  wiring applied to its existing per-entity chart fetch (no Detail toggle
+  here; that was scoped to the main Reports page only).
+- `mbam-web/src/i18n/reportsPageResources.ts`,
+  `mbam-web/src/i18n/roleDashboardResources.ts` — custom-range,
+  detail-toggle, and detail-table i18n keys (en/fr).
+- `mbam-web/src/pages/reports/ReportsPage.test.tsx` — fixed a test that
+  grabbed "the first button on the page" (now the new toggle's button,
+  not the mocked TimeframeControl's) by querying by label instead; added a
+  test confirming the toggle appears for business_admin and not for
+  shop_manager.
+
+**Debugging and verification performed:** The backend could not be
+compiled or tested in this sandbox — no Rust toolchain is installed, no
+network access to install one, and no local Postgres. Verified instead by
+manual review: read every changed file in full, then had a second
+independent read-only review (fresh context) re-check import correctness,
+every `build_window`/`report_scope`/`validate_requested_business_scope`
+call-site arity, `ReportDetailRow` field-to-SQL-alias matching, bind
+parameter order, `DetailFilters` construction, Copy-type borrow safety, and
+the new test's use of existing harness helpers/constants — both passes
+found no issues. Frontend: `npm run lint` (clean), `npm run build`
+(`tsc --noEmit` + `vite build`, succeeded), `npm test` (21 files / 58 tests
+passed).
+
+**Errors encountered:** A new ReportsPage test initially used
+`mockReturnValueOnce` to override the mocked caller's role, which only
+covers the first synchronous render call to `getCurrentMember()`; the
+report-poll effect's resolved promise triggers a re-render that calls it
+again, falling back to the default mock and making the assertion
+incorrectly pass/fail depending on timing. Fixed with a persistent
+`mockReturnValue` instead.
+
+**Checks not run:** `cargo check`/`cargo build`/`cargo test` — strongly
+recommend running these locally before relying on the backend changes,
+especially the new `transaction_detail_report_is_role_gated_and_scoped`
+integration test. No live-browser check of the custom date-range picker or
+Summary/Detail toggle in an actual running app.
+
+**Remaining risks and follow-up checks:** Backend correctness rests on
+manual review only until `cargo test` is run locally. The custom-range
+bucket thresholds and the 2000-row/731-day caps are documented judgment
+calls, not hard requirements — revisit if real audit exports need a higher
+cap or different bucketing. The raw detail report has a hard row cap plus a
+`truncated` flag but no true cursor pagination; fine for now, would need
+revisiting if 2000 rows proves limiting.
+
 ## 2026-07-04 - Print Support For Reports + Shared Print Button
 
 **Related change:** Working tree pending commit at `2026-07-04T14:52:25Z`

@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
 import AuthorizedPieChart from "../../components/charts/AuthorizedPieChart";
-import TimeframeControl from "../../components/charts/TimeframeControl";
+import TimeframeControl, { type CustomRange } from "../../components/charts/TimeframeControl";
 import PrintButton from "../../components/app/PrintButton";
+import ReportDetailTable from "./ReportDetailTable";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember } from "../../security/accessControl";
 import {
   loadReport,
   type ReportDimension,
+  type ReportFilters,
   type ReportResponse,
   type ReportTimeframe,
 } from "../../services/reportService";
@@ -50,8 +52,27 @@ export default function ReportsPage() {
   );
   const [dimension, setDimension] = useState<ReportDimension>(dimensions[0]);
   const [timeframe, setTimeframe] = useState<ReportTimeframe>("daily");
+  const [customRange, setCustomRange] = useState<CustomRange>({ start: "", end: "" });
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const isCustomRangeValid =
+    timeframe !== "custom" ||
+    (customRange.start !== "" && customRange.end !== "" && customRange.end >= customRange.start);
+  // Master Owner and Business Admin can drop into the raw, printable
+  // transaction/line-item table; mbam-api's reports::service::transaction_detail
+  // enforces the same gate server-side, so this is purely which view to
+  // offer -- not the source of truth for access.
+  const canViewDetail = role === "master_owner" || role === "business_admin";
+  const [view, setView] = useState<"summary" | "detail">("summary");
+  const reportFilters = useMemo<ReportFilters>(
+    () => ({
+      timeframe,
+      ...(timeframe === "custom"
+        ? { startDate: customRange.start, endDate: customRange.end }
+        : {}),
+    }),
+    [timeframe, customRange.start, customRange.end],
+  );
   const currency = workspace.businesses[0]?.currency ?? "XAF";
   const isQuantityDimension = dimension === "products";
   const distributionValueFormatter = useMemo(
@@ -70,6 +91,13 @@ export default function ReportsPage() {
   );
 
   useEffect(() => {
+    // Skip fetching the aggregate chart data while the Detail view is
+    // active (it fetches its own data) or while a custom range is still
+    // incomplete/inverted -- there is nothing valid to request yet.
+    if (view !== "summary" || !isCustomRangeValid) {
+      return;
+    }
+
     let ignore = false;
 
     const fetchReport = (isInitialLoad: boolean) => {
@@ -77,7 +105,7 @@ export default function ReportsPage() {
         setReport(null);
         setState("loading");
       }
-      return loadReport(dimension, { timeframe })
+      return loadReport(dimension, reportFilters)
         .then((next) => {
           if (ignore) return;
           setReport(next);
@@ -108,7 +136,7 @@ export default function ReportsPage() {
       ignore = true;
       window.clearInterval(intervalId);
     };
-  }, [dimension, timeframe]);
+  }, [dimension, reportFilters, view, isCustomRangeValid]);
 
   return (
     <section className="page-grid">
@@ -122,42 +150,77 @@ export default function ReportsPage() {
           </p>
         </div>
         <div className="dashboard-heading-action report-heading-actions no-print">
-          <TimeframeControl onChange={setTimeframe} value={timeframe} />
-          <PrintButton label={t("reportsPage.printReport")} />
+          {canViewDetail && (
+            <div className="report-view-toggle" role="group" aria-label="Report detail level">
+              <button
+                aria-pressed={view === "summary"}
+                className={view === "summary" ? "active" : ""}
+                onClick={() => setView("summary")}
+                type="button"
+              >
+                {t("reportsPage.detailToggle.summary")}
+              </button>
+              <button
+                aria-pressed={view === "detail"}
+                className={view === "detail" ? "active" : ""}
+                onClick={() => setView("detail")}
+                type="button"
+              >
+                {t("reportsPage.detailToggle.detail")}
+              </button>
+            </div>
+          )}
+          <TimeframeControl
+            customRange={customRange}
+            onChange={setTimeframe}
+            onCustomRangeChange={setCustomRange}
+            value={timeframe}
+          />
+          {view === "summary" && <PrintButton label={t("reportsPage.printReport")} />}
         </div>
       </div>
 
-      <div className="report-dimension-tabs no-print" role="tablist" aria-label="Report type">
-        {dimensions.map((item) => (
-          <button
-            aria-selected={dimension === item}
-            className={dimension === item ? "active" : ""}
-            key={item}
-            onClick={() => setDimension(item)}
-            role="tab"
-            type="button"
-          >
-            {labels[item]}
-          </button>
-        ))}
-      </div>
+      {view === "summary" && (
+        <div className="report-dimension-tabs no-print" role="tablist" aria-label="Report type">
+          {dimensions.map((item) => (
+            <button
+              aria-selected={dimension === item}
+              className={dimension === item ? "active" : ""}
+              key={item}
+              onClick={() => setDimension(item)}
+              role="tab"
+              type="button"
+            >
+              {labels[item]}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {state === "loading" && (
+      {view === "detail" && (
+        isCustomRangeValid ? (
+          <ReportDetailTable currency={currency} filters={reportFilters} />
+        ) : (
+          <article className="card report-state">{t("reportsPage.customRangePending")}</article>
+        )
+      )}
+
+      {view === "summary" && state === "loading" && (
         <article className="card report-state" role="status">
           Loading authorized report…
         </article>
       )}
-      {state === "error" && (
+      {view === "summary" && state === "error" && (
         <div className="validation-summary" role="alert">
           The report could not be loaded. No cached broader data is displayed.
         </div>
       )}
-      {state === "ready" && report?.series.length === 0 && (
+      {view === "summary" && state === "ready" && report?.series.length === 0 && (
         <article className="card report-state">
           No sales were recorded in this authorized scope and timeframe.
         </article>
       )}
-      {state === "ready" && report && report.series.length > 1 && (
+      {view === "summary" && state === "ready" && report && report.series.length > 1 && (
         <article className="card report-distribution-card">
           <header>
             <div>
@@ -174,7 +237,7 @@ export default function ReportsPage() {
           />
         </article>
       )}
-      {state === "ready" && report && report.series.length > 0 && (
+      {view === "summary" && state === "ready" && report && report.series.length > 0 && (
         <div className="report-series-grid">
           {report.series.map((series) => (
             <article className="card report-series-card" key={series.entity_id}>

@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "../../services/apiClient";
+import { getCurrentMember } from "../../security/accessControl";
 import ReportsPage from "./ReportsPage";
 
 const { loadReport } = vi.hoisted(() => ({
@@ -129,9 +130,14 @@ describe("ReportsPage states", () => {
     expect(container.textContent).toContain("Shop One");
 
     await act(async () => {
-      container.querySelector("button")?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
+      // Query by label rather than "the first button on the page" -- the
+      // Summary/Detail role-gated toggle (rendered for this test's mocked
+      // business_admin role) and the dimension tabs also render buttons
+      // before/around the mocked TimeframeControl.
+      const timeframeButton = Array.from(
+        container.querySelectorAll("button"),
+      ).find((button) => button.textContent === "change timeframe");
+      timeframeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 
@@ -139,5 +145,50 @@ describe("ReportsPage states", () => {
       "The report could not be loaded. No cached broader data is displayed.",
     );
     expect(container.textContent).not.toContain("Shop One");
+  });
+
+  it("offers the Summary/Detail toggle to a business admin but not a shop manager", async () => {
+    loadReport.mockResolvedValue({
+      dimension: "shops",
+      timeframe: "daily",
+      timezone: "UTC",
+      starts_at: "2026-06-19T00:00:00Z",
+      ends_at: "2026-06-19T23:59:59Z",
+      series: [],
+    });
+
+    await act(async () => {
+      root.render(<ReportsPage />);
+    });
+    // Default mock resolves getCurrentMember to a business_admin role, which
+    // mbam-api's reports::service::transaction_detail also allows into the
+    // raw line-item report -- the toggle should be offered.
+    expect(container.querySelector('[aria-label="Report detail level"]')).not.toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    // Use a persistent override (not "-Once") -- the resolved loadReport
+    // promise triggers a state update and re-render, which calls
+    // getCurrentMember() again, and a "-Once" override would only cover
+    // that first synchronous call before falling back to the default
+    // business_admin mock on the second.
+    vi.mocked(getCurrentMember).mockReturnValue({
+      roleId: "role-shop-manager",
+    } as ReturnType<typeof getCurrentMember>);
+
+    await act(async () => {
+      root.render(<ReportsPage />);
+    });
+    // Shop managers can view the existing aggregate reports but are denied
+    // raw transaction detail server-side, so the toggle must not appear at
+    // all -- not just be disabled.
+    expect(container.querySelector('[aria-label="Report detail level"]')).toBeNull();
   });
 });

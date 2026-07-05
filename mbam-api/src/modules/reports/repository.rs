@@ -2,7 +2,23 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use super::model::{ReportPoint, ReportSeries};
+use super::model::{ReportDetailRow, ReportPoint, ReportSeries};
+
+/// Hard cap on rows returned by the raw transaction/line-item detail report.
+/// Keeps the query and the resulting printed table bounded even for a wide
+/// custom date range; callers should narrow the timeframe or scope instead
+/// of relying on pagination through this endpoint.
+const MAX_DETAIL_ROWS: i64 = 2000;
+
+/// Optional narrowing filters for the raw transaction/line-item detail
+/// report, applied on top of the caller's authorized `ReportScope`.
+#[derive(Debug, Default)]
+pub struct DetailFilters {
+    pub business_id: Option<Uuid>,
+    pub business_unit_id: Option<Uuid>,
+    pub employee_id: Option<Uuid>,
+    pub product_id: Option<Uuid>,
+}
 
 /// Immutable parameters used by reporting aggregation queries.
 pub struct ReportScope {
@@ -152,6 +168,77 @@ pub async fn product_sales(
         product_id,
     )
     .await
+}
+
+/// Returns the raw, printable transaction/line-item rows in scope.
+///
+/// Input is the caller's authorized `ReportScope` plus optional narrowing
+/// filters; output is one row per transaction line (transaction-level fields
+/// repeated), newest transaction first, capped at `MAX_DETAIL_ROWS` rows plus
+/// a `truncated` flag. Unlike the aggregate reports, every transaction
+/// `status` is included (not just non-refunded), because this endpoint is
+/// meant to stand as a complete audit record rather than a revenue total.
+/// This function assumes `scope` was produced by the authorization context
+/// and does not authenticate the caller.
+pub async fn transaction_detail(
+    db: &PgPool,
+    scope: &ReportScope,
+    filters: &DetailFilters,
+) -> Result<(Vec<ReportDetailRow>, bool), sqlx::Error> {
+    let mut rows: Vec<ReportDetailRow> = sqlx::query_as(
+        r#"
+        select
+          transaction.id as transaction_id,
+          transaction.created_at as created_at,
+          transaction.business_id as business_id,
+          business.name as business_name,
+          transaction.business_unit_id as business_unit_id,
+          unit.name as business_unit_name,
+          transaction.customer_name as customer_name,
+          transaction.payment_method as payment_method,
+          transaction.status as status,
+          transaction.recorded_by_user_id as recorded_by_user_id,
+          recorder.full_name as recorded_by,
+          transaction.total_amount::float8 as transaction_total,
+          line.id as line_id,
+          line.product_name_snapshot as product_name,
+          line.sku_snapshot as sku,
+          line.quantity::float8 as quantity,
+          line.unit_price::float8 as unit_price,
+          line.line_total::float8 as line_total
+        from transactions transaction
+        join businesses business on business.id = transaction.business_id
+        left join business_units unit on unit.id = transaction.business_unit_id
+        join users recorder on recorder.id = transaction.recorded_by_user_id
+        join transaction_lines line on line.transaction_id = transaction.id
+        where transaction.created_at >= $1 and transaction.created_at < $2
+          and transaction.business_id = any($3)
+          and ($4::uuid[] = array[]::uuid[] or transaction.business_unit_id = any($4))
+          and ($5::uuid is null or transaction.recorded_by_user_id = $5)
+          and ($6::uuid is null or transaction.business_id = $6)
+          and ($7::uuid is null or transaction.business_unit_id = $7)
+          and ($8::uuid is null or transaction.recorded_by_user_id = $8)
+          and ($9::uuid is null or line.product_id = $9)
+        order by transaction.created_at desc, line.created_at asc
+        limit $10
+        "#,
+    )
+    .bind(scope.starts_at)
+    .bind(scope.ends_at)
+    .bind(&scope.business_ids)
+    .bind(&scope.business_unit_ids)
+    .bind(scope.recorded_by_user_id)
+    .bind(filters.business_id)
+    .bind(filters.business_unit_id)
+    .bind(filters.employee_id)
+    .bind(filters.product_id)
+    .bind(MAX_DETAIL_ROWS + 1)
+    .fetch_all(db)
+    .await?;
+
+    let truncated = rows.len() as i64 > MAX_DETAIL_ROWS;
+    rows.truncate(MAX_DETAIL_ROWS as usize);
+    Ok((rows, truncated))
 }
 
 async fn aggregate(
