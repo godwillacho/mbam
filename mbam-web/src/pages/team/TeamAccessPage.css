@@ -150,7 +150,14 @@
   width: 100%;
 }
 
-.danger-text {
+/*
+ * Written as `.secondary-btn.danger-text` (matching its one real usage in
+ * TeamAccessPage.tsx) rather than plain `.danger-text`, so this wins on
+ * specificity over the base `.secondary-btn { color: var(--ink) }` rule in
+ * AppShell.css regardless of which stylesheet the bundler happens to
+ * concatenate first.
+ */
+.secondary-btn.danger-text {
   color: #9c2f2f;
 }
 
