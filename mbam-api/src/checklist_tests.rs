@@ -387,13 +387,17 @@ async fn transaction_detail_report_is_role_gated_and_scoped() {
     assert!(admin_transaction_ids.contains(&TRANSACTION_TWO_ID.to_string()));
     assert!(!admin_transaction_ids.contains(&TRANSACTION_THREE_ID.to_string()));
 
-    // An explicit cross-tenant business_id filter is denied outright, not
+    // An explicit cross-tenant business_ids filter is denied outright, not
     // silently ignored, matching the existing aggregate-report scope checks.
+    // (This endpoint's filters are all comma-separated multi-id params --
+    // `business_ids`, not the aggregate reports' singular `business_id` --
+    // so a stray singular param here would be silently dropped by the query
+    // deserializer instead of denying the request.)
     let (status, _) = app
         .request_json(
             Method::GET,
             &format!(
-                "/api/v1/reports/transactions?timeframe=daily&business_id={BUSINESS_TWO_ID}"
+                "/api/v1/reports/transactions?timeframe=daily&business_ids={BUSINESS_TWO_ID}"
             ),
             uuid(ADMIN_USER_ID),
             None,
