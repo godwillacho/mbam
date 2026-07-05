@@ -30,10 +30,10 @@ type PaymentStatus = "paid" | "pending";
 
 // Small inline icons for the record page's action buttons (Save
 // draft/Record sale/Print invoice) -- no icon library is installed in this
-// project, so these are plain, dependency-free SVGs sized by
-// `.form-action-btn svg` in TransactionRecordPage.css. Purely decorative
-// (each button already has a visible text label), so they're marked
-// aria-hidden rather than announced to screen readers.
+// project, so these are plain, dependency-free SVGs sized by the global
+// `.primary-btn svg`/`.secondary-btn svg` rule in AppShell.css. Purely
+// decorative (each button already has a visible text label), so they're
+// marked aria-hidden rather than announced to screen readers.
 function SaveDraftIcon() {
   return (
     <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
@@ -328,7 +328,6 @@ export default function TransactionRecordPage() {
   const pendingAmount = isPendingPayment
     ? calculatePendingAmount(parsedTotalAmount, parsedAmountPaid)
     : 0;
-  const canRecord = Object.keys(validateForm()).length === 0;
 
   const transactionLines = () => useItemizedDetails
     ? lineItems.map((item) => {
@@ -757,15 +756,27 @@ export default function TransactionRecordPage() {
         </div>
 
         <div className="form-actions">
-          <button className="secondary-btn form-action-btn" type="button" disabled={formStatus === "saving"} onClick={() => void handleSaveDraft()}>
+          <button className="secondary-btn" type="button" disabled={formStatus === "saving"} onClick={() => void handleSaveDraft()}>
             <SaveDraftIcon />
             <span>{t("transactionRecord.saveDraft")}</span>
           </button>
-          <button className="primary-btn record-sale-btn form-action-btn" type="submit" disabled={formStatus === "saving" || !canRecord}>
+          {/*
+            Deliberately NOT gated on form validity (only on formStatus ===
+            "saving", to prevent a double-submit): these used to also
+            disable whenever `validateForm()` found anything incomplete,
+            including on the very first render before the user had typed
+            anything. Since a disabled button never fires a click, that
+            meant `handleSubmit`'s own `setErrors(nextErrors)` -- which
+            drives the validation-summary panel above -- could never run,
+            leaving both buttons permanently greyed out with no way for the
+            user to see what was missing. Clicking now always runs
+            validation and either shows the specific errors or proceeds.
+          */}
+          <button className="primary-btn record-sale-btn" type="submit" disabled={formStatus === "saving"}>
             <RecordSaleIcon />
             <span>{t("transactionRecord.recordSale")}</span>
           </button>
-          <button className="primary-btn print-invoice-btn form-action-btn" type="submit" data-intent="print" disabled={formStatus === "saving" || !canRecord}>
+          <button className="primary-btn" type="submit" data-intent="print" disabled={formStatus === "saving"}>
             <PrintInvoiceIcon />
             <span>{t("invoice.printInvoice")}</span>
           </button>

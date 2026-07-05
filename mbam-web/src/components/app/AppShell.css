@@ -439,6 +439,81 @@ body {
   resize: vertical;
 }
 
+/*
+ * `.primary-btn`/`.secondary-btn` are used across nearly every page (Reports,
+ * Team, Business, Products, Transaction Drafts, the invoice page's own
+ * PrintButton, this form, etc.) but previously had zero CSS anywhere in the
+ * app -- every such button rendered as a bare, unstyled native <button>,
+ * which made it hard to tell an enabled control from a disabled one at a
+ * glance. This is the one base definition for both; page-specific color
+ * variants (e.g. `.record-sale-btn`) are written as `.primary-btn.foo` so
+ * they win on specificity rather than relying on CSS import order.
+ */
+.primary-btn,
+.secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.primary-btn svg,
+.secondary-btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.primary-btn:active:not(:disabled),
+.secondary-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.primary-btn:disabled,
+.secondary-btn:disabled {
+  cursor: not-allowed;
+}
+
+.primary-btn {
+  background: var(--forest);
+  border-color: var(--forest);
+  color: #fff;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: #14351F;
+  border-color: #14351F;
+}
+
+.primary-btn:disabled {
+  background: #AFC4B7;
+  border-color: #AFC4B7;
+  color: #E8EFE9;
+}
+
+.secondary-btn {
+  background: #fff;
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background: #FAF7F0;
+  border-color: var(--forest-mid);
+}
+
+.secondary-btn:disabled {
+  border-color: var(--border);
+  color: var(--muted);
+}
+
 .customer-field {
   position: relative;
 }

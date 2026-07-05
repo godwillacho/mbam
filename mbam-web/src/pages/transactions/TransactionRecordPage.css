@@ -32,14 +32,15 @@
 }
 
 /*
- * `.primary-btn`/`.secondary-btn` have no base styling anywhere in this
- * app (confirmed across every stylesheet) -- they render as bare native
- * buttons, which made "Save draft" and "Print invoice" look flat/disabled
- * next to the explicitly-colored "Record sale" button below, even though
- * all three are equally clickable. `.form-action-btn` gives this page's
- * three action buttons a real, consistent, clearly-interactive look;
- * scoped under `.form-actions` so it can't affect the `.primary-btn`/
- * `.secondary-btn` usages on other pages.
+ * Layout only -- base `.primary-btn`/`.secondary-btn` look (padding,
+ * border-radius, colors, icon sizing) now lives in the global rule in
+ * AppShell.css. `.print-invoice-btn` was dropped: its color was identical
+ * to `.primary-btn`'s new global default, so the plain class already gives
+ * that exact look with no override needed. `.record-sale-btn` still needs
+ * its own green, written as `.primary-btn.record-sale-btn` (two classes)
+ * so it deterministically wins over the plain `.primary-btn` default
+ * regardless of CSS import order, rather than relying on both rules having
+ * matching specificity and hoping this file loads after AppShell.css.
  */
 .form-actions {
   display: flex;
@@ -49,81 +50,21 @@
   margin-top: 24px;
 }
 
-.form-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
-}
-
-.form-action-btn svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.form-action-btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.form-action-btn:disabled {
-  cursor: not-allowed;
-}
-
-.form-actions .secondary-btn {
-  background: #fff;
-  border-color: var(--border);
-  color: var(--ink);
-}
-
-.form-actions .secondary-btn:hover:not(:disabled) {
-  background: #FAF7F0;
-  border-color: var(--forest-mid);
-}
-
-.form-actions .secondary-btn:disabled {
-  border-color: var(--border);
-  color: var(--muted);
-}
-
-.record-sale-btn {
+.primary-btn.record-sale-btn {
   background: #15803D;
   border-color: #15803D;
   color: #fff;
 }
 
-.record-sale-btn:hover:not(:disabled) {
+.primary-btn.record-sale-btn:hover:not(:disabled) {
   background: #166534;
   border-color: #166534;
 }
 
-.record-sale-btn:disabled {
+.primary-btn.record-sale-btn:disabled {
   background: #A7F3D0;
   border-color: #A7F3D0;
   color: #52645A;
-}
-
-.print-invoice-btn {
-  background: var(--forest);
-  border-color: var(--forest);
-  color: #fff;
-}
-
-.print-invoice-btn:hover:not(:disabled) {
-  background: #14351F;
-  border-color: #14351F;
-}
-
-.print-invoice-btn:disabled {
-  background: #AFC4B7;
-  border-color: #AFC4B7;
-  color: #E8EFE9;
 }
 
 .validation-summary {
@@ -358,7 +299,8 @@
     align-items: stretch;
   }
 
-  .form-action-btn {
+  .form-actions .primary-btn,
+  .form-actions .secondary-btn {
     justify-content: center;
   }
 

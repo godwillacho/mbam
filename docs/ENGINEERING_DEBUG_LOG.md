@@ -3117,3 +3117,96 @@ mockup rather than the real rendered app.
   chrome today. Left deliberately untouched since this request was scoped
   to "the record page"; worth a follow-up pass if the same "looks
   disabled" perception is reported elsewhere.
+
+## 2026-07-05 - Fix Record/Print Buttons Actually Disabled, Plus App-Wide Button Pass
+
+**Related change:** `2026-07-05T15:19:43Z`
+
+**Requested behavior:** "the save transaction button and print button are
+not clickable on my dashboard" (confirmed via follow-up: Record
+Transaction page, greyed out). Also approved doing the broader
+`.primary-btn`/`.secondary-btn` app-wide styling pass offered as a
+follow-up to the previous change.
+
+**Root cause / engineering reason:** `canRecord = Object.keys(
+validateForm()).length === 0` gated `disabled={formStatus === "saving" ||
+!canRecord}` on both the "Record sale" and "Print invoice" buttons.
+`validateForm()` recomputes on every render and requires every field to
+already be valid, so `canRecord` is `false` starting from the very first
+render, before the user has typed anything. A disabled `<button>` never
+fires a click event, so `handleSubmit` — the function that calls
+`setErrors(nextErrors)` to populate the page's own `validation-summary`
+panel — could never run. Both buttons were stuck permanently disabled
+with no way for the user to discover what was missing. This dead end
+predates this session but was only clearly *visible* once the prior
+change gave disabled buttons real, obviously-greyed-out styling instead
+of blending into the page as plain unstyled browser buttons.
+
+**Files changed:**
+
+- `mbam-web/src/pages/transactions/TransactionRecordPage.tsx`,
+  `TransactionRecordPage.css`
+- `mbam-web/src/components/app/AppShell.css`
+- `mbam-web/src/pages/team/TeamAccessPage.css`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Removed `!canRecord` from both buttons' `disabled` prop, keeping only
+  `formStatus === "saving"` (still prevents a double-submit mid-request),
+  and deleted the now-dead `canRecord` variable. Clicking either button
+  now always runs the existing `validateForm()`/`setErrors()` flow in
+  `handleSubmit`, which shows specific field errors via the
+  already-built `validation-summary` alert, or proceeds if valid —
+  exactly the UX the page's error panel was designed for but could never
+  reach.
+- Added a global base `.primary-btn`/`.secondary-btn` rule to
+  `AppShell.css` (loaded on every route) covering padding, border-radius,
+  colors, icon sizing, and hover/active/disabled states — the same look
+  the record page got in the prior change, now applied app-wide.
+- Removed the now-duplicate `.form-action-btn`/`.form-actions
+  .secondary-btn` rules from `TransactionRecordPage.css` (kept the
+  page-specific `.form-actions` flex-row layout) and dropped
+  `.print-invoice-btn` entirely since it was now color-identical to the
+  new global `.primary-btn` default.
+- Converted `.record-sale-btn` to a compound `.primary-btn.record-sale-
+  btn` selector so its green color deterministically beats the new
+  global default on specificity, rather than depending on which
+  stylesheet the bundler happens to concatenate last.
+- Audited every other file referencing `.primary-btn`/`.secondary-btn`
+  (7 files) for single-class color overrides that could now tie with the
+  new global colors on equal specificity. Found one:
+  `TeamAccessPage.tsx`'s "disable employee" button used a bare
+  `.danger-text` class; converted its CSS selector to
+  `.secondary-btn.danger-text` for the same specificity-safety reason.
+
+**Debugging and verification performed:**
+
+- `npx tsc --noEmit` clean; `npx eslint` clean on the changed `.tsx`
+  file; `npx vitest run` passed (21 files / 58 tests, unchanged);
+  `npm run build` succeeded.
+- Grepped the compiled `dist` CSS output to confirm both compound
+  selectors (`.primary-btn.record-sale-btn`, `.secondary-btn.danger-
+  text`) actually compiled through with their intended colors, rather
+  than trusting the source alone.
+- Rendered a static HTML mockup (via the visualization tool) of buttons/
+  links from three of the other affected pages (Team Access, Transaction
+  Drafts' router `<Link>`s styled as buttons, Reports' `PrintButton`) to
+  sanity-check the app-wide pass.
+
+**Errors encountered:** The reported bug itself — see root cause above.
+A pre-existing logic issue exposed (not introduced) by the prior styling
+change.
+
+**Checks not run:** No live browser verification (no Docker/Postgres/
+Keycloak stack in this sandbox) — verified via code reading, compiled-
+CSS inspection, and static mockups instead of the real running app.
+
+**Remaining risks and follow-up checks:**
+
+- None identified for the files touched this session. Any future page
+  that adds its own single-class color override on top of `.primary-btn`/
+  `.secondary-btn` should write it as a compound selector
+  (`.primary-btn.foo`/`.secondary-btn.foo`), not a bare `.foo`, to avoid
+  relying on CSS specificity ties resolved by import order — noting this
+  here so it isn't rediscovered the hard way next time.
