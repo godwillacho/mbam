@@ -2797,3 +2797,166 @@ signal for a UI-visibility fix like this one than a build check alone.
   snapshot — not a functional problem (offline mode doesn't gate anything
   on `isDemoWorkspace()`), just noted for completeness since snapshots are
   a clone of whatever `workspace` held at save time.
+
+## 2026-07-05 - Multi-Entity Filters For The Raw Transaction Detail Report
+
+**Related change:** `2026-07-05T14:18:41Z`
+
+**Requested behavior:** "the report details lack the filter to be able to
+create reports for just a bussiness, an employee, a shop or any unit
+intergrate that funtionality so if i click on employees and then details
+it shows the employees and i can use a search box to build the report for
+a particular employee or set of employees same for the shops and order
+parametres already present on the page" — with a follow-up clarifying
+multi-select via a comma-delimited grouping ("incase of employee while
+searching the employee name when employee is selected you can use a ,
+delimetre in acase where the user wants to group the reports for more
+than one employee") and that the existing dimension tabs
+(Businesses/Shops/Employees/Products) should stay visible and functional
+in Detail view, not only Summary view.
+
+**Root cause / engineering reason:** The raw detail report endpoint
+(`reports::service::transaction_detail`, shipped in the prior
+`2026-07-03T...` custom-range/detail-report change) only accepted one
+optional id per dimension (`ReportQuery.business_id`/`business_unit_id`/
+`employee_id`/`product_id`, each `Option<Uuid>`), so there was no way to
+build one report covering a hand-picked group of several employees, shops,
+etc. at once. This was a missing feature, not a bug in the existing
+single-id path, which needed to keep working unchanged for the aggregate
+dimension reports (`business_revenue`/`shop_revenue`/`employee_sales`/
+`product_sales`).
+
+**Files changed:**
+
+- `mbam-api/src/modules/reports/model.rs`, `repository.rs`, `service.rs`,
+  `routes.rs`
+- `mbam-api/src/checklist_tests.rs`
+- `mbam-web/src/services/entityDirectoryService.ts` (new),
+  `reportService.ts`
+- `mbam-web/src/components/reports/EntityMultiSelect.tsx` + `.css` (new)
+- `mbam-web/src/pages/reports/ReportsPage.tsx` + `.css`,
+  `ReportDetailTable.tsx`, `EntityReportDetailPage.tsx`
+- `mbam-web/src/i18n/reportsPageResources.ts`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Added `ReportDetailQuery` (model.rs) with `business_ids`/
+  `business_unit_ids`/`employee_ids`/`product_ids: Option<String>`
+  (comma-separated), distinct from the single-id `ReportQuery` used by the
+  aggregate dimension reports.
+- Changed repository `DetailFilters` fields from `Option<Uuid>` to
+  `Vec<Uuid>` and the `transaction_detail` SQL's filter clauses from
+  `($N::uuid is null or col = $N)` to
+  `($N::uuid[] = array[]::uuid[] or col = any($N))` — an empty vec means
+  "no restriction from this filter", matching the existing
+  `ReportScope.business_unit_ids` empty-array convention already used
+  elsewhere in the same query.
+- Refactored `service.rs`: extracted `report_window`'s body into a
+  primitive-argument `build_report_window(timeframe, timezone, start_date,
+  end_date: Option<&str>)` shared by both `report_window` (`ReportQuery`)
+  and a new `report_detail_window` (`ReportDetailQuery`), so the
+  timeframe/custom-range parsing logic exists in exactly one place for
+  both query types. Generalized `validate_requested_business_scope` from
+  two `Option<Uuid>` parameters to `impl IntoIterator<Item = Uuid>` for
+  both — `Option<Uuid>` already implements this trait (yielding zero or one
+  items), so the pre-existing single-id aggregate-report call site needed
+  no changes at all. Added `parse_uuid_list(Option<&str>) ->
+  Result<Vec<Uuid>, ApiError>` for comma-separated id parsing (blank
+  entries between commas are ignored; any non-empty malformed entry
+  returns `400`). Rewrote `transaction_detail` to parse all four id lists,
+  validate the business/unit ids against the caller's authorized scope
+  (fail-closed `404` on any id outside scope, matching the pre-existing
+  single-id cross-tenant behavior), and changed both
+  `record_authorization_event` calls' structured `business_id`/
+  `business_unit_id` audit columns to `None` (multiple ids no longer fit a
+  single-UUID column), moving the actual id lists into the `metadata` JSON
+  instead.
+- Updated `routes.rs`'s `transaction_detail` handler to extract
+  `Query<ReportDetailQuery>` instead of `Query<ReportQuery>`.
+- Frontend: added `entityDirectoryService.ts`, a shared `loadEntityItems
+  (kind)` covering all four dimensions — the `businesses` case is new
+  (via `loadAuthorizationBootstrap().businesses`), while the
+  shops/employees/products cases are the same logic moved out of
+  `EntityReportDetailPage.tsx`'s previously-local `loadItems` unchanged.
+  Added `components/reports/EntityMultiSelect.tsx`: a search box plus
+  removable tag list per dimension, backed by `loadEntityItems`, giving
+  the comma-delimited multi-select grouping the user asked for. Added
+  `ReportDetailFilters` (reportService.ts) alongside the existing
+  single-id `ReportFilters`; `loadReportTransactionDetail` now takes
+  `ReportDetailFilters` and a new `detailQuery()` joins each id array with
+  `,` for the query string. In `ReportsPage.tsx`: un-hid the dimension
+  tabs so they render in both Summary and Detail view (previously gated
+  `{view === "summary" && (...)}`), added per-dimension selection state
+  (`selectedIdsByDimension: Record<ReportDimension, string[]>`) so
+  switching tabs doesn't clear a different dimension's already-built
+  group, rendered `EntityMultiSelect` for only the active dimension while
+  in Detail view, and built `detailFilters` so only the active dimension's
+  selected ids feed the request (matching "click on employees and then
+  details" — one active picker/filter dimension at a time).
+  `ReportDetailTable.tsx`'s `filters` prop switched to
+  `ReportDetailFilters`, with its fetch effect's dependency array changed
+  to plain `businessIdsKey`/`businessUnitIdsKey`/etc. variables (each a
+  `.join(",")` computed once above the effect) instead of inline
+  `.join(",")` call expressions, so `react-hooks/exhaustive-deps` can
+  statically check them without a warning.
+
+**Debugging and verification performed:**
+
+- Backend: no Rust toolchain in this sandbox (same standing constraint as
+  every prior backend change in this repo's history) — verified by
+  re-reading each changed function in full after editing, confirming
+  positional `.bind()` calls match the SQL's `$N` order, and confirming
+  `Option<Uuid>` satisfies the new `impl IntoIterator<Item = Uuid>` bound
+  so the existing single-id call site compiles unchanged. Added
+  `transaction_detail_report_supports_multi_entity_filters` to
+  `checklist_tests.rs`, covering: a multi-employee filter returning the
+  union of both employees' transactions; the same list narrowed to one
+  employee correctly excluding the other's transaction; a multi-shop
+  filter behaving the same way; a multi-id shop filter that includes one
+  cross-tenant id failing closed with `404` for the whole request (not
+  silently dropping just that id); a malformed id anywhere in a
+  comma-separated list returning `400`; and a multi-product filter. This
+  sits alongside the pre-existing `transaction_detail_report_is_role_
+  gated_and_scoped` test. Both need the user's local `cargo test` to
+  actually execute and confirm compilation, per this repo's established
+  workflow for backend changes in this sandbox.
+- Frontend: `npx tsc --noEmit` clean; `npx eslint` clean (0 errors, 0
+  warnings, after extracting the `.join(",")`-derived dependency
+  variables to satisfy `react-hooks/exhaustive-deps`); `npx vitest run`
+  passed (21 files / 58 tests, unchanged) —`ReportsPage.test.tsx`'s three
+  tests never switch to Detail view, so were unaffected by un-hiding the
+  dimension tabs or adding the entity picker; `EntityReportDetailPage.
+  test.tsx` continued to pass unmodified because its `vi.mock` calls
+  target the same `authorizationService`/`teamService`/`productService`
+  module paths that `entityDirectoryService.ts` now wraps, rather than
+  the removed local `loadItems` function directly; `npm run build`
+  succeeded (`tsc --noEmit && vite build --mode production`).
+
+**Errors encountered:** None this session — verification was continuous
+rather than iterative-fix-after-failure (unlike the jsonwebtoken v10
+breaking-change discovery in the prior `2026-07-03` custom-range/detail-
+report session).
+
+**Checks not run:** `cargo test`/`cargo check` (no Rust toolchain in this
+sandbox — asking the user to run `cargo test` locally again, same as
+prior rounds). No live browser verification of the picker's actual
+click/search/print interaction flow.
+
+**Remaining risks and follow-up checks:**
+
+- `employee_ids`/`product_ids` are not individually authorization-checked
+  per id the way `business_ids`/`business_unit_ids` are (via
+  `require_business`/`require_business_unit`). This is intentional and
+  safe today because `ReportScope`'s own `business_ids`/
+  `business_unit_ids`/`recorded_by_user_id` already bound every row to the
+  caller's authorized scope before these two filters narrow further, so
+  an employee/product id from outside the caller's scope simply matches
+  zero rows rather than leaking any data — flagging this reasoning in case
+  a future change ever lets employee/product filters bypass `ReportScope`
+  directly.
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.tsx` has its own,
+  third copy of similar directory-loading logic (pre-existing, not
+  touched this session, out of scope for this change) — a future cleanup
+  could point it at `entityDirectoryService.ts` too instead of leaving
+  three near-duplicate implementations in the codebase.

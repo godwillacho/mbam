@@ -441,6 +441,112 @@ async fn transaction_detail_report_is_role_gated_and_scoped() {
     assert!(viewed_count >= 1);
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn transaction_detail_report_supports_multi_entity_filters() {
+    let _guard = test_guard();
+    let app = test_app().await;
+
+    // Selecting several employees at once (comma-delimited) returns the
+    // union of their transactions, not just the first id -- this is the
+    // "group the report for more than one employee" behavior the UI's
+    // multi-select is built on top of.
+    let (status, both_employees) = app
+        .request_json(
+            Method::GET,
+            &format!(
+                "/api/v1/reports/transactions?timeframe=daily&employee_ids={CASHIER_ONE_USER_ID},{CASHIER_TWO_USER_ID}"
+            ),
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let both_employee_transaction_ids = transaction_ids_in_rows(&both_employees);
+    assert!(both_employee_transaction_ids.contains(&TRANSACTION_ONE_ID.to_string()));
+    assert!(both_employee_transaction_ids.contains(&TRANSACTION_TWO_ID.to_string()));
+
+    // Narrowing to a single employee in that same multi-id list still
+    // excludes the other employee's transaction, confirming the filter is
+    // an intersection with scope and a union only across the requested ids.
+    let (status, one_employee) = app
+        .request_json(
+            Method::GET,
+            &format!(
+                "/api/v1/reports/transactions?timeframe=daily&employee_ids={CASHIER_ONE_USER_ID}"
+            ),
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let one_employee_transaction_ids = transaction_ids_in_rows(&one_employee);
+    assert!(one_employee_transaction_ids.contains(&TRANSACTION_ONE_ID.to_string()));
+    assert!(!one_employee_transaction_ids.contains(&TRANSACTION_TWO_ID.to_string()));
+
+    // Multiple shop ids behave the same way as multiple employee ids.
+    let (status, both_shops) = app
+        .request_json(
+            Method::GET,
+            &format!(
+                "/api/v1/reports/transactions?timeframe=daily&business_unit_ids={UNIT_ONE_ID},{UNIT_TWO_ID}"
+            ),
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let both_shop_transaction_ids = transaction_ids_in_rows(&both_shops);
+    assert!(both_shop_transaction_ids.contains(&TRANSACTION_ONE_ID.to_string()));
+    assert!(both_shop_transaction_ids.contains(&TRANSACTION_TWO_ID.to_string()));
+
+    // A multi-id shop filter that includes one id outside the caller's
+    // authorized scope is denied outright (fail closed on the whole
+    // request), matching the existing single-id cross-tenant check --
+    // partial/silent filtering of just the unauthorized id would leak which
+    // ids exist without saying so.
+    let (status, _) = app
+        .request_json(
+            Method::GET,
+            &format!(
+                "/api/v1/reports/transactions?timeframe=daily&business_unit_ids={UNIT_ONE_ID},{UNIT_THREE_ID}"
+            ),
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // A malformed id anywhere in the comma-separated list is rejected with
+    // 400 rather than silently skipped.
+    let (status, _) = app
+        .request_json(
+            Method::GET,
+            &format!(
+                "/api/v1/reports/transactions?timeframe=daily&employee_ids={CASHIER_ONE_USER_ID},not-a-uuid"
+            ),
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // Multiple product ids narrow to just the matching lines' products.
+    let (status, both_products) = app
+        .request_json(
+            Method::GET,
+            &format!(
+                "/api/v1/reports/transactions?timeframe=daily&product_ids={PRODUCT_ONE_ID},{PRODUCT_TWO_ID}"
+            ),
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let both_product_transaction_ids = transaction_ids_in_rows(&both_products);
+    assert!(both_product_transaction_ids.contains(&TRANSACTION_ONE_ID.to_string()));
+    assert!(both_product_transaction_ids.contains(&TRANSACTION_TWO_ID.to_string()));
+}
+
 impl TestApp {
     async fn request_json(
         &self,
@@ -613,8 +719,21 @@ async fn upsert_checklist_fixture(db: &PgPool) -> Result<(), sqlx::Error> {
 }
 
 async fn clear_checklist_fixture(db: &PgPool) -> Result<(), sqlx::Error> {
+    // `report.detail.viewed` / `authorization.report.denied` audit events
+    // (see reports::service::transaction_detail) record `business_id`/
+    // `business_unit_id` directly, with `resource_id` left `None` and the
+    // actor being whichever role made the request (e.g. business_admin or
+    // master_owner, not just the manager/cashier accounts below) -- so this
+    // cleanup must also match on the business/unit id columns themselves,
+    // not only `resource_id` and a fixed actor list, or a leftover row will
+    // block the next test run's `delete from businesses`/`business_units`
+    // with a foreign key violation.
     sqlx::query(
-        "delete from audit_logs where resource_id = any($1) or actor_user_id = any($2)",
+        "delete from audit_logs \
+         where resource_id = any($1) \
+            or actor_user_id = any($2) \
+            or business_id = any($1) \
+            or business_unit_id = any($1)",
     )
     .bind(vec![
         uuid(BUSINESS_TWO_ID),

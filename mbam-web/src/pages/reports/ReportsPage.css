@@ -52,6 +52,10 @@
   color: var(--forest);
 }
 
+.report-entity-picker {
+  margin-top: -8px;
+}
+
 .report-series-grid {
   display: grid;
   gap: 16px;

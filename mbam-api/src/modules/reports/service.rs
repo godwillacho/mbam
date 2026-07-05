@@ -10,8 +10,8 @@ use crate::{
 
 use super::{
     model::{
-        DashboardLeader, DashboardSummaryResponse, ReportDetailResponse, ReportQuery,
-        ReportResponse, ReportSeries,
+        DashboardLeader, DashboardSummaryResponse, ReportDetailQuery, ReportDetailResponse,
+        ReportQuery, ReportResponse, ReportSeries,
     },
     repository::{self, DetailFilters, ReportScope},
 };
@@ -85,57 +85,78 @@ pub async fn product_sales(
 /// already see full business-level reporting. Shop Managers and Cashiers
 /// keep the existing summary/chart view and cannot reach this endpoint even
 /// within their own scope.
+///
+/// Unlike the aggregate dimension reports, every filter here accepts
+/// *multiple* comma-separated ids (e.g. `employee_ids=a,b,c`) so a caller can
+/// build one report covering a hand-picked set of employees, shops, or
+/// products rather than only ever one at a time.
 pub async fn transaction_detail(
     db: &PgPool,
     authorization: &AuthorizationContext,
-    query: ReportQuery,
+    query: ReportDetailQuery,
 ) -> Result<ReportDetailResponse, ApiError> {
     authorization
         .require_baseline_role(&[BaselineRole::MasterOwner, BaselineRole::BusinessAdmin])?;
-    let window = report_window(&query)?;
+    let window = report_detail_window(&query)?;
     let scope = report_scope(authorization, &window)?;
 
-    if let Err(error) =
-        validate_requested_business_scope(authorization, query.business_id, query.business_unit_id)
-    {
+    let business_ids = parse_uuid_list(query.business_ids.as_deref())?;
+    let business_unit_ids = parse_uuid_list(query.business_unit_ids.as_deref())?;
+    let employee_ids = parse_uuid_list(query.employee_ids.as_deref())?;
+    let product_ids = parse_uuid_list(query.product_ids.as_deref())?;
+
+    if let Err(error) = validate_requested_business_scope(
+        authorization,
+        business_ids.iter().copied(),
+        business_unit_ids.iter().copied(),
+    ) {
         let _ = crate::modules::audit::record_authorization_event(
             db,
             authorization,
             "authorization.report.denied",
             "transaction_detail",
             None,
-            query.business_id,
-            query.business_unit_id,
-            serde_json::json!({ "reason": "outside_current_scope" }),
+            None,
+            None,
+            serde_json::json!({
+                "reason": "outside_current_scope",
+                "business_ids": business_ids,
+                "business_unit_ids": business_unit_ids,
+            }),
         )
         .await;
         return Err(error);
     }
 
     let filters = DetailFilters {
-        business_id: query.business_id,
-        business_unit_id: query.business_unit_id,
-        employee_id: query.employee_id,
-        product_id: query.product_id,
+        business_ids,
+        business_unit_ids,
+        employee_ids,
+        product_ids,
     };
     let (rows, truncated) = repository::transaction_detail(db, &scope, &filters).await?;
 
     // Fire-and-forget audit trail of who pulled a raw/line-item export and
-    // over what window, distinct from the "denied" event above. A failure to
-    // record this must not block the caller from receiving their report.
+    // over what window and filters, distinct from the "denied" event above.
+    // A failure to record this must not block the caller from receiving
+    // their report.
     let _ = crate::modules::audit::record_authorization_event(
         db,
         authorization,
         "report.detail.viewed",
         "transaction_detail",
         None,
-        query.business_id,
-        query.business_unit_id,
+        None,
+        None,
         serde_json::json!({
             "timeframe": timeframe_name(window.timeframe),
             "starts_at": window.starts_at,
             "ends_at": window.ends_at,
             "row_count": rows.len(),
+            "business_ids": filters.business_ids,
+            "business_unit_ids": filters.business_unit_ids,
+            "employee_ids": filters.employee_ids,
+            "product_ids": filters.product_ids,
         }),
     )
     .await;
@@ -149,6 +170,28 @@ pub async fn transaction_detail(
         truncated,
         rows,
     })
+}
+
+/// Parses a comma-separated list of UUIDs from a query parameter.
+///
+/// Input is the raw, optional comma-separated string; output is the parsed
+/// `Vec<Uuid>` (empty when absent/blank, meaning "no restriction from this
+/// filter"). Blank entries between commas are ignored (so a trailing comma
+/// or repeated commas do not produce spurious empty-string parse errors); any
+/// non-empty entry that isn't a valid UUID returns `400`.
+fn parse_uuid_list(value: Option<&str>) -> Result<Vec<Uuid>, ApiError> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| {
+            Uuid::parse_str(entry)
+                .map_err(|_| ApiError::BadRequest(format!("'{entry}' is not a valid id")))
+        })
+        .collect()
 }
 
 /// Returns daily leader cells for the authenticated baseline dashboard.
@@ -294,20 +337,25 @@ fn validate_requested_scope(
     Ok(())
 }
 
-/// Validates any explicitly requested `business_id`/`business_unit_id`
-/// against the caller's own grants. Mirrors the per-dimension checks in
-/// `validate_requested_scope` but without a dimension, for endpoints (like
-/// the raw detail report) that accept several optional filters at once
-/// rather than aggregating by a single dimension.
+/// Validates any explicitly requested business/unit ids against the
+/// caller's own grants. Mirrors the per-dimension checks in
+/// `validate_requested_scope` but without a dimension, for endpoints that
+/// accept several optional filters at once rather than aggregating by a
+/// single dimension.
+///
+/// Generic over `IntoIterator<Item = Uuid>` so the same check covers both
+/// the single-entity aggregate reports (`Option<Uuid>`, which yields zero or
+/// one items) and the multi-entity raw detail report (`Vec<Uuid>` or any
+/// other iterator of ids), without duplicating the loop for each call site.
 fn validate_requested_business_scope(
     authorization: &AuthorizationContext,
-    business_id: Option<Uuid>,
-    business_unit_id: Option<Uuid>,
+    business_ids: impl IntoIterator<Item = Uuid>,
+    business_unit_ids: impl IntoIterator<Item = Uuid>,
 ) -> Result<(), ApiError> {
-    if let Some(business_id) = business_id {
+    for business_id in business_ids {
         authorization.require_business("report.view", business_id)?;
     }
-    if let Some(unit_id) = business_unit_id {
+    for unit_id in business_unit_ids {
         authorization.require_business_unit("report.view", unit_id)?;
     }
     Ok(())
@@ -324,18 +372,40 @@ fn selected_entity(dimension: &str, query: &ReportQuery) -> Option<Uuid> {
 }
 
 fn report_window(query: &ReportQuery) -> Result<ReportWindow, ApiError> {
-    let timeframe = parse_timeframe(query.timeframe.as_deref())?;
-    let timezone = query
-        .timezone
-        .as_deref()
+    build_report_window(
+        query.timeframe.as_deref(),
+        query.timezone.as_deref(),
+        query.start_date.as_deref(),
+        query.end_date.as_deref(),
+    )
+}
+
+/// Same window resolution as `report_window`, for the raw detail report's
+/// distinct `ReportDetailQuery` type. Both share `build_report_window` so the
+/// timeframe/timezone/custom-range parsing logic exists in exactly one
+/// place.
+fn report_detail_window(query: &ReportDetailQuery) -> Result<ReportWindow, ApiError> {
+    build_report_window(
+        query.timeframe.as_deref(),
+        query.timezone.as_deref(),
+        query.start_date.as_deref(),
+        query.end_date.as_deref(),
+    )
+}
+
+fn build_report_window(
+    timeframe: Option<&str>,
+    timezone: Option<&str>,
+    start_date: Option<&str>,
+    end_date: Option<&str>,
+) -> Result<ReportWindow, ApiError> {
+    let timeframe = parse_timeframe(timeframe)?;
+    let timezone = timezone
         .unwrap_or("UTC")
         .parse::<Tz>()
         .map_err(|_| ApiError::BadRequest("timezone is invalid".to_string()))?;
     let custom_range = if timeframe == Timeframe::Custom {
-        Some(parse_custom_range(
-            query.start_date.as_deref(),
-            query.end_date.as_deref(),
-        )?)
+        Some(parse_custom_range(start_date, end_date)?)
     } else {
         None
     };

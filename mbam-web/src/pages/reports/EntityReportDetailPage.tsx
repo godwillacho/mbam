@@ -5,15 +5,13 @@ import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
 import TimeframeControl, { type CustomRange } from "../../components/charts/TimeframeControl";
 import PrintButton from "../../components/app/PrintButton";
 import { workspace } from "../../data/mockWorkspace";
-import { loadAuthorizationBootstrap } from "../../services/authorizationService";
-import { listAuthorizedProductsOnline } from "../../services/productService";
+import { loadEntityItems, type EntityItem } from "../../services/entityDirectoryService";
 import {
   loadReport,
   type ReportDimension,
   type ReportSeries,
   type ReportTimeframe,
 } from "../../services/reportService";
-import { loadTeamWorkspace } from "../../services/teamService";
 import { logger } from "../../services/logging/logger";
 import { formatMoney } from "../../utils/formatters";
 import "./ScopedEntityReportPage.css";
@@ -23,45 +21,17 @@ import "./ScopedEntityReportPage.css";
 // periodically instead of only fetching once per timeframe change.
 const CHART_POLL_INTERVAL_MS = 30_000;
 
+// This page only ever routes to shops/employees/products (see
+// listPathByKind below); "businesses" is a valid EntityKind for the shared
+// directory service and the Detail-view entity picker, but has no
+// dedicated per-entity page of its own.
 export type EntityKind = "shops" | "employees" | "products";
-
-interface EntityItem {
-  id: string;
-  name: string;
-  description: string;
-}
 
 const listPathByKind: Record<EntityKind, string> = {
   shops: "/shops",
   employees: "/employees",
   products: "/products",
 };
-
-async function loadItems(kind: EntityKind): Promise<EntityItem[]> {
-  if (kind === "shops") {
-    const bootstrap = await loadAuthorizationBootstrap();
-    return bootstrap.business_units.map((unit) => ({
-      id: unit.id,
-      name: unit.name,
-      description:
-        bootstrap.businesses.find((business) => business.id === unit.business_id)
-          ?.name ?? "",
-    }));
-  }
-  if (kind === "employees") {
-    const team = await loadTeamWorkspace();
-    return team.members.map((member) => ({
-      id: member.user_id,
-      name: member.full_name,
-      description: member.role_name,
-    }));
-  }
-  return (await listAuthorizedProductsOnline()).map((product) => ({
-    id: product.id,
-    name: product.name,
-    description: product.sku ?? product.category,
-  }));
-}
 
 function reportFilters(
   kind: EntityKind,
@@ -103,7 +73,7 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
   useEffect(() => {
     let ignore = false;
     setListState("loading");
-    loadItems(kind)
+    loadEntityItems(kind)
       .then((nextItems) => {
         if (ignore) return;
         setItems(nextItems);

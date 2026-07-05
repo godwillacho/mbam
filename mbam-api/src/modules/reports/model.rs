@@ -73,6 +73,33 @@ pub struct DashboardSummaryResponse {
     pub product: Option<DashboardLeader>,
 }
 
+/// Query parameters for the raw transaction/line-item detail report.
+///
+/// Distinct from `ReportQuery` because this endpoint supports selecting
+/// *multiple* entities per dimension at once (e.g. a set of employees),
+/// while the aggregate dimension reports (`ReportQuery`) remain single
+/// per-entity chart views.
+#[derive(Debug, Deserialize)]
+pub struct ReportDetailQuery {
+    pub timeframe: Option<String>,
+    pub timezone: Option<String>,
+    /// Inclusive `YYYY-MM-DD` range start, required only when `timeframe` is
+    /// `"custom"`.
+    pub start_date: Option<String>,
+    /// Inclusive `YYYY-MM-DD` range end, required only when `timeframe` is
+    /// `"custom"`.
+    pub end_date: Option<String>,
+    /// Comma-separated business UUIDs. Absent/empty means "no restriction
+    /// beyond the caller's own authorized scope".
+    pub business_ids: Option<String>,
+    /// Comma-separated business-unit (shop) UUIDs.
+    pub business_unit_ids: Option<String>,
+    /// Comma-separated employee (recorded-by user) UUIDs.
+    pub employee_ids: Option<String>,
+    /// Comma-separated product UUIDs.
+    pub product_ids: Option<String>,
+}
+
 /// One printable transaction-line row for the raw/audit-grade detail report.
 ///
 /// Deliberately flat (one row per transaction line, transaction-level fields

@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import PrintButton from "../../components/app/PrintButton";
 import {
   loadReportTransactionDetail,
+  type ReportDetailFilters,
   type ReportDetailResponse,
-  type ReportFilters,
 } from "../../services/reportService";
 import { logger } from "../../services/logging/logger";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
@@ -16,7 +16,7 @@ import "./ReportDetailTable.css";
 const DETAIL_POLL_INTERVAL_MS = 30_000;
 
 interface ReportDetailTableProps {
-  filters: ReportFilters;
+  filters: ReportDetailFilters;
   currency: string;
 }
 
@@ -32,6 +32,13 @@ export default function ReportDetailTable({ filters, currency }: ReportDetailTab
   const { t } = useTranslation();
   const [detail, setDetail] = useState<ReportDetailResponse | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  // Joined once here (rather than inline in the effect's dependency array)
+  // so each dependency is a plain variable react-hooks/exhaustive-deps can
+  // statically check, not a `.join(",")` call expression.
+  const businessIdsKey = filters.businessIds?.join(",");
+  const businessUnitIdsKey = filters.businessUnitIds?.join(",");
+  const employeeIdsKey = filters.employeeIds?.join(",");
+  const productIdsKey = filters.productIds?.join(",");
 
   useEffect(() => {
     let ignore = false;
@@ -69,16 +76,20 @@ export default function ReportDetailTable({ filters, currency }: ReportDetailTab
       ignore = true;
       window.clearInterval(intervalId);
     };
+    // Depend on joined strings rather than the array references themselves
+    // (`businessIds` etc. are rebuilt on every ReportsPage render even when
+    // unchanged) so this effect only re-fetches when the actual filter
+    // values change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     filters.timeframe,
     filters.startDate,
     filters.endDate,
     filters.timezone,
-    filters.businessId,
-    filters.businessUnitId,
-    filters.employeeId,
-    filters.productId,
+    businessIdsKey,
+    businessUnitIdsKey,
+    employeeIdsKey,
+    productIdsKey,
   ]);
 
   if (state === "loading") {

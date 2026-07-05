@@ -1,0 +1,114 @@
+.entity-multi-select {
+  display: grid;
+  gap: 8px;
+}
+
+.entity-multi-select-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entity-multi-select-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 999px;
+  background: var(--forest-soft);
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.entity-multi-select-tag button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.entity-multi-select-tag button:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.entity-multi-select-input-wrap {
+  position: relative;
+  max-width: 360px;
+}
+
+.entity-multi-select-input-wrap input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font: inherit;
+}
+
+.entity-multi-select-suggestions {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.entity-multi-select-suggestions li + li {
+  margin-top: 2px;
+}
+
+.entity-multi-select-suggestions button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.entity-multi-select-suggestions button:hover {
+  background: var(--forest-soft);
+}
+
+.entity-multi-select-suggestions button small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.entity-multi-select-no-match {
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.entity-multi-select-error {
+  margin: 0;
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 700;
+}
