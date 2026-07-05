@@ -2960,3 +2960,77 @@ click/search/print interaction flow.
   touched this session, out of scope for this change) — a future cleanup
   could point it at `entityDirectoryService.ts` too instead of leaving
   three near-duplicate implementations in the codebase.
+
+## 2026-07-05 - Fix Stale Singular `business_id` Param In Cross-Tenant Detail-Report Test
+
+**Related change:** `2026-07-05T15:03:00Z` (follow-up correction to
+`2026-07-05T14:18:41Z` above)
+
+**Requested behavior:** The user ran `cargo test` locally as asked and
+reported `checklist_tests::transaction_detail_report_is_role_gated_and_
+scoped` FAILED: `assertion left == right failed, left: 200, right: 404`
+at `checklist_tests.rs:402`.
+
+**Root cause / engineering reason:** That assertion predates this
+session's change and was written for the old single-id `ReportQuery`-
+based detail endpoint: it sends `business_id={BUSINESS_TWO_ID}` (singular)
+and expects a `404` for a cross-tenant filter. This session replaced the
+endpoint's query type with `ReportDetailQuery`, whose only business filter
+field is the plural, comma-separated `business_ids`. Axum's `Query`
+extractor silently ignores query parameters it doesn't recognize rather
+than erroring, so the singular `business_id` was dropped entirely, no
+filter was applied, and the admin's own valid scope returned `200`
+instead of the expected `404` denial. This was a stale test left over
+from changing the endpoint's accepted parameter names without updating
+every existing caller in the same pass — not a defect in the new
+multi-id authorization logic itself (every newly-added test in this same
+change, e.g. the cross-tenant case inside
+`transaction_detail_report_supports_multi_entity_filters`, already used
+the correct plural param names and was not reported as failing).
+
+**Files changed:**
+
+- `mbam-api/src/checklist_tests.rs` (one query string, one comment)
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Changed the stale assertion's request URL from
+  `.../reports/transactions?timeframe=daily&business_id={BUSINESS_TWO_ID}`
+  to `...&business_ids={BUSINESS_TWO_ID}` (plural), matching every other
+  call against this endpoint in the same test file.
+- Added a code comment at the call site explaining that this endpoint's
+  filters are all plural/comma-separated, unlike the aggregate dimension
+  reports' singular `business_id`/etc., so a future edit doesn't
+  reintroduce the same silent-drop mistake.
+- Grepped the whole file for any other singular `business_id=`/
+  `business_unit_id=`/`employee_id=`/`product_id=` usage against
+  `/api/v1/reports/transactions` specifically; found none. The two
+  remaining singular-param hits in the file are against `/reports/
+  businesses` and `/reports/shops` (the unrelated aggregate-dimension
+  endpoints), which correctly still use `ReportQuery`'s singular fields
+  and were not affected by this session's change.
+
+**Debugging and verification performed:**
+
+- Re-read the corrected line in context to confirm it now matches the
+  query-string shape used by every other `/reports/transactions` call in
+  the file.
+- `grep`-confirmed no other stale singular-id-param usage remained
+  against this endpoint.
+
+**Errors encountered:** The reported test failure itself — see root cause
+above. This was introduced by the same-day change above (changing the
+endpoint's query parameter names without updating a pre-existing test
+that predated that change), caught by the user's local `cargo test` as
+intended by this repo's no-Rust-toolchain-in-sandbox workflow.
+
+**Checks not run:** `cargo test` (still no Rust toolchain in this
+sandbox) — asking the user to re-run it locally to confirm this fixes
+the reported failure with no new ones.
+
+**Remaining risks and follow-up checks:**
+
+- None new beyond what's already noted in the `2026-07-05T14:18:41Z`
+  entry above (the `employee_ids`/`product_ids` scope-bounding note and
+  the `ScopedEntityReportPage.tsx` duplicate-logic note).
