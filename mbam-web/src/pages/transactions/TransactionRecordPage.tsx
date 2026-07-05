@@ -28,6 +28,41 @@ import "./TransactionRecordPage.css";
 
 type PaymentStatus = "paid" | "pending";
 
+// Small inline icons for the record page's action buttons (Save
+// draft/Record sale/Print invoice) -- no icon library is installed in this
+// project, so these are plain, dependency-free SVGs sized by
+// `.form-action-btn svg` in TransactionRecordPage.css. Purely decorative
+// (each button already has a visible text label), so they're marked
+// aria-hidden rather than announced to screen readers.
+function SaveDraftIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+      <path d="M17 21v-8H7v8" />
+      <path d="M7 3v5h8" />
+    </svg>
+  );
+}
+
+function RecordSaleIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8.5 12.5 2.5 2.5 4.5-5" />
+    </svg>
+  );
+}
+
+function PrintInvoiceIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M6 9V3h12v6" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <path d="M6 14h12v7H6z" />
+    </svg>
+  );
+}
+
 interface SaleLineItem {
   id: string;
   productId?: string;
@@ -722,9 +757,18 @@ export default function TransactionRecordPage() {
         </div>
 
         <div className="form-actions">
-          <button className="secondary-btn" type="button" disabled={formStatus === "saving"} onClick={() => void handleSaveDraft()}>{t("transactionRecord.saveDraft")}</button>
-          <button className="primary-btn record-sale-btn" type="submit" disabled={formStatus === "saving" || !canRecord}>{t("transactionRecord.recordSale")}</button>
-          <button className="primary-btn" type="submit" data-intent="print" disabled={formStatus === "saving" || !canRecord}>{t("invoice.printInvoice")}</button>
+          <button className="secondary-btn form-action-btn" type="button" disabled={formStatus === "saving"} onClick={() => void handleSaveDraft()}>
+            <SaveDraftIcon />
+            <span>{t("transactionRecord.saveDraft")}</span>
+          </button>
+          <button className="primary-btn record-sale-btn form-action-btn" type="submit" disabled={formStatus === "saving" || !canRecord}>
+            <RecordSaleIcon />
+            <span>{t("transactionRecord.recordSale")}</span>
+          </button>
+          <button className="primary-btn print-invoice-btn form-action-btn" type="submit" data-intent="print" disabled={formStatus === "saving" || !canRecord}>
+            <PrintInvoiceIcon />
+            <span>{t("invoice.printInvoice")}</span>
+          </button>
         </div>
       </form>
     </section>

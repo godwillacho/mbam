@@ -3034,3 +3034,86 @@ the reported failure with no new ones.
 - None new beyond what's already noted in the `2026-07-05T14:18:41Z`
   entry above (the `employee_ids`/`product_ids` scope-bounding note and
   the `ScopedEntityReportPage.tsx` duplicate-logic note).
+
+## 2026-07-05 - Fix "Print Invoice Not Mapped" On The Record Transaction Page
+
+**Related change:** `2026-07-05T14:55:00Z`
+
+**Requested behavior:** "print invoice on the record transaction page is
+not mapped." Follow-up clarification: the print button "appears to be
+turned off," and a request to "make all the buttons on the record page
+more immersive, put in icons for their function."
+
+**Root cause / engineering reason:** The click-to-print flow itself was
+already correctly wired: `TransactionRecordPage.tsx`'s print button
+carries `data-intent="print"`, `handleSubmit` reads
+`(event.nativeEvent as SubmitEvent).submitter` to detect which button was
+clicked, and navigates to `/transactions/:id/invoice?print=1`;
+`TransactionInvoicePage.tsx` watches for `print=1` and calls
+`window.print()` on a 250ms delay. The actual problem was visual, not
+functional: grepping every CSS file in `mbam-web` (18 files, plus the
+compiled `dist` bundle) for `.primary-btn`/`.secondary-btn`/
+`.form-actions` turned up zero rules anywhere in the app. These class
+names are used across many pages, but none of them carry any base
+styling (padding, border-radius, colors) — only `.record-sale-btn`
+layers explicit green colors on top of the otherwise-unstyled
+`.primary-btn`. So the "Print invoice" and "Save draft" buttons rendered
+as bare native `<button>` elements next to the one deliberately-colored
+green "Record sale" button, which reads as "off" by contrast even though
+all three are equally clickable.
+
+**Files changed:**
+
+- `mbam-web/src/pages/transactions/TransactionRecordPage.tsx`,
+  `TransactionRecordPage.css`
+- `debug.log`, `docs/ENGINEERING_DEBUG_LOG.md`
+
+**Implementation:**
+
+- Scoped the fix to this page only, not a global `.primary-btn`/
+  `.secondary-btn` styling pass — those class names are shared by many
+  other pages that were not reviewed as part of this change, so a global
+  rule risked unintended visual side effects elsewhere.
+- Added three small, dependency-free inline SVG icons (save/floppy-disk,
+  checkmark-in-circle, printer), each `aria-hidden` since every button
+  already carries a visible text label, and wired one into each of the
+  three `.form-actions` buttons (Save draft, Record sale, Print invoice).
+- Added a shared `.form-action-btn` base class (padding, border-radius,
+  font-weight, icon sizing, hover/active transitions) plus a new
+  `.print-invoice-btn` color variant (solid `var(--forest)`, the app's
+  primary brand color, with its own hover/disabled palette) mirroring the
+  existing `.record-sale-btn` pattern, and `.form-actions .secondary-btn`
+  colors (white background, bordered) for Save draft.
+- Added a mobile breakpoint stacking all three buttons full-width.
+- All new selectors are scoped under `.form-actions` and page-specific
+  classes, not bare `.primary-btn`/`.secondary-btn`, so no other page's
+  buttons are affected by this change.
+
+**Debugging and verification performed:**
+
+- `npx tsc --noEmit` clean; `npx eslint` clean on the changed file;
+  `npx vitest run` passed (21 files / 58 tests, unchanged — no dedicated
+  test file exists for this page); `npm run build` succeeded.
+- Rendered a static, color-accurate HTML mockup of the button row (both
+  enabled and disabled states, using the exact hex values from the new
+  CSS) via the visualization tool to sanity-check icon placement, sizing,
+  and color contrast before considering the change complete, since this
+  sandbox has no way to load the real running page (no Docker/Postgres/
+  Keycloak stack available).
+
+**Errors encountered:** None.
+
+**Checks not run:** No live browser verification of the actual page.
+Verified the underlying click-to-print flow was already correct by
+reading the code path end-to-end, and the new styling via a static
+mockup rather than the real rendered app.
+
+**Remaining risks and follow-up checks:**
+
+- `.primary-btn`/`.secondary-btn` being globally unstyled is an app-wide
+  gap, not limited to this page — every other page using those bare
+  classes (the invoice page's own `PrintButton`, Reports, Team, Business,
+  Products, Transaction Drafts) still renders default browser button
+  chrome today. Left deliberately untouched since this request was scoped
+  to "the record page"; worth a follow-up pass if the same "looks
+  disabled" perception is reported elsewhere.
