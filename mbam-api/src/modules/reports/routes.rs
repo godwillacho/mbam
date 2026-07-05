@@ -8,7 +8,7 @@ use serde::Deserialize;
 use crate::{authentication::AuthorizationContext, error::ApiError, state::AppState};
 
 use super::{
-    model::{DashboardSummaryResponse, ReportQuery, ReportResponse},
+    model::{DashboardSummaryResponse, ReportDetailResponse, ReportQuery, ReportResponse},
     service,
 };
 
@@ -24,6 +24,7 @@ pub fn router() -> Router<AppState> {
         .route("/shops", get(shop_revenue))
         .route("/employees", get(employee_sales))
         .route("/products", get(product_sales))
+        .route("/transactions", get(transaction_detail))
         .route("/dashboard-summary", get(dashboard_summary))
 }
 
@@ -64,6 +65,16 @@ async fn product_sales(
 ) -> Result<Json<ReportResponse>, ApiError> {
     Ok(Json(
         service::product_sales(&state.db, &authorization, query).await?,
+    ))
+}
+
+async fn transaction_detail(
+    State(state): State<AppState>,
+    authorization: AuthorizationContext,
+    Query(query): Query<ReportQuery>,
+) -> Result<Json<ReportDetailResponse>, ApiError> {
+    Ok(Json(
+        service::transaction_detail(&state.db, &authorization, query).await?,
     ))
 }
 

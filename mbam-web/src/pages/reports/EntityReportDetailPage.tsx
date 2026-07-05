@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthorizedLineChart from "../../components/charts/AuthorizedLineChart";
-import TimeframeControl from "../../components/charts/TimeframeControl";
+import TimeframeControl, { type CustomRange } from "../../components/charts/TimeframeControl";
 import PrintButton from "../../components/app/PrintButton";
 import { workspace } from "../../data/mockWorkspace";
 import { loadAuthorizationBootstrap } from "../../services/authorizationService";
@@ -67,9 +67,13 @@ function reportFilters(
   kind: EntityKind,
   selected: string,
   timeframe: ReportTimeframe,
+  customRange: CustomRange,
 ) {
   return {
     timeframe,
+    ...(timeframe === "custom"
+      ? { startDate: customRange.start, endDate: customRange.end }
+      : {}),
     ...(kind === "shops" ? { businessUnitId: selected } : {}),
     ...(kind === "employees" ? { employeeId: selected } : {}),
     ...(kind === "products" ? { productId: selected } : {}),
@@ -84,6 +88,10 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
     "loading",
   );
   const [timeframe, setTimeframe] = useState<ReportTimeframe>("daily");
+  const [customRange, setCustomRange] = useState<CustomRange>({ start: "", end: "" });
+  const isCustomRangeValid =
+    timeframe !== "custom" ||
+    (customRange.start !== "" && customRange.end !== "" && customRange.end >= customRange.start);
   const [series, setSeries] = useState<ReportSeries | null>(null);
   const [chartState, setChartState] = useState<"loading" | "ready" | "error">(
     "loading",
@@ -112,7 +120,7 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
   }, [kind]);
 
   useEffect(() => {
-    if (!entityId) return;
+    if (!entityId || !isCustomRangeValid) return;
     let ignore = false;
 
     const fetchSeries = (isInitialLoad: boolean) => {
@@ -120,7 +128,7 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
         setSeries(null);
         setChartState("loading");
       }
-      return loadReport(dimension, reportFilters(kind, entityId, timeframe))
+      return loadReport(dimension, reportFilters(kind, entityId, timeframe, customRange))
         .then((report) => {
           if (ignore) return;
           setSeries(report.series.find((item) => item.entity_id === entityId) ?? null);
@@ -151,7 +159,7 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
       ignore = true;
       window.clearInterval(intervalId);
     };
-  }, [dimension, entityId, kind, timeframe]);
+  }, [dimension, entityId, kind, timeframe, customRange, isCustomRangeValid]);
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === entityId),
@@ -187,7 +195,12 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
           </div>
           <div className="entity-detail-chart-actions">
             <div className="no-print">
-              <TimeframeControl onChange={setTimeframe} value={timeframe} />
+              <TimeframeControl
+                customRange={customRange}
+                onChange={setTimeframe}
+                onCustomRangeChange={setCustomRange}
+                value={timeframe}
+              />
             </div>
             {series && (
               <div className="scoped-chart-total">
@@ -206,13 +219,16 @@ export default function EntityReportDetailPage({ kind }: { kind: EntityKind }) {
             {t("scopedEntityReport.outOfScope")}
           </p>
         )}
-        {!isOutOfScope && chartState === "loading" && (
+        {!isOutOfScope && !isCustomRangeValid && (
+          <p className="card-muted">{t("reportsPage.customRangePending")}</p>
+        )}
+        {!isOutOfScope && isCustomRangeValid && chartState === "loading" && (
           <p role="status">{t("scopedEntityReport.loadingChart")}</p>
         )}
-        {!isOutOfScope && chartState === "ready" && !series && (
+        {!isOutOfScope && isCustomRangeValid && chartState === "ready" && !series && (
           <p className="card-muted">{t("scopedEntityReport.noSalesForTimeframe")}</p>
         )}
-        {!isOutOfScope && chartState === "ready" && series && (
+        {!isOutOfScope && isCustomRangeValid && chartState === "ready" && series && (
           <AuthorizedLineChart
             label={series.entity_name}
             points={series.points}

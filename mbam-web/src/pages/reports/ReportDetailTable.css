@@ -1,0 +1,67 @@
+.report-detail-card {
+  display: grid;
+  gap: 16px;
+}
+
+.report-detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.report-detail-truncated {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fff7e6;
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.report-detail-table-wrap {
+  overflow-x: auto;
+}
+
+.report-detail-table {
+  min-width: 1100px;
+}
+
+.report-detail-table th,
+.report-detail-table td {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .report-detail-header {
+    flex-direction: column;
+  }
+}
+
+/*
+ * App-wide print rules (hiding the sidebar/topbar/.no-print, stripping
+ * .card chrome) live in AppShell.css.
+ */
+@media print {
+  .report-detail-table-wrap {
+    overflow: visible;
+  }
+
+  .report-detail-table {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .report-detail-table th,
+  .report-detail-table td {
+    white-space: normal;
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .report-detail-table tr {
+    page-break-inside: avoid;
+  }
+}

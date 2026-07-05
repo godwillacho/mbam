@@ -343,6 +343,104 @@ async fn authorization_bootstrap_and_audit_events_cover_required_actions() {
     assert_eq!(denied_after, denied_before + 1);
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn transaction_detail_report_is_role_gated_and_scoped() {
+    let _guard = test_guard();
+    let app = test_app().await;
+
+    // Shop managers and cashiers cannot reach the raw line-item detail
+    // report at all, even within their own authorized scope -- this is a
+    // stricter gate than the aggregate reports, which they can view.
+    let (status, _) = app
+        .request_json(
+            Method::GET,
+            "/api/v1/reports/transactions?timeframe=daily",
+            uuid(MANAGER_ONE_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = app
+        .request_json(
+            Method::GET,
+            "/api/v1/reports/transactions?timeframe=daily",
+            uuid(CASHIER_ONE_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // Business admin sees only their own business's transactions, never the
+    // checklist fixture's second, out-of-scope business.
+    let (status, admin_detail) = app
+        .request_json(
+            Method::GET,
+            "/api/v1/reports/transactions?timeframe=daily",
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let admin_transaction_ids = transaction_ids_in_rows(&admin_detail);
+    assert!(admin_transaction_ids.contains(&TRANSACTION_ONE_ID.to_string()));
+    assert!(admin_transaction_ids.contains(&TRANSACTION_TWO_ID.to_string()));
+    assert!(!admin_transaction_ids.contains(&TRANSACTION_THREE_ID.to_string()));
+
+    // An explicit cross-tenant business_id filter is denied outright, not
+    // silently ignored, matching the existing aggregate-report scope checks.
+    let (status, _) = app
+        .request_json(
+            Method::GET,
+            &format!(
+                "/api/v1/reports/transactions?timeframe=daily&business_id={BUSINESS_TWO_ID}"
+            ),
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Master owner's account-wide scope covers both businesses, and a
+    // custom date range covering "today" (every fixture transaction is
+    // inserted with created_at = now()) returns all three.
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let (status, master_detail) = app
+        .request_json(
+            Method::GET,
+            &format!(
+                "/api/v1/reports/transactions?timeframe=custom&start_date={today}&end_date={today}"
+            ),
+            uuid(MASTER_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let master_transaction_ids = transaction_ids_in_rows(&master_detail);
+    assert!(master_transaction_ids.contains(&TRANSACTION_ONE_ID.to_string()));
+    assert!(master_transaction_ids.contains(&TRANSACTION_TWO_ID.to_string()));
+    assert!(master_transaction_ids.contains(&TRANSACTION_THREE_ID.to_string()));
+
+    // A malformed custom range (end before start) is rejected with 400
+    // rather than silently swapped or defaulted to something else.
+    let (status, _) = app
+        .request_json(
+            Method::GET,
+            "/api/v1/reports/transactions?timeframe=custom&start_date=2026-03-10&end_date=2026-03-01",
+            uuid(MASTER_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // A successful detail view is itself audited, distinct from the
+    // "denied" event, so there is a record of who exported raw
+    // transaction-level data and when.
+    let viewed_count =
+        audit_count_for_actor(&app.db, "report.detail.viewed", uuid(ADMIN_USER_ID)).await;
+    assert!(viewed_count >= 1);
+}
+
 impl TestApp {
     async fn request_json(
         &self,
@@ -679,6 +777,15 @@ fn route_keys(value: &Value) -> Vec<String> {
         .expect("authorized routes")
         .iter()
         .filter_map(|route| route["key"].as_str().map(ToString::to_string))
+        .collect()
+}
+
+fn transaction_ids_in_rows(value: &Value) -> Vec<String> {
+    value["rows"]
+        .as_array()
+        .expect("rows array")
+        .iter()
+        .filter_map(|row| row["transaction_id"].as_str().map(ToString::to_string))
         .collect()
 }
 
