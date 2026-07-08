@@ -65,6 +65,12 @@ const en = {
       expired: "Expired",
       unknown: "Stock not tracked",
     },
+    stockPolicy: "Stock policy",
+    stockPolicyOptions: {
+      warn_when_low: "Warn when low",
+      allow_negative: "Allow negative",
+      block_when_empty: "Block when empty",
+    },
   },
 };
 
@@ -132,6 +138,12 @@ const fr = {
       out: "Rupture de stock",
       expired: "Expiré",
       unknown: "Stock non suivi",
+    },
+    stockPolicy: "Politique de stock",
+    stockPolicyOptions: {
+      warn_when_low: "Alerter si faible",
+      allow_negative: "Autoriser le négatif",
+      block_when_empty: "Bloquer si épuisé",
     },
   },
 };

@@ -64,6 +64,9 @@ export interface ProductProfile {
   barcode?: string;
   availableQuantity?: number;
   lowStockThreshold?: number;
+  /** allow_negative | warn_when_low | block_when_empty. Only meaningful
+   * when availableQuantity is tracked (not undefined). */
+  stockPolicy?: string;
   expiryDate?: string;
   costPrice?: number;
   defaultPrice: number;

@@ -15,7 +15,8 @@ export type AppRouteKey =
   | "shops"
   | "team"
   | "reports"
-  | "products";
+  | "products"
+  | "stock";
 
 export const CURRENT_MEMBER_CHANGE_EVENT = "mbam-current-member-change";
 let currentMemberId: string | undefined;
@@ -41,6 +42,7 @@ const routeAccessByRole: Record<string, AppRouteKey[]> = {
     "team",
     "reports",
     "products",
+    "stock",
   ],
   "role-business-admin": [
     "recordTransaction",
@@ -51,6 +53,7 @@ const routeAccessByRole: Record<string, AppRouteKey[]> = {
     "team",
     "reports",
     "products",
+    "stock",
   ],
   "role-shop-manager": [
     "recordTransaction",
@@ -59,6 +62,7 @@ const routeAccessByRole: Record<string, AppRouteKey[]> = {
     "shops",
     "reports",
     "products",
+    "stock",
   ],
   "role-cashier": [
     "recordTransaction",
@@ -84,6 +88,7 @@ const routePermission: Record<AppRouteKey, string> = {
   team: "screen.team",
   reports: "screen.reports",
   products: "screen.products",
+  stock: "screen.stock",
 };
 
 function baselineRoleId(roleId: string): string {

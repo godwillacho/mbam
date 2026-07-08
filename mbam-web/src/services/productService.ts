@@ -34,6 +34,9 @@ export interface ProductWritePayload {
   barcode?: string;
   availableQuantity?: number;
   lowStockThreshold?: number;
+  /** allow_negative | warn_when_low | block_when_empty (default
+   * warn_when_low server-side if omitted). */
+  stockPolicy?: string;
   expiryDate?: string;
   costPrice?: number;
   defaultPrice?: number;

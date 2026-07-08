@@ -8,6 +8,7 @@ import "./i18n/productRevenueResources";
 import "./i18n/cleanDashboardResources";
 import "./i18n/csvImportResources";
 import "./i18n/reportsPageResources";
+import "./i18n/stockResources";
 import * as Sentry from "@sentry/react";
 import { initializeObservability } from "./observability";
 import { initializeKeycloak } from "./services/keycloakService";

@@ -3395,3 +3395,98 @@ CSS inspection, and static mockups instead of the real running app.
   (`.primary-btn.foo`/`.secondary-btn.foo`), not a bare `.foo`, to avoid
   relying on CSS specificity ties resolved by import order — noting this
   here so it isn't rediscovered the hard way next time.
+
+## 2026-07-08 - Stock Management UI: Ledger Page, Product Policy Field, Low-Stock Badge
+
+**Related change:** Working tree pending commit at `2026-07-08T18:52:46Z`
+
+**Requested behavior:** "implement the ui" -- build the frontend for the
+stock management backend (ledger + sale-driven deduction) that shipped
+earlier this session at commit `adcd87e`, per the phased roadmap I'd
+presented and the user's earlier choice of "Backend ledger + sale
+deduction" as the starting phase.
+
+**Root cause / engineering reason:** No UI existed yet for the backend
+stock module. `screen.stock` did not exist as a permission, so a new
+migration was needed before the frontend route could be gated the same
+way every other screen already is. Separately, `utils/inventory.ts`
+already computed a low/out/expired inventory `status` per product, but no
+page ever rendered it -- the badge work surfaces existing data rather
+than adding new logic.
+
+**Files changed:**
+
+- `mbam-api/migrations/0014_stock_screen_permission.sql` (new) -- adds the
+  `screen.stock` permission, granted to `master_owner` directly (existing
+  accounts); `business_admin`/`shop_manager` get it via
+  `team/repository.rs`'s self-healing `standard_roles()`.
+- `mbam-api/migrations/README.md`, `mbam-api/src/modules/team/repository.rs`,
+  `mbam-api/src/dev_seed.rs` -- wire the new permission into standard role
+  grants and dev-seed permission constants (cashier intentionally excluded).
+- `mbam-web/src/services/stockService.ts` (new) -- `listStockMovements`/
+  `recordStockMovement` API client, movement type unions matching the
+  backend's `stock::service::MANUAL_MOVEMENT_TYPES`.
+- `mbam-web/src/pages/stock/StockPage.tsx` + `.css` (new) -- ledger table
+  (filterable by product/shop) plus a record-movement form, styled with
+  the existing form-card/table-card/primary-btn language established on
+  the Record Transaction page.
+- `mbam-web/src/pages/products/ProductRevenuePage.tsx` + `.css`,
+  `mbam-web/src/i18n/productRevenueResources.ts` -- added a `stockPolicy`
+  column (select, per-product) and a low-stock/out-of-stock badge on the
+  available-quantity cell.
+- `mbam-web/src/types/workspace.ts`, `mbam-web/src/services/productService.ts`
+  -- added `stockPolicy` to `ProductProfile`/`ProductWritePayload`.
+- `mbam-web/src/App.tsx`, `mbam-web/src/components/app/AppShell.tsx`,
+  `mbam-web/src/security/accessControl.ts` -- new `/stock` route, nav
+  entry, `AppRouteKey`/`routePermission` wiring (`screen.stock`), added to
+  `routeAccessByRole` for master_owner/business_admin/shop_manager only.
+- `mbam-web/src/pages/team/TeamAccessPage.tsx` -- new `"stock"` entry in
+  `screenAccessOptions`, granting `screen.stock` +
+  `stock.movement.create`/`view` (mirrors `recordTransaction`'s pattern
+  of granting its core create permission alongside the screen permission).
+- `mbam-web/src/i18n.ts`, `mbam-web/src/i18n/cleanDashboardResources.ts`,
+  `mbam-web/src/i18n/stockResources.ts` (new), `mbam-web/src/main.tsx` --
+  `app.nav.stock`, `team.screens.stock`, and the full `stock.*` namespace,
+  registered as a side-effect import matching the existing per-page
+  resource-bundle pattern.
+
+**Debugging and verification performed:**
+
+- `npx tsc --noEmit` clean; `npx eslint` clean (0 errors); `npx vitest
+  run` passed (23 files / 76 tests, unchanged); `npm run build`
+  succeeded.
+- Two real TypeScript errors were caught by `tsc` and fixed before
+  commit: the CSV bulk-import draft path was missing the new required
+  `stockPolicy` field (defaulted to `"warn_when_low"`); a fallback
+  inventory-snapshot object (used when a report row's product no longer
+  exists in `workspace.products`) was missing the `status` field the
+  badge JSX reads (added `status: "unknown" as const"`).
+- Backend changes reviewed by re-reading each file in full after editing
+  (no Rust toolchain in this sandbox, standing constraint) -- confirmed
+  `screen.stock` reaches master_owner/business_admin/shop_manager but not
+  cashier, matching `stock.movement.create`/`view`'s existing scope from
+  migration 0013.
+
+**Errors encountered:** The two TypeScript errors above, both caught
+pre-commit by `tsc --noEmit`.
+
+**Checks not run:** `cargo test`/`cargo check` for the migration 0014 and
+Rust permission-list edits (no Rust toolchain in this sandbox) -- asking
+the user to run `cargo test` locally. No live browser verification of the
+new Stock page (no Docker/Postgres/Keycloak stack in this sandbox).
+
+**Remaining risks and follow-up checks:**
+
+- `StockPage.tsx`'s record-movement form is not independently
+  permission-gated within the page (relies on the route-level
+  `screen.stock` gate plus the backend's own `stock.movement.create`
+  check), matching the existing precedent on `TransactionRecordPage.tsx`.
+  Safe today because every role that can reach `/stock`
+  (master_owner/business_admin/shop_manager) already has
+  `stock.movement.create`; would need revisiting if a future role gets
+  `screen.stock` without also getting `stock.movement.create`.
+- The manual-movement write payload has no business-unit selector (the
+  product picker is the only scoping control) -- this matches
+  `stockService.ts`'s existing contract, which infers the unit
+  server-side from the product's own `business_unit_id`, not a frontend
+  gap.

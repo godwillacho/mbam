@@ -1,0 +1,86 @@
+/*
+ * .validation-summary/.validation-success/.field-error/.form-actions are not
+ * global (see TransactionRecordPage.css) -- each page that uses a form-card
+ * defines its own copies. These are duplicated verbatim from
+ * TransactionRecordPage.css to keep the same look across the app.
+ */
+.validation-summary,
+.validation-success {
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+
+.validation-summary {
+  border: 1px solid #FCA5A5;
+  background: #FEF2F2;
+  color: var(--danger);
+}
+
+.validation-summary strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.validation-summary ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.validation-success {
+  border: 1px solid var(--forest-mid);
+  background: var(--forest-soft);
+  color: var(--forest);
+  font-weight: 800;
+}
+
+.field-error {
+  display: block;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 4px;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.stock-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: end;
+}
+
+.stock-filter-bar .form-field {
+  margin: 0;
+}
+
+.stock-ledger-card {
+  overflow-x: auto;
+}
+
+.stock-ledger-table {
+  min-width: 960px;
+}
+
+.stock-delta-positive {
+  color: var(--forest);
+  font-weight: 800;
+}
+
+.stock-delta-negative {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .stock-filter-bar {
+    grid-template-columns: 1fr;
+  }
+}
