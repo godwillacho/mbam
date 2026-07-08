@@ -84,3 +84,201 @@
     grid-template-columns: 1fr;
   }
 }
+
+/*
+ * Everything below was merged in from the former
+ * pages/products/ProductRevenuePage.css when that page's product-catalog
+ * management UI was folded into this one (see StockPage.tsx and
+ * REPOSITORY_MAP.md). Kept as a distinct block, verbatim, rather than
+ * interleaved with the stock-ledger rules above it.
+ */
+.product-revenue-source-note,
+.product-revenue-error {
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.product-revenue-source-note {
+  border: 1px solid #F4D79C;
+  background: #FFF7E6;
+  color: var(--warning);
+}
+
+.product-revenue-error {
+  border: 1px solid #FCA5A5;
+  background: #FEE2E2;
+  color: var(--danger);
+}
+
+.product-table-controls {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 260px);
+  gap: 16px;
+  align-items: end;
+}
+
+.product-table-controls > div,
+.product-table-controls label,
+.product-table-controls small {
+  display: grid;
+  gap: 7px;
+}
+
+.product-table-controls label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.product-table-controls small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.product-table-controls input,
+.product-table-controls select,
+.product-management-table input,
+.add-products-table input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 11px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.product-management-table-card header,
+.add-products-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.product-management-table-card,
+.add-products-table-wrap {
+  overflow-x: auto;
+}
+
+.product-management-table {
+  min-width: 1120px;
+}
+
+.add-products-card {
+  display: grid;
+  gap: 16px;
+}
+
+.add-products-table {
+  min-width: 920px;
+}
+
+.add-products-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 190px;
+  background: #FAF7F0;
+}
+
+.add-products-table th:not(:first-child),
+.add-products-table td:not(:first-child) {
+  min-width: 230px;
+}
+
+.add-products-table thead th span,
+.similar-product-label {
+  display: block;
+}
+
+.similar-product-label {
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #FFF7E6;
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.file-import-button {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.file-import-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.table-sort-button,
+.best-selling-cell {
+  border: 0;
+  background: transparent;
+  color: var(--forest);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.table-sort-button:hover,
+.best-selling-cell:hover {
+  text-decoration: underline;
+}
+
+.best-selling-cell strong,
+.best-selling-cell small {
+  display: block;
+}
+
+.best-selling-cell small {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.stock-quantity-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stock-status-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.stock-status-low .stock-status-badge {
+  background: #FFF7E6;
+  color: var(--warning);
+}
+
+.stock-status-out .stock-status-badge {
+  background: #FEE2E2;
+  color: var(--danger);
+}
+
+@media (max-width: 900px) {
+  .product-table-controls,
+  .product-management-table-card header,
+  .add-products-header {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

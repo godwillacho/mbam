@@ -122,7 +122,7 @@ export default function ScopedEntityReportPage({ kind }: { kind: PageKind }) {
             </Link>
           )}
           {kind === "products" && canManageProducts(member) && (
-            <Link className="secondary-btn" to="/products/manage">
+            <Link className="secondary-btn" to="/stock">
               Manage products
             </Link>
           )}

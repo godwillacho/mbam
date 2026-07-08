@@ -18,6 +18,75 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-07-08 - Merge Product Management Into Stock Page (Fixes Unaudited Quantity Edits)
+
+**Related change:** Working tree pending commit at `2026-07-08T23:25:49Z`
+
+**Requested behavior:** After the physical file reorg, the user reported "the
+product page and stock page have almost the same function." Investigation
+(see debug.log for full detail) confirmed a real bug, not just visual
+overlap: the standalone Products page let a user edit `availableQuantity`
+directly via a raw, unaudited `UPDATE`, completely bypassing the Stock
+page's audited, policy-enforced movement ledger. Asked the user how to
+reconcile the two paths via `AskUserQuestion`; the user chose to merge both
+pages, with products managed through the Stock page.
+
+**Root cause / engineering reason:** `products::repository::update` performs
+a full-replace `UPDATE products SET ... available_quantity = $14 ...` with
+no row lock, no `stock_policy` enforcement, no `stock_movements` ledger row,
+and no `audit_logs` entry. `modules/stock/repository.rs::create` (the
+record-movement path) does all four. Two independent UI paths mutated the
+same column with very different guarantees.
+
+**Files changed:**
+
+- `mbam-web/src/pages/stock/StockPage.tsx` — rewritten to also host the
+  product catalog (search/sort, add/CSV-import, per-row edit, revenue
+  columns) merged in from the deleted `ProductRevenuePage.tsx`. The
+  `availableQuantity` cell is now always read-only, even in edit mode; the
+  record-movement form is the only remaining way to change it.
+- `mbam-web/src/pages/stock/StockPage.css` — `ProductRevenuePage.css`'s
+  rules appended in a labeled block.
+- `mbam-web/src/routing/ProtectedRoute.tsx` — added an `altRouteKey` prop so
+  a route can unlock on either of two permissions.
+- `mbam-web/src/routing/AppRoutes.tsx` — removed the `ProductRevenuePage`
+  route; `/products/manage` now redirects to `/stock`; `/stock` now accepts
+  `routeKey="stock" altRouteKey="products"` so cashier-baseline members
+  (who have `screen.products` but not `screen.stock`) keep access.
+- `mbam-web/src/pages/reports/ScopedEntityReportPage.tsx` — "Manage
+  products" link now points at `/stock`.
+- Deleted: `mbam-web/src/pages/products/ProductRevenuePage.tsx`,
+  `mbam-web/src/pages/products/ProductRevenuePage.css`.
+- `REPOSITORY_MAP.md` — `pages/products/` row folded into `pages/stock/`.
+
+**Debugging and verification performed:** `npx tsc --noEmit`,
+`npx eslint src --ext .ts,.tsx --max-warnings 0` (after de-exporting
+`StockPolicyOption`/`STOCK_POLICY_OPTIONS`, which had zero external
+importers, to clear a `react-refresh/only-export-components` warning),
+`npx vitest run` (77/77 passing, unchanged count), `npx vite build --mode
+production` all clean. Grepped the frontend tree post-deletion for
+`ProductRevenuePage`/`pages/products` — no remaining references outside
+this file's own comments.
+
+**Errors encountered:** Initially over-applied the quantity-editing fix by
+also stripping `availableQuantity` from the *new*-product creation grid
+(bulk add + CSV import), where setting an initial quantity is legitimate
+since no ledger exists yet to contradict. Caught and restored before
+finishing.
+
+**Checks not run:** Live browser verification against the user's running
+dev server — attempted via Claude in Chrome but `http://localhost:5173/`
+was not reachable from this session. Asked the user to confirm their dev
+server is running and on what port; pending their reply.
+
+**Remaining risks / follow-up:** Concurrent-edit staleness on
+`ProductDraft.availableQuantity` (a stock movement recorded mid-edit could
+be clobbered by a stale product-edit save) is a pre-existing risk inherited
+unchanged from the original page, not introduced here — a real fix needs
+partial-update semantics on the backend. No dedicated test yet covers the
+merged page's three independent section gates (products/ledger/movement
+form).
+
 ## 2026-07-08 - Stock Management: Backend Ledger, Sale-Driven Deduction, Stock Policy
 
 **Related change:** Working tree pending commit at `2026-07-08T16:55:49Z`
