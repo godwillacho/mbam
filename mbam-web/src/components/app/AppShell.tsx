@@ -17,7 +17,7 @@ import {
   getCurrentMember,
   setCurrentMemberId,
   type AppRouteKey,
-} from "../../security/accessControl";
+} from "../../routing/accessControl";
 import LanguageSwitcher from "./LanguageSwitcher";
 import "./AppShell.css";
 

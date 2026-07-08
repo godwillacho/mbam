@@ -1,4 +1,4 @@
-import { getCurrentMember } from "../../security/accessControl";
+import { getCurrentMember } from "../../routing/accessControl";
 import type { TeamMember } from "../../types/workspace";
 
 export type DashboardMetricKey =

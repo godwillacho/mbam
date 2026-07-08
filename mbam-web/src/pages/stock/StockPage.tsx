@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
-import { getCurrentMember, getScopedUnits } from "../../security/accessControl";
+import { getCurrentMember, getScopedUnits } from "../../routing/accessControl";
 import { listProducts } from "../../services/productService";
 import {
   listStockMovements,
@@ -66,6 +66,20 @@ export default function StockPage() {
     [productOptions, scopedUnitIds],
   );
 
+  // This page is reachable with EITHER capability (see accessControl.ts's
+  // routeAlternatePermission), so the two sections show independently:
+  // a hybrid role granted only "Add stock movements" (stock.movement.create,
+  // no screen.stock/stock.movement.view) sees just the form, not the ledger,
+  // and vice versa. Accounts without an explicit `permissions` array (mock/
+  // offline/demo fallback) default to seeing both, matching every other
+  // permission check in accessControl.ts.
+  const canViewLedger = currentMember.permissions
+    ? currentMember.permissions.includes("screen.stock") || currentMember.permissions.includes("stock.movement.view")
+    : true;
+  const canCreateMovement = currentMember.permissions
+    ? currentMember.permissions.includes("stock.movement.create")
+    : true;
+
   useEffect(() => {
     let active = true;
     listProducts(workspace.products)
@@ -79,6 +93,10 @@ export default function StockPage() {
   }, []);
 
   useEffect(() => {
+    if (!canViewLedger) {
+      setIsLoadingMovements(false);
+      return;
+    }
     let active = true;
     setIsLoadingMovements(true);
     setLoadError("");
@@ -98,7 +116,7 @@ export default function StockPage() {
     return () => {
       active = false;
     };
-  }, [filterProductId, filterUnitId, t]);
+  }, [canViewLedger, filterProductId, filterUnitId, t]);
 
   const validateForm = (): FormErrors => {
     const nextErrors: FormErrors = {};
@@ -156,138 +174,144 @@ export default function StockPage() {
         </div>
       </div>
 
-      <form className="form-card" noValidate onSubmit={(event) => void handleSubmit(event)}>
-        <header>
-          <h3>{t("stock.recordMovementTitle")}</h3>
-          <DevOnly><small>{t("stock.recordMovementSubtitle")}</small></DevOnly>
-        </header>
+      {canCreateMovement && (
+        <form className="form-card" noValidate onSubmit={(event) => void handleSubmit(event)}>
+          <header>
+            <h3>{t("stock.recordMovementTitle")}</h3>
+            <DevOnly><small>{t("stock.recordMovementSubtitle")}</small></DevOnly>
+          </header>
 
-        {Object.keys(errors).length > 0 && (
-          <div className="validation-summary" role="alert">
-            <strong>{t("stock.validation.summaryTitle")}</strong>
-            <ul>
-              {Object.entries(errors).map(([field, message]) => <li key={field}>{message}</li>)}
-            </ul>
+          {Object.keys(errors).length > 0 && (
+            <div className="validation-summary" role="alert">
+              <strong>{t("stock.validation.summaryTitle")}</strong>
+              <ul>
+                {Object.entries(errors).map(([field, message]) => <li key={field}>{message}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {formStatus === "saved" && (
+            <div className="validation-success" role="status">{t("stock.recordSuccess")}</div>
+          )}
+
+          <div className="form-grid">
+            <div className="form-field">
+              <label htmlFor="stock-product">{t("stock.product")}</label>
+              <select id="stock-product" value={formProductId} onChange={(event) => setFormProductId(event.target.value)}>
+                <option value="">{t("stock.selectProduct")}</option>
+                {scopedProductOptions.map((product) => (
+                  <option key={product.id} value={product.id}>{productLabel(product, product.id)}</option>
+                ))}
+              </select>
+              {errors.product && <span className="field-error">{errors.product}</span>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="stock-movement-type">{t("stock.movementType")}</label>
+              <select id="stock-movement-type" value={movementType} onChange={(event) => setMovementType(event.target.value as ManualStockMovementType)}>
+                {MANUAL_STOCK_MOVEMENT_TYPES.map((type) => (
+                  <option key={type} value={type}>{t(`stock.movementTypes.${type}`)}</option>
+                ))}
+              </select>
+              {errors.movementType && <span className="field-error">{errors.movementType}</span>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="stock-quantity">{t("stock.quantityDelta")}</label>
+              <input id="stock-quantity" type="number" step="any" placeholder="0" value={quantityDelta} onChange={(event) => setQuantityDelta(event.target.value)} />
+              {errors.quantityDelta ? <span className="field-error">{errors.quantityDelta}</span> : <DevOnly><span className="form-hint">{t("stock.quantityHint")}</span></DevOnly>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="stock-unit-cost">{t("stock.unitCost")}</label>
+              <input id="stock-unit-cost" type="number" min="0" step="any" placeholder="0" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} />
+              {errors.unitCost && <span className="field-error">{errors.unitCost}</span>}
+            </div>
+
+            <div className="form-field full">
+              <label htmlFor="stock-note">{t("stock.note")}</label>
+              <textarea id="stock-note" maxLength={240} placeholder={t("stock.notePlaceholder")} value={note} onChange={(event) => setNote(event.target.value)} />
+              {errors.note && <span className="field-error">{errors.note}</span>}
+            </div>
           </div>
-        )}
 
-        {formStatus === "saved" && (
-          <div className="validation-success" role="status">{t("stock.recordSuccess")}</div>
-        )}
+          <div className="form-actions">
+            <button className="primary-btn" type="submit" disabled={formStatus === "saving"}>
+              <RecordMovementIcon />
+              <span>{t("stock.recordMovement")}</span>
+            </button>
+          </div>
+        </form>
+      )}
 
-        <div className="form-grid">
-          <div className="form-field">
-            <label htmlFor="stock-product">{t("stock.product")}</label>
-            <select id="stock-product" value={formProductId} onChange={(event) => setFormProductId(event.target.value)}>
-              <option value="">{t("stock.selectProduct")}</option>
-              {scopedProductOptions.map((product) => (
-                <option key={product.id} value={product.id}>{productLabel(product, product.id)}</option>
-              ))}
-            </select>
-            {errors.product && <span className="field-error">{errors.product}</span>}
+      {canViewLedger && (
+        <>
+          <div className="filter-bar card stock-filter-bar">
+            <div className="form-field">
+              <label htmlFor="stock-filter-product">{t("stock.filterByProduct")}</label>
+              <select id="stock-filter-product" value={filterProductId} onChange={(event) => setFilterProductId(event.target.value)}>
+                <option value="">{t("stock.allProducts")}</option>
+                {scopedProductOptions.map((product) => (
+                  <option key={product.id} value={product.id}>{productLabel(product, product.id)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-field">
+              <label htmlFor="stock-filter-unit">{t("stock.filterByUnit")}</label>
+              <select id="stock-filter-unit" value={filterUnitId} onChange={(event) => setFilterUnitId(event.target.value)}>
+                <option value="">{t("stock.allUnits")}</option>
+                {scopedUnits.map((unit) => (
+                  <option key={unit.id} value={unit.id}>{unit.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="form-field">
-            <label htmlFor="stock-movement-type">{t("stock.movementType")}</label>
-            <select id="stock-movement-type" value={movementType} onChange={(event) => setMovementType(event.target.value as ManualStockMovementType)}>
-              {MANUAL_STOCK_MOVEMENT_TYPES.map((type) => (
-                <option key={type} value={type}>{t(`stock.movementTypes.${type}`)}</option>
-              ))}
-            </select>
-            {errors.movementType && <span className="field-error">{errors.movementType}</span>}
-          </div>
+          <article className="table-card stock-ledger-card">
+            <header>
+              <h3>{t("stock.ledgerTitle")}</h3>
+              <small>{t("stock.filteredRecords", { count: movements.length })}</small>
+            </header>
 
-          <div className="form-field">
-            <label htmlFor="stock-quantity">{t("stock.quantityDelta")}</label>
-            <input id="stock-quantity" type="number" step="any" placeholder="0" value={quantityDelta} onChange={(event) => setQuantityDelta(event.target.value)} />
-            {errors.quantityDelta ? <span className="field-error">{errors.quantityDelta}</span> : <DevOnly><span className="form-hint">{t("stock.quantityHint")}</span></DevOnly>}
-          </div>
+            {loadError && <p className="product-revenue-error">{loadError}</p>}
 
-          <div className="form-field">
-            <label htmlFor="stock-unit-cost">{t("stock.unitCost")}</label>
-            <input id="stock-unit-cost" type="number" min="0" step="any" placeholder="0" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} />
-            {errors.unitCost && <span className="field-error">{errors.unitCost}</span>}
-          </div>
-
-          <div className="form-field full">
-            <label htmlFor="stock-note">{t("stock.note")}</label>
-            <textarea id="stock-note" maxLength={240} placeholder={t("stock.notePlaceholder")} value={note} onChange={(event) => setNote(event.target.value)} />
-            {errors.note && <span className="field-error">{errors.note}</span>}
-          </div>
-        </div>
-
-        <div className="form-actions">
-          <button className="primary-btn" type="submit" disabled={formStatus === "saving"}>
-            <RecordMovementIcon />
-            <span>{t("stock.recordMovement")}</span>
-          </button>
-        </div>
-      </form>
-
-      <div className="filter-bar card stock-filter-bar">
-        <div className="form-field">
-          <label htmlFor="stock-filter-product">{t("stock.filterByProduct")}</label>
-          <select id="stock-filter-product" value={filterProductId} onChange={(event) => setFilterProductId(event.target.value)}>
-            <option value="">{t("stock.allProducts")}</option>
-            {scopedProductOptions.map((product) => (
-              <option key={product.id} value={product.id}>{productLabel(product, product.id)}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-field">
-          <label htmlFor="stock-filter-unit">{t("stock.filterByUnit")}</label>
-          <select id="stock-filter-unit" value={filterUnitId} onChange={(event) => setFilterUnitId(event.target.value)}>
-            <option value="">{t("stock.allUnits")}</option>
-            {scopedUnits.map((unit) => (
-              <option key={unit.id} value={unit.id}>{unit.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <article className="table-card stock-ledger-card">
-        <header>
-          <h3>{t("stock.ledgerTitle")}</h3>
-          <small>{t("stock.filteredRecords", { count: movements.length })}</small>
-        </header>
-
-        {loadError && <p className="product-revenue-error">{loadError}</p>}
-
-        <table className="data-table stock-ledger-table">
-          <thead>
-            <tr>
-              <th>{t("stock.date")}</th>
-              <th>{t("stock.product")}</th>
-              <th>{t("stock.movementType")}</th>
-              <th>{t("stock.quantityDelta")}</th>
-              <th>{t("stock.unitCost")}</th>
-              <th>{t("stock.note")}</th>
-              <th>{t("stock.recordedBy")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {!isLoadingMovements && movements.length === 0 && (
-              <tr><td colSpan={7}>{t("stock.noMovements")}</td></tr>
-            )}
-            {movements.map((movement) => {
-              const product = productOptions.find((item) => item.id === movement.productId);
-              return (
-                <tr key={movement.id}>
-                  <td>{formatDateTime(movement.createdAt)}</td>
-                  <td>{productLabel(product, movement.productId)}</td>
-                  <td>{t(`stock.movementTypes.${movement.movementType}`)}</td>
-                  <td className={movement.quantityDelta < 0 ? "stock-delta-negative" : "stock-delta-positive"}>
-                    {movement.quantityDelta > 0 ? `+${movement.quantityDelta}` : movement.quantityDelta}
-                  </td>
-                  <td>{typeof movement.unitCost === "number" ? formatMoney(movement.unitCost, currencyFor(movement.businessId)) : "—"}</td>
-                  <td>{movement.note || "—"}</td>
-                  <td>{movement.createdByName}</td>
+            <table className="data-table stock-ledger-table">
+              <thead>
+                <tr>
+                  <th>{t("stock.date")}</th>
+                  <th>{t("stock.product")}</th>
+                  <th>{t("stock.movementType")}</th>
+                  <th>{t("stock.quantityDelta")}</th>
+                  <th>{t("stock.unitCost")}</th>
+                  <th>{t("stock.note")}</th>
+                  <th>{t("stock.recordedBy")}</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </article>
+              </thead>
+              <tbody>
+                {!isLoadingMovements && movements.length === 0 && (
+                  <tr><td colSpan={7}>{t("stock.noMovements")}</td></tr>
+                )}
+                {movements.map((movement) => {
+                  const product = productOptions.find((item) => item.id === movement.productId);
+                  return (
+                    <tr key={movement.id}>
+                      <td>{formatDateTime(movement.createdAt)}</td>
+                      <td>{productLabel(product, movement.productId)}</td>
+                      <td>{t(`stock.movementTypes.${movement.movementType}`)}</td>
+                      <td className={movement.quantityDelta < 0 ? "stock-delta-negative" : "stock-delta-positive"}>
+                        {movement.quantityDelta > 0 ? `+${movement.quantityDelta}` : movement.quantityDelta}
+                      </td>
+                      <td>{typeof movement.unitCost === "number" ? formatMoney(movement.unitCost, currencyFor(movement.businessId)) : "—"}</td>
+                      <td>{movement.note || "—"}</td>
+                      <td>{movement.createdByName}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </article>
+        </>
+      )}
     </section>
   );
 }

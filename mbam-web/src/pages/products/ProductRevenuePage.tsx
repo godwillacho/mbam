@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import CsvImportPanel, { type CsvFieldDef } from "../../components/csv/CsvImportPanel";
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
-import { canManageProducts, getCurrentMember, getScopedUnits } from "../../security/accessControl";
+import { canManageProducts, getCurrentMember, getScopedUnits } from "../../routing/accessControl";
 import { listBusinesses } from "../../services/businessService";
 import {
   createProducts,

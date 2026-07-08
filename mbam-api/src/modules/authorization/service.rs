@@ -165,14 +165,18 @@ fn authorized_routes(
         "/products",
         true,
     );
-    add_route(
-        &mut routes,
-        permissions,
-        "screen.stock",
-        "stock",
-        "/stock",
-        role != BaselineRole::Cashier,
-    );
+    // Stock unlocks on EITHER capability, not just `screen.stock`: a hybrid
+    // role granted only `stock.movement.create` (via the TeamAccessPage
+    // "Add stock movements" toggle, no full ledger/screen access) still
+    // needs to reach `/stock` to actually use that permission --
+    // StockPage.tsx itself shows the ledger only with view rights and the
+    // record-movement form only with create rights, so this route-key gate
+    // only needs to confirm the user has at least one of the two.
+    if role != BaselineRole::Cashier
+        && (permissions.contains("screen.stock") || permissions.contains("stock.movement.create"))
+    {
+        routes.push(route("stock", "/stock"));
+    }
     add_route(
         &mut routes,
         permissions,
@@ -267,5 +271,21 @@ mod tests {
     fn shop_manager_with_stock_permission_gets_the_stock_route() {
         let route_keys = keys(BaselineRole::ShopManager, &["screen.stock"]);
         assert!(route_keys.contains(&"stock".to_string()));
+    }
+
+    #[test]
+    fn hybrid_role_with_only_stock_create_permission_still_reaches_the_stock_route() {
+        // A custom "Add stock movements" grant (TeamAccessPage's split
+        // toggle) intentionally does not include `screen.stock` -- without
+        // this OR, that permission would be unusable since nothing else in
+        // the frontend exposes a way to record a movement.
+        let route_keys = keys(BaselineRole::ShopManager, &["stock.movement.create"]);
+        assert!(route_keys.contains(&"stock".to_string()));
+    }
+
+    #[test]
+    fn cashier_role_cannot_access_stock_via_the_create_permission_either() {
+        let route_keys = keys(BaselineRole::Cashier, &["stock.movement.create"]);
+        assert!(!route_keys.contains(&"stock".to_string()));
     }
 }

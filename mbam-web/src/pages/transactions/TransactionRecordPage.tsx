@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
-import { getCurrentMember, getScopedUnits } from "../../security/accessControl";
+import { getCurrentMember, getScopedUnits } from "../../routing/accessControl";
 import { listBusinesses, listBusinessUnits } from "../../services/businessService";
 import { getCurrentSession } from "../../services/authService";
 import { listBrowserDbCustomers, upsertBrowserDbCustomerFromTransaction } from "../../services/customers/customerBrowserDbService";

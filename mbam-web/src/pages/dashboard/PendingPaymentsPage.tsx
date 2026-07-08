@@ -2,7 +2,7 @@ import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
-import { getScopedPendingPayments } from "../../security/accessControl";
+import { getScopedPendingPayments } from "../../routing/accessControl";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import { canViewDashboardMetric, getStoredDashboardMember } from "./dashboardPermissions";
 import "./PendingPaymentsPage.css";

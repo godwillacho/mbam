@@ -107,7 +107,8 @@ const en = {
       businesses: "Businesses and shops",
       team: "Employees",
       products: "Products",
-      stock: "Stock",
+      stockView: "Stock (view ledger)",
+      stockCreate: "Stock (add movements)",
       reports: "Reports",
     },
     roleRecommendations: {
@@ -252,7 +253,8 @@ const fr = {
       businesses: "Entreprises et boutiques",
       team: "Employés",
       products: "Produits",
-      stock: "Stock",
+      stockView: "Stock (registre)",
+      stockCreate: "Stock (ajout de mouvements)",
       reports: "Rapports",
     },
     roleRecommendations: {

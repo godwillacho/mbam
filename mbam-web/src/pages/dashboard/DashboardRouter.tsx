@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { Navigate } from "react-router-dom";
-import { getCurrentMember } from "../../security/accessControl";
+import { getCurrentMember } from "../../routing/accessControl";
 import { normalizeDashboardView, type DashboardView } from "./dashboardPermissions";
 import {
   baselineDashboardPath,

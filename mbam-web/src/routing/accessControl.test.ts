@@ -66,4 +66,28 @@ describe("authorized route matrix", () => {
     expect(canAccessRoute(custom, "team")).toBe(false);
     expect(canAccessRoute(custom, "businesses")).toBe(false);
   });
+
+  it("unlocks the Stock route on either the screen permission or the standalone create permission", () => {
+    // TeamAccessPage's "Add stock movements" custom toggle grants
+    // stock.movement.create alone (no screen.stock), for hybrid roles that
+    // should be able to record movements without the full ledger/nav
+    // access -- without this OR, that permission would have no UI path.
+    const viewOnly = member({
+      roleId: "role-custom-member-shop-manager-123",
+      permissions: ["screen.stock"],
+    });
+    expect(canAccessRoute(viewOnly, "stock")).toBe(true);
+
+    const createOnly = member({
+      roleId: "role-custom-member-cashier-123",
+      permissions: ["stock.movement.create"],
+    });
+    expect(canAccessRoute(createOnly, "stock")).toBe(true);
+
+    const neither = member({
+      roleId: "role-custom-member-cashier-123",
+      permissions: ["screen.products"],
+    });
+    expect(canAccessRoute(neither, "stock")).toBe(false);
+  });
 });

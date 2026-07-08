@@ -11,7 +11,7 @@ const { loadAuthorizationBootstrap, getScopedUnits } = vi.hoisted(() => ({
   getScopedUnits: vi.fn(),
 }));
 
-vi.mock("../../security/accessControl", () => ({
+vi.mock("../../routing/accessControl", () => ({
   canManageProducts: vi.fn(() => false),
   getCurrentMember: vi.fn(() => ({
     roleId: "role-shop-manager",

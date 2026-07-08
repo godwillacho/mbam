@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
 import { profileBaselineDashboardPath } from "../dashboard/dashboardRoutes";
-import { setCurrentMemberId } from "../../security/accessControl";
+import { setCurrentMemberId } from "../../routing/accessControl";
 import { getCurrentSession } from "../../services/authService";
 import { clearActiveSession } from "../../services/authSessionStore";
 import { saveOfflineAuthorizationSnapshot } from "../../services/offlineAuthorizationSnapshotService";

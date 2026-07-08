@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { canManageProducts, getCurrentMember, getScopedUnits } from "../../security/accessControl";
+import { canManageProducts, getCurrentMember, getScopedUnits } from "../../routing/accessControl";
 import { loadAuthorizationBootstrap } from "../../services/authorizationService";
 import { listAuthorizedProductsOnline } from "../../services/productService";
 import { loadTeamWorkspace } from "../../services/teamService";

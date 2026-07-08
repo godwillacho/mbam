@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { canAccessRoute, getCurrentMember, type AppRouteKey } from "../../security/accessControl";
+import { canAccessRoute, getCurrentMember, type AppRouteKey } from "./accessControl";
 
 interface ProtectedRouteProps {
   routeKey: AppRouteKey;
