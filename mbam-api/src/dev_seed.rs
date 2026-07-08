@@ -55,6 +55,7 @@ const MASTER_PERMISSIONS: &[&str] = &[
     "screen.businesses",
     "screen.team",
     "screen.products",
+    "screen.stock",
     "screen.reports",
 ];
 
@@ -87,6 +88,7 @@ const BUSINESS_ADMIN_PERMISSIONS: &[&str] = &[
     "screen.businesses",
     "screen.team",
     "screen.products",
+    "screen.stock",
     "screen.reports",
 ];
 
@@ -115,6 +117,7 @@ const SHOP_MANAGER_PERMISSIONS: &[&str] = &[
     "screen.businesses",
     "screen.team",
     "screen.products",
+    "screen.stock",
     "screen.reports",
 ];
 

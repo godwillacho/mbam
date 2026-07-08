@@ -107,6 +107,7 @@ const en = {
       businesses: "Businesses and shops",
       team: "Employees",
       products: "Products",
+      stock: "Stock",
       reports: "Reports",
     },
     roleRecommendations: {
@@ -251,6 +252,7 @@ const fr = {
       businesses: "Entreprises et boutiques",
       team: "Employés",
       products: "Produits",
+      stock: "Stock",
       reports: "Rapports",
     },
     roleRecommendations: {

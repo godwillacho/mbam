@@ -39,6 +39,7 @@ const screenAccessOptions = [
   { id: "businesses", permission: "screen.businesses", grants: ["screen.businesses", "business.view", "unit.view", "sync.pull"] },
   { id: "team", permission: "screen.team", grants: ["screen.team", "worker.view", "business.view", "unit.view", "sync.pull"] },
   { id: "products", permission: "screen.products", grants: ["screen.products", "product.view", "business.view", "unit.view", "sync.pull"] },
+  { id: "stock", permission: "screen.stock", grants: ["screen.stock", "stock.movement.create", "stock.movement.view", "product.view", "business.view", "unit.view", "sync.pull", "sync.push"] },
   { id: "reports", permission: "screen.reports", grants: ["screen.reports", "report.view", "business.view", "unit.view", "sync.pull"] },
 ] as const;
 

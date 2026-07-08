@@ -21,6 +21,14 @@ import "./ProductRevenuePage.css";
 
 type SortMode = "alphabetical" | "reverse" | "brand" | "bestSelling";
 
+export type StockPolicyOption = "allow_negative" | "warn_when_low" | "block_when_empty";
+
+export const STOCK_POLICY_OPTIONS: StockPolicyOption[] = [
+  "warn_when_low",
+  "allow_negative",
+  "block_when_empty",
+];
+
 interface ProductDraft {
   name: string;
   sku: string;
@@ -30,6 +38,10 @@ interface ProductDraft {
   expiryDate: string;
   costPrice: string;
   businessUnitId?: string;
+  // Not part of productDraftFields/the bulk "add products" grid on purpose --
+  // new products default to warn_when_low server-side; the policy selector
+  // only appears once a product exists, in the per-row edit table below.
+  stockPolicy: StockPolicyOption;
 }
 
 const productDraftFields: Array<keyof ProductDraft> = ["name", "sku", "brand", "category", "availableQuantity", "expiryDate", "costPrice"];
@@ -44,6 +56,7 @@ function createEmptyProductDraft(): ProductDraft {
     expiryDate: "",
     costPrice: "",
     businessUnitId: "",
+    stockPolicy: "warn_when_low",
   };
 }
 
@@ -107,6 +120,7 @@ function toDraft(product: ProductProfile | undefined, row: ProductRevenueRow): P
     expiryDate: product?.expiryDate ?? row.expiryDate ?? "",
     costPrice: typeof costPrice === "number" ? String(costPrice) : "",
     businessUnitId: product?.businessUnitId ?? rowBusinessUnitId(row),
+    stockPolicy: (product?.stockPolicy as StockPolicyOption | undefined) ?? "warn_when_low",
   };
 }
 
@@ -127,6 +141,7 @@ function draftPayload(draft: ProductDraft, businessId: string, businessUnitId: s
     availableQuantity: optionalNumber(draft.availableQuantity),
     expiryDate: draft.expiryDate || undefined,
     costPrice: optionalNumber(draft.costPrice),
+    stockPolicy: draft.stockPolicy,
     defaultPrice: 0,
   };
 }
@@ -142,6 +157,7 @@ function rowProfile(row: ProductRevenueRow, draft: ProductDraft): ProductProfile
     brand: draft.brand || undefined,
     availableQuantity: optionalNumber(draft.availableQuantity),
     lowStockThreshold: row.lowStockThreshold,
+    stockPolicy: draft.stockPolicy,
     expiryDate: draft.expiryDate || undefined,
     costPrice: optionalNumber(draft.costPrice),
     defaultPrice: row.defaultPrice ?? 0,
@@ -287,7 +303,7 @@ export default function ProductRevenuePage() {
     return sortRows(matchedRows, productDrafts, sortMode);
   }, [productDrafts, rows, searchQuery, sortMode]);
 
-  const updateDraft = (productId: string, field: keyof ProductDraft, value: string) => {
+  const updateDraft = (productId: string, field: Exclude<keyof ProductDraft, "stockPolicy">, value: string) => {
     const row = rows.find((item) => item.productId === productId);
     if (!row) return;
 
@@ -296,6 +312,19 @@ export default function ProductRevenuePage() {
       [productId]: {
         ...(current[productId] ?? toDraft(workspace.products.find((product) => product.id === productId), row)),
         [field]: value,
+      },
+    }));
+  };
+
+  const updateStockPolicy = (productId: string, stockPolicy: StockPolicyOption) => {
+    const row = rows.find((item) => item.productId === productId);
+    if (!row) return;
+
+    setProductDrafts((current) => ({
+      ...current,
+      [productId]: {
+        ...(current[productId] ?? toDraft(workspace.products.find((product) => product.id === productId), row)),
+        stockPolicy,
       },
     }));
   };
@@ -370,6 +399,10 @@ export default function ProductRevenuePage() {
         expiryDate: record.expiryDate ?? "",
         costPrice: record.costPrice ?? "",
         businessUnitId: record.businessUnitId ?? "",
+        // CSV imports go through the bulk "add products" grid, which never
+        // exposes stockPolicy (see the ProductDraft field comment) -- new
+        // products always default to warn_when_low server-side.
+        stockPolicy: "warn_when_low" as StockPolicyOption,
       }))
       .filter(hasProductDraftContent);
 
@@ -541,6 +574,7 @@ export default function ProductRevenuePage() {
                 <th>{t("productRevenue.brand")}</th>
                 <th>{t("productRevenue.category")}</th>
                 <th>{t("productRevenue.availableQuantity")}</th>
+                <th>{t("productRevenue.stockPolicy")}</th>
                 <th>{t("productRevenue.expiryDate")}</th>
                 <th>{t("productRevenue.costPrice")}</th>
                 <th>{t("roleDashboard.labels.revenue")}</th>
@@ -556,7 +590,7 @@ export default function ProductRevenuePage() {
                 const inventory = product
                   ? getProductInventorySnapshot(product)
                   : typeof row.availableQuantity === "number"
-                    ? { availableQuantity: row.availableQuantity }
+                    ? { availableQuantity: row.availableQuantity, status: "unknown" as const }
                     : undefined;
                 const transactionCount = row.pricePoints.length;
 
@@ -571,7 +605,31 @@ export default function ProductRevenuePage() {
                     <td>{isEditingProducts ? <input value={draft.sku} onChange={(event) => updateDraft(row.productId, "sku", event.target.value)} /> : draft.sku}</td>
                     <td>{isEditingProducts ? <input value={draft.brand} onChange={(event) => updateDraft(row.productId, "brand", event.target.value)} /> : draft.brand || "—"}</td>
                     <td>{isEditingProducts ? <input value={draft.category} onChange={(event) => updateDraft(row.productId, "category", event.target.value)} /> : t(`categories.${draft.category}`)}</td>
-                    <td>{isEditingProducts ? <input type="number" min="0" value={draft.availableQuantity} onChange={(event) => updateDraft(row.productId, "availableQuantity", event.target.value)} /> : inventory?.availableQuantity ?? t("productRevenue.notTracked")}</td>
+                    <td>
+                      {isEditingProducts ? (
+                        <input type="number" min="0" value={draft.availableQuantity} onChange={(event) => updateDraft(row.productId, "availableQuantity", event.target.value)} />
+                      ) : (
+                        <span className={`stock-quantity-cell stock-status-${inventory?.status ?? "unknown"}`}>
+                          {inventory?.availableQuantity ?? t("productRevenue.notTracked")}
+                          {(inventory?.status === "low" || inventory?.status === "out") && (
+                            <span className="stock-status-badge">
+                              {t(`productRevenue.stockStatus.${inventory.status}`)}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {isEditingProducts ? (
+                        <select value={draft.stockPolicy} onChange={(event) => updateStockPolicy(row.productId, event.target.value as StockPolicyOption)}>
+                          {STOCK_POLICY_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{t(`productRevenue.stockPolicyOptions.${option}`)}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        t(`productRevenue.stockPolicyOptions.${draft.stockPolicy}`)
+                      )}
+                    </td>
                     <td>{isEditingProducts ? <input type="date" value={draft.expiryDate} onChange={(event) => updateDraft(row.productId, "expiryDate", event.target.value)} /> : draft.expiryDate || "—"}</td>
                     <td>{isEditingProducts ? <input type="number" min="0" value={draft.costPrice} onChange={(event) => updateDraft(row.productId, "costPrice", event.target.value)} /> : draft.costPrice ? formatMoney(Number(draft.costPrice), workspace.masterAccount.currency) : "—"}</td>
                     <td>{formatMoney(row.totalRevenue, workspace.masterAccount.currency)}</td>

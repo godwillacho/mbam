@@ -30,6 +30,7 @@ const navItems: Array<{ to: string; labelKey: string; routeKey?: AppRouteKey }> 
   { to: "/shops", labelKey: "app.nav.shops", routeKey: "shops" },
   { to: "/employees", labelKey: "app.nav.team", routeKey: "team" },
   { to: "/products", labelKey: "app.nav.products", routeKey: "products" },
+  { to: "/stock", labelKey: "app.nav.stock", routeKey: "stock" },
   { to: "/reports", labelKey: "app.nav.reports", routeKey: "reports" },
 ];
 

@@ -19,6 +19,7 @@ import ProductRevenuePage from "./pages/products/ProductRevenuePage";
 import EntityReportDetailPage from "./pages/reports/EntityReportDetailPage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import ScopedEntityReportPage from "./pages/reports/ScopedEntityReportPage";
+import StockPage from "./pages/stock/StockPage";
 import TeamAccessPage from "./pages/team/TeamAccessPage";
 import TransactionInvoicePage from "./pages/transactions/TransactionInvoicePage";
 import TransactionDraftsPage from "./pages/transactions/TransactionDraftsPage";
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/products" element={<ProtectedRoute routeKey="products"><ScopedEntityReportPage kind="products" /></ProtectedRoute>} />
           <Route path="/products/manage" element={<ProtectedRoute routeKey="products"><ProductRevenuePage /></ProtectedRoute>} />
           <Route path="/products/:entityId" element={<ProtectedRoute routeKey="products"><EntityReportDetailPage kind="products" /></ProtectedRoute>} />
+          <Route path="/stock" element={<ProtectedRoute routeKey="stock"><StockPage /></ProtectedRoute>} />
           <Route path="/transactions/new" element={<ProtectedRoute routeKey="recordTransaction"><TransactionRecordPage /></ProtectedRoute>} />
           <Route path="/transactions/drafts" element={<ProtectedRoute routeKey="transactionDrafts"><TransactionDraftsPage /></ProtectedRoute>} />
           <Route path="/transactions/:transactionId/invoice" element={<ProtectedRoute routeKey="transactions"><TransactionInvoicePage /></ProtectedRoute>} />
