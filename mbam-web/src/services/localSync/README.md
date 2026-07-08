@@ -16,6 +16,12 @@ grant limits disconnected access.
   local transactions and invoices.
 - `../transactions/transactionBrowserDbService.ts` merges local and server
   transaction rows for the UI.
+- `../stock/stockLocalRepository.ts` queues stock-movement drafts through the
+  outbox (groundwork only -- no backend `stock` module or permission exists
+  yet, see docs/future-stock-management.md).
+- `../receiptImport/receiptImportLocalRepository.ts` queues captured receipt
+  images through the outbox (groundwork only -- no backend endpoint or
+  permission exists yet, see docs/future-receipt-import.md).
 
 ## Security rules
 

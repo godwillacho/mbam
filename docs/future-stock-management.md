@@ -4,6 +4,8 @@ This document prepares Mbam for a future inventory and stock management feature.
 
 The feature is intentionally not active yet. The current priority is transaction recording, customer learning, product learning, and offline sync. Stock management should build on those foundations.
 
+**Status (2026-07-05):** the offline-sync foundation this document asks for is in place, and a first slice of groundwork for this feature now exists: `mbam-web/src/services/stock/stockLocalRepository.ts` can queue a `StockMovementDraft` through the same generic offline outbox transactions/customers/products already use, and list whatever is still queued. There is still no backend `stock` module, no `stock.movement.create` permission for any real account to hold (so the queue function is reachable but will always fail closed today), and no UI. This is deliberately just the offline-layer slice, not the feature itself.
+
 ## Why stock management fits Mbam
 
 A sale transaction already contains:
@@ -33,6 +35,10 @@ Prepared models:
 - `StockMovementDraft`
 - `StockCountDraft`
 - `StockCountLine`
+
+(This file was deleted as unreferenced dead code in the 2026-06-18 cleanup,
+then recreated 2026-07-05 once `stockLocalRepository.ts` actually consumed
+it -- keep this in sync if it's ever removed again.)
 
 ## Future stock behavior
 

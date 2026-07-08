@@ -18,6 +18,82 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-07-08 - Offline Service Layer: Hardening + Stock/Receipt-Import Groundwork
+
+**Related change:** Working tree pending commit at `2026-07-08T13:57:52Z`
+
+**Requested behavior:** After reviewing `docs/future-stock-management.md` and
+`docs/future-receipt-import.md` against current repo state, the user asked to
+"build the offline service layer before moving ahead." Since the offline
+sync layer already exists, I asked what that should concretely mean; the
+user answered "perform 1,2 and 3" — harden the existing layer with real test
+coverage, extend it for stock-movement groundwork, and extend it for
+receipt-import groundwork.
+
+**Root cause / engineering reason:** `offlineSyncService.ts` had only a
+single smoke test despite being the core push/pull/conflict engine for every
+offline-syncable entity. Separately, `docs/future-stock-management.md` and
+`docs/future-receipt-import.md` referenced `types/stock.ts` and
+`types/receiptImport.ts` as an already-"prepared frontend contract," but both
+files were actually deleted as unreferenced dead code in the 2026-06-18
+cleanup (`aaa5548`) and never used since — the docs were stale. This batch
+closes both gaps: real coverage for the sync engine, and the two type files
+recreated as the first genuinely-consumed slice of the two features they
+describe (not just placeholders again).
+
+**Files changed:**
+
+- `mbam-web/src/services/offlineSyncService.test.ts` — expanded from 1 to 8
+  tests covering outbox deletion on accept, conflict recording, retry-count
+  increment and failure on reject, retryable-until-5th-attempt network
+  failure semantics, and `applyCloudChange` create/update/delete against the
+  local encrypted entity store.
+- `mbam-web/src/types/stock.ts` (recreated) and
+  `mbam-web/src/services/stock/stockLocalRepository.ts` (new) —
+  `queueStockMovement`/`listQueuedStockMovements`, fail-closed on missing
+  offline grant, out-of-scope business, or missing `stock.movement.create`
+  permission (no backend grants this yet, by design).
+- `mbam-web/src/services/stock/stockLocalRepository.test.ts` (new) — 5 tests.
+- `mbam-web/src/types/receiptImport.ts` (recreated) and
+  `mbam-web/src/services/receiptImport/receiptImportLocalRepository.ts`
+  (new) — `queueReceiptImportDraft`/`listQueuedReceiptImportDrafts`,
+  validates file size (<=10MB) and MIME type before checking scope, fails
+  closed on missing grant or `receipt_import.create` permission, never
+  returns raw image bytes from queue/list calls.
+- `mbam-web/src/services/receiptImport/receiptImportLocalRepository.test.ts`
+  (new) — 6 tests.
+- `mbam-web/src/types/offline.types.ts` — added `"stock_movement"` and
+  `"receipt_import"` to `OfflineEntityType`.
+- `docs/future-stock-management.md`, `docs/future-receipt-import.md` —
+  added "Status (2026-07-05)" notes and corrected the "prepared frontend
+  contract" sections to note the 2026-06-18 deletion and recreation.
+- `REPOSITORY_MAP.md`, `mbam-web/src/services/localSync/README.md` —
+  added the two new service directories to the services table / active
+  modules list.
+
+**Debugging and verification performed:** `npx tsc --noEmit` clean; `npx
+eslint .` clean except one pre-existing, unrelated error in
+`vite.config.ts` (confirmed via `git log` to predate this change, last
+touched 2026-07-03); `npx vitest run` — 23 files / 76 tests passed,
+including all 19 new tests; `npm run build` succeeded (only the
+pre-existing >400kB vendor-charts chunk-size warning).
+
+**Errors encountered:** None — all 19 new tests passed on first run against
+both the pre-existing `offlineSyncService.ts` implementation and the newly
+written repository files.
+
+**Checks not run:** No backend changes in this batch, so no `cargo test`
+needed. No live-browser check — neither feature has a UI yet; this is
+offline-layer groundwork only.
+
+**Remaining risks and follow-up checks:** Both new queue functions are
+unreachable in practice until a real backend module exists for
+`stock.movement.create` / `receipt_import.create` — that backend module is
+the next real step for either feature, not more frontend work. Storing
+base64 receipt-image bytes inside the same encrypted outbox as small JSON
+records is fine at low volume; revisit storage size/performance once real
+receipt-image volume is known.
+
 ## 2026-07-05 - Precise, Role-Gated Reports: Custom Date Ranges + Raw Transaction Detail
 
 **Related change:** Working tree pending commit at `2026-07-05T00:16:21Z`

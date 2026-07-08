@@ -4,7 +4,15 @@ export type OfflineEntityType =
   | "customer"
   | "business"
   | "business_unit"
-  | "employee";
+  | "employee"
+  // Groundwork for not-yet-active features (see docs/future-stock-management.md
+  // and docs/future-receipt-import.md) -- queued and persisted through the
+  // same generic outbox/entity-store engine as the entity types above, but
+  // with no backend endpoint or UI wired up yet. See
+  // services/stock/stockLocalRepository.ts and
+  // services/receiptImport/receiptImportLocalRepository.ts.
+  | "stock_movement"
+  | "receipt_import";
 
 export type OfflineOperationAction = "create" | "update" | "delete";
 export type OfflineOperationStatus =
