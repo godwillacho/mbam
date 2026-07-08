@@ -93,7 +93,7 @@ contains request/response/database contracts.
 | `modules/businesses/` | Scoped business listing and creation |
 | `modules/business_units/` | Scoped shop/unit listing, creation, update |
 | `modules/products/` | Scoped catalogue CRUD and product sync records |
-| `modules/stock/` | Manual stock-movement ledger (purchases/adjustments/transfers); sale-driven deductions are written by `modules/transactions/` instead, see docs/future-stock-management.md |
+| `modules/stock/` | Manual stock-movement ledger (purchases/adjustments/transfers) plus `products.stock_policy`; sale-driven deductions are written by `modules/transactions/` instead. Fronted by `mbam-web`'s `/stock` page — see `pages/stock/` and `services/stockService.ts` below |
 | `modules/team/` | Employees, memberships, roles, permissions, invitations |
 | `modules/transactions/` | Transactions, drafts, details, invoices, sale-driven stock deduction |
 | `modules/sync/` | Device-bound offline push/pull and conflict validation |
@@ -109,7 +109,7 @@ conflicts, and provides the reusable request authorization context.
 
 ### Database
 
-`migrations/0001...0012` are ordered schema history. Never edit an applied
+`migrations/0001...0014` are ordered schema history. Never edit an applied
 migration; add a new numbered migration.
 
 ## React PWA: `mbam-web`
@@ -131,7 +131,8 @@ migration; add a new numbered migration.
 | `pages/auth/` | Login/signup, access bootstrap, invite/reset flows |
 | `pages/dashboard/` | Role baselines, routing, metrics, pending payments |
 | `pages/business/` | Business and unit structure |
-| `pages/products/` | Product catalogue, imports, revenue, inventory view |
+| `pages/products/` | Product catalogue, imports, revenue, inventory view, per-product stock policy |
+| `pages/stock/` | Stock movement ledger (filterable by product/shop) and manual record-movement form |
 | `pages/team/` | Employee access, roles, permissions, invitations |
 | `pages/transactions/` | Entry, drafts, list, and invoices |
 | `pages/reports/` | Scoped reporting shell |
@@ -152,7 +153,7 @@ migration; add a new numbered migration.
 | `services/offline*SnapshotService.ts` | Offline authorization/grant validation |
 | `services/customers/` | Scoped encrypted customer persistence |
 | `services/transactions/` | Scoped encrypted local transactions and merge |
-| `services/stock/` | Offline stock-movement queue groundwork (no backend module yet, see docs/future-stock-management.md) |
+| `services/stock/` | Offline queue for manual stock movements recorded while offline; syncs against the `modules/stock/` ledger via the generic `stock_movement` entity type in `services/offlineSyncService.ts`/`modules/sync/` |
 | `services/receiptImport/` | Offline receipt-image queue groundwork (no backend module yet, see docs/future-receipt-import.md) |
 | `services/localSync/` | Role-policy metadata and browser cache records |
 | `services/logging/` | Redacted console, IndexedDB buffer, Sentry forwarding |
