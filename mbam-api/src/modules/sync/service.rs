@@ -165,6 +165,9 @@ async fn apply_operation(db: &PgPool, user_id: Uuid, value: Value) -> SyncPushRe
         if operation.entity_type == "transaction" {
             return apply_transaction_operation(db, user_id, operation).await;
         }
+        if operation.entity_type == "stock_movement" {
+            return apply_stock_movement_operation(db, user_id, operation).await;
+        }
         return rejected_result(
             &operation.operation_id,
             "this entity type does not yet have a server sync handler",
@@ -319,6 +322,67 @@ async fn apply_transaction_operation(
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OfflineStockMovementPayload {
+    product_id: Uuid,
+    movement_type: String,
+    quantity_delta: f64,
+    unit_cost: Option<f64>,
+    source_receipt_import_id: Option<Uuid>,
+    note: Option<String>,
+}
+
+/// Replays a queued offline stock movement (purchase/adjustment/transfer/
+/// etc -- never `"sale"`, which `stock::service` rejects on this path the
+/// same way it rejects it from the direct HTTP API). Reuses the
+/// offline-generated id as the server id, exactly like
+/// `apply_transaction_operation` does for transactions, so a retried push
+/// is idempotent -- see `stock::repository::create`'s doc comment.
+async fn apply_stock_movement_operation(
+    db: &PgPool,
+    user_id: Uuid,
+    operation: ProductSyncOperation,
+) -> SyncPushResult {
+    if operation.action != "create" {
+        return rejected_result(
+            &operation.operation_id,
+            "offline stock movement updates are not supported",
+        );
+    }
+    let movement_id = match Uuid::parse_str(&operation.entity_id) {
+        Ok(id) => id,
+        Err(_) => return rejected_result(&operation.operation_id, "stock movement id is malformed"),
+    };
+    let payload = match serde_json::from_value::<OfflineStockMovementPayload>(operation.payload) {
+        Ok(payload) => payload,
+        Err(_) => {
+            return rejected_result(&operation.operation_id, "stock movement payload is malformed")
+        }
+    };
+    let request = crate::modules::stock::model::StockMovementWriteRequest {
+        product_id: payload.product_id,
+        movement_type: payload.movement_type,
+        quantity_delta: payload.quantity_delta,
+        unit_cost: payload.unit_cost,
+        source_receipt_import_id: payload.source_receipt_import_id,
+        note: payload.note,
+    };
+    match crate::modules::stock::service::create_movement_with_id(db, user_id, movement_id, request)
+        .await
+    {
+        Ok(movement) => SyncPushResult {
+            operation_id: operation.operation_id,
+            outcome: "accepted".to_string(),
+            server_id: Some(movement.id),
+            server_version: Some(movement.created_at.timestamp_millis()),
+            error: None,
+            cloud_value: None,
+        },
+        Err(error) => rejected_result(&operation.operation_id, &error.to_string()),
+    }
+}
+
 fn rejected_result(operation_id: &str, error: &str) -> SyncPushResult {
     SyncPushResult {
         operation_id: operation_id.to_string(),
@@ -347,6 +411,9 @@ async fn build_snapshot(
     let can_view_products = authorization.require_permission("product.view").is_ok();
     let can_view_transactions = authorization.require_permission("sale.view").is_ok();
     let can_view_workers = authorization.require_permission("worker.view").is_ok();
+    let can_view_stock_movements = authorization
+        .require_permission("stock.movement.view")
+        .is_ok();
     let baseline_role = authorization.baseline_role.code();
 
     let rows = sqlx::query(
@@ -379,6 +446,12 @@ async fn build_snapshot(
               or transaction.business_unit_id = any($3)
             )
             and ($7 <> 'cashier' or transaction.recorded_by_user_id = $1)
+        ),
+        visible_stock_movements as (
+          select distinct movement.*, movement.created_at as updated_at
+          from stock_movements movement
+          where $9 and movement.business_id = any($2)
+            and movement.business_unit_id = any($3)
         ),
         visible_members as (
           select distinct target.id, target.user_id, u.full_name, u.email, u.phone,
@@ -456,6 +529,18 @@ async fn build_snapshot(
           )
         from visible_transactions
         union all
+        select 'stock_movement', id, updated_at,
+          jsonb_build_object(
+            'localId', id::text, 'productId', product_id,
+            'businessAccountId', business_account_id, 'businessId', business_id,
+            'businessUnitId', business_unit_id, 'movementType', movement_type,
+            'quantityDelta', quantity_delta, 'unitCost', unit_cost,
+            'sourceTransactionId', source_transaction_id,
+            'sourceReceiptImportId', source_receipt_import_id, 'note', note,
+            'createdBy', created_by, 'createdAt', created_at
+          )
+        from visible_stock_movements
+        union all
         select 'employee', id, updated_at,
           jsonb_build_object(
             'id', id, 'userId', user_id, 'fullName', full_name, 'email', email,
@@ -481,6 +566,7 @@ async fn build_snapshot(
             .copied()
             .collect::<Vec<_>>(),
     )
+    .bind(can_view_stock_movements)
     .fetch_all(db)
     .await?;
     let authorization_scopes = authorization

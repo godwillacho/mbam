@@ -43,6 +43,8 @@ const MASTER_PERMISSIONS: &[&str] = &[
     "product.create",
     "product.update",
     "product.view",
+    "stock.movement.create",
+    "stock.movement.view",
     "report.view",
     "report.profit.view",
     "sync.pull",
@@ -73,6 +75,8 @@ const BUSINESS_ADMIN_PERMISSIONS: &[&str] = &[
     "product.create",
     "product.update",
     "product.view",
+    "stock.movement.create",
+    "stock.movement.view",
     "report.view",
     "report.profit.view",
     "sync.pull",
@@ -100,6 +104,8 @@ const SHOP_MANAGER_PERMISSIONS: &[&str] = &[
     "product.create",
     "product.update",
     "product.view",
+    "stock.movement.create",
+    "stock.movement.view",
     "report.view",
     "sync.pull",
     "sync.push",
@@ -594,6 +600,15 @@ async fn upsert_product(
           set business_account_id = excluded.business_account_id, business_id = excluded.business_id,
               business_unit_id = excluded.business_unit_id, name = excluded.name, sku = excluded.sku,
               category = excluded.category, default_price = excluded.default_price,
+              -- Reset to the fixture's original quantity/policy on every reseed.
+              -- Without this, a test that records a sale against a seeded
+              -- product (e.g. checklist_tests' TRANSACTION_CREATE_ID against
+              -- PRODUCT_ONE_ID) would permanently drain that product's
+              -- available_quantity a little further on every test run, since
+              -- transactions::repository::create now decrements it as part
+              -- of recording a sale.
+              available_quantity = 50, low_stock_threshold = 5,
+              stock_policy = 'warn_when_low',
               status = 'active', updated_at = now()
     "#)
     .bind(product.product_id)

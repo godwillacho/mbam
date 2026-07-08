@@ -18,6 +18,115 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-07-08 - Stock Management: Backend Ledger, Sale-Driven Deduction, Stock Policy
+
+**Related change:** Working tree pending commit at `2026-07-08T16:55:49Z`
+
+**Requested behavior:** After reviewing `docs/future-stock-management.md`, the
+user asked for ideas on implementing and integrating stock management. I
+presented a phased plan (ideas only / low-stock badges only / manual
+movements / backend ledger + sale deduction) via `AskUserQuestion`; the user
+picked "Backend ledger + sale deduction" as the starting phase.
+
+**Root cause / engineering reason:** `future-stock-management.md` assumed a
+separate multi-location "stock profile" table would be needed. It isn't --
+`products` rows are already 1:1 with a `business_unit_id`
+(`0008_product_unit_scope.sql`), so `available_quantity` already lives on
+the row that belongs to exactly one shop. This let the whole feature ship as
+a ledger table plus a policy column, rather than a new profile model.
+
+**Files changed:**
+
+- `mbam-api/migrations/0013_stock_movements.sql` — new `stock_movements`
+  append-only ledger table; new `products.stock_policy` column
+  (`allow_negative`/`warn_when_low`/`block_when_empty`, default
+  `warn_when_low`); new `stock.movement.create`/`stock.movement.view`
+  permissions, granted explicitly to existing `master_owner` roles
+  (matching `0009_screen_permissions.sql`'s pattern for permissions added
+  after initial account signup).
+- `mbam-api/src/modules/stock/` (new) — `model.rs`, `repository.rs`
+  (`find_product_scope` for pre-lock scope resolution; `create()` locks the
+  product row `FOR UPDATE`, checks movement-id idempotency *after*
+  acquiring that lock, enforces `block_when_empty`, and rejects movements
+  against untracked products outright), `service.rs` (`validate()` extracted
+  as a pure, unit-tested function; `"sale"` is rejected as a manual movement
+  type), `routes.rs` (`POST`/`GET /api/v1/stock/movements`).
+- `mbam-api/src/modules/transactions/repository.rs` — new
+  `apply_sale_stock_deductions`, called from inside `create()`'s existing
+  `existing_lines` idempotency guard; sums quantity per product across
+  lines, locks each product row `FOR UPDATE` in sorted order (avoids
+  lock-ordering deadlocks), skips untracked products silently (a sale isn't
+  the user explicitly asking for an inventory event, unlike a manual
+  movement), enforces `block_when_empty` by rejecting the whole sale.
+  `create()`'s return type changed from `Result<_, sqlx::Error>` to
+  `Result<_, ApiError>` to allow a business-level rejection from this new
+  code path; verified the one caller (`transactions::service::create`)
+  needed no changes since `ApiError` already implements `From<sqlx::Error>`.
+- `mbam-api/src/modules/products/{model,service,repository}.rs` — exposed
+  `stock_policy` through `ProductWriteRequest`/`Product` (it would otherwise
+  have been an orphaned DB column), validated against the three allowed
+  values.
+- `mbam-api/src/modules/sync/service.rs` — new `"stock_movement"` entityType
+  branch reusing the offline-generated id as the server id (same trick
+  `"transaction"` already uses) so `stockLocalRepository.ts`'s existing
+  offline queue can sync manual movements; added a
+  `visible_stock_movements` CTE + `UNION` branch to `build_snapshot`'s pull
+  query, gated on `stock.movement.view`.
+- `mbam-api/src/dev_seed.rs` — added the two new permissions to
+  `MASTER_PERMISSIONS`/`BUSINESS_ADMIN_PERMISSIONS`/`SHOP_MANAGER_PERMISSIONS`
+  (discovered these are independent of `team/repository.rs`'s
+  `standard_roles()`); fixed `upsert_product`'s `ON CONFLICT` clause to
+  reset `available_quantity`/`low_stock_threshold`/`stock_policy` on every
+  reseed — without this, the pre-existing
+  `manager_scope_tests_cover_shop_resources_and_report_denials` test (which
+  records one real sale against `PRODUCT_ONE_ID`) would have permanently
+  drained that seeded product's quantity by 1 on every test run once
+  sale-driven deduction shipped.
+- `mbam-api/src/checklist_tests.rs` — two new integration tests:
+  `stock_movement_endpoints_are_role_gated_and_scoped` and
+  `sale_creation_deducts_stock_and_blocks_when_policy_requires_it`.
+- `docs/future-stock-management.md`, `REPOSITORY_MAP.md` — status notes and
+  a services-table entry reflecting what's now implemented vs. still just
+  proposed (stock counts, any UI).
+
+**Debugging and verification performed:** No Rust toolchain in this sandbox,
+so `cargo check`/`test`/`build` could not be run. Read every new/modified
+file in full, then spawned an independent read-only review agent (fresh
+context) to re-check bind-order/column-order correctness across every new
+or modified SQL query, borrow-checker correctness of the `&mut Transaction`
+helper, error-type propagation through the changed `repository::create`
+signature, struct-literal completeness, and the new tests' JSON field names
+and query-string parameter naming (query strings in this API stay
+snake_case, unlike JSON bodies — the review caught that my first draft of
+`ListStockMovementsQuery` had mistakenly used `camelCase` rename, which
+would have mismatched the tests' own `?product_id=` query string).
+
+**Errors encountered:** The independent review found one real logic bug —
+a manual movement against an untracked product (`available_quantity IS
+NULL`) silently wrote a ledger row with no corresponding quantity change,
+contradicting the migration's own "opt-in tracking" comment. Fixed by
+rejecting such movements outright in `stock::repository::create`.
+
+**Checks not run:** `cargo check`/`build`/`test` — strongly recommend
+running `cargo test` locally before merging, especially the two new
+integration tests and the pre-existing
+`manager_scope_tests_cover_shop_resources_and_report_denials` test (to
+confirm the `dev_seed.rs` fix actually prevents the quantity-drift
+regression this change would otherwise have introduced). No live-browser
+verification — no UI consumes this yet.
+
+**Remaining risks and follow-up checks:** `products::repository::update`'s
+pre-existing full-replace contract means editing a product without
+resending `stockPolicy` silently resets it to the default — harmless today
+since no UI sets it yet, but should be fixed before any product-edit UI
+exposes the field. `block_when_empty` is a real behavior change (a sale can
+now be rejected outright) but is only reachable via a raw API call today,
+since no UI exposes `stockPolicy` yet. No UI exists at all for this feature
+yet (ledger view, record-movement form, low-stock badge) — natural next
+phase. Concurrent manual movements on the same product across two devices
+are serialized via a DB row lock, not a merge strategy; fine at expected
+scale.
+
 ## 2026-07-08 - Offline Service Layer: Hardening + Stock/Receipt-Import Groundwork
 
 **Related change:** Working tree pending commit at `2026-07-08T13:57:52Z`

@@ -93,8 +93,9 @@ contains request/response/database contracts.
 | `modules/businesses/` | Scoped business listing and creation |
 | `modules/business_units/` | Scoped shop/unit listing, creation, update |
 | `modules/products/` | Scoped catalogue CRUD and product sync records |
+| `modules/stock/` | Manual stock-movement ledger (purchases/adjustments/transfers); sale-driven deductions are written by `modules/transactions/` instead, see docs/future-stock-management.md |
 | `modules/team/` | Employees, memberships, roles, permissions, invitations |
-| `modules/transactions/` | Transactions, drafts, details, invoices |
+| `modules/transactions/` | Transactions, drafts, details, invoices, sale-driven stock deduction |
 | `modules/sync/` | Device-bound offline push/pull and conflict validation |
 
 Users, business accounts, memberships, roles, and permissions are relational

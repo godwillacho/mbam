@@ -7,6 +7,7 @@ pub mod businesses;
 pub mod keycloak_sync;
 pub mod products;
 pub mod reports;
+pub mod stock;
 pub mod sync;
 pub mod team;
 pub mod transactions;

@@ -1,6 +1,10 @@
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Utc};
 use sqlx::{types::Json, PgPool};
 use uuid::Uuid;
+
+use crate::error::ApiError;
 
 use super::model::{
     CreateTransactionRequest, TransactionDraftPayload, TransactionDraftResponse, TransactionLine,
@@ -239,7 +243,7 @@ pub async fn create(
     account_id: Uuid,
     payload: &CreateTransactionRequest,
     total: f64,
-) -> Result<TransactionResponse, sqlx::Error> {
+) -> Result<TransactionResponse, ApiError> {
     let mut tx = db.begin().await?;
     let transaction_id = sqlx::query_scalar::<_, Uuid>(
         r#"
@@ -280,6 +284,8 @@ pub async fn create(
     .fetch_one(&mut *tx)
     .await?;
     if !existing_lines {
+        apply_sale_stock_deductions(&mut tx, transaction_id, user_id, account_id, &payload.lines)
+            .await?;
         for line in &payload.lines {
             sqlx::query(
                 r#"
@@ -318,7 +324,97 @@ pub async fn create(
     tx.commit().await?;
     find_by_id(db, user_id, transaction_id)
         .await?
-        .ok_or(sqlx::Error::RowNotFound)
+        .ok_or(ApiError::Internal)
+}
+
+/// Deducts stock for every line that references a product, as part of
+/// recording a sale. This is the only place `movement_type: "sale"` is ever
+/// written -- see `stock::service::MANUAL_MOVEMENT_TYPES`, which excludes it
+/// specifically so the ledger can't drift from, or double-count, what this
+/// function already recorded.
+///
+/// Runs inside the same transaction as the rest of `create`, guarded by the
+/// same `existing_lines` idempotency check the caller already applies, so a
+/// retried offline-sync push can never deduct stock twice for one sale.
+///
+/// Quantity tracking is opt-in per product (`available_quantity IS NULL`
+/// means untracked): untracked products are skipped entirely, matching
+/// products::model::Product's existing nullable-quantity design.
+async fn apply_sale_stock_deductions(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    transaction_id: Uuid,
+    actor_id: Uuid,
+    account_id: Uuid,
+    lines: &[super::model::CreateTransactionLineRequest],
+) -> Result<(), ApiError> {
+    let mut deltas: BTreeMap<Uuid, f64> = BTreeMap::new();
+    for line in lines {
+        if let Some(product_id) = line.product_id {
+            *deltas.entry(product_id).or_insert(0.0) -= line.quantity;
+        }
+    }
+
+    for (product_id, delta) in deltas {
+        let row: Option<(Uuid, Uuid, Option<f64>, String)> = sqlx::query_as(
+            r#"
+            select business_id, business_unit_id,
+              available_quantity::float8 as available_quantity, stock_policy
+            from products
+            where id = $1
+            for update
+            "#,
+        )
+        .bind(product_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        // A missing row here would mean the product referenced by this line
+        // was deleted between the transaction_lines FK check and this
+        // lock -- vanishingly unlikely inside one DB transaction, but skip
+        // rather than fail the whole sale if it somehow happens.
+        let Some((business_id, business_unit_id, available_quantity, stock_policy)) = row else {
+            continue;
+        };
+
+        let Some(current_quantity) = available_quantity else {
+            continue;
+        };
+
+        let new_quantity = current_quantity + delta;
+        if stock_policy == "block_when_empty" && new_quantity < 0.0 {
+            return Err(ApiError::BadRequest(format!(
+                "insufficient stock for product {product_id}"
+            )));
+        }
+
+        sqlx::query(
+            "update products set available_quantity = $2, updated_at = now() where id = $1",
+        )
+        .bind(product_id)
+        .bind(new_quantity)
+        .execute(&mut **tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            insert into stock_movements (
+              product_id, business_account_id, business_id, business_unit_id,
+              movement_type, quantity_delta, source_transaction_id, created_by
+            ) values ($1, $2, $3, $4, 'sale', $5, $6, $7)
+            "#,
+        )
+        .bind(product_id)
+        .bind(account_id)
+        .bind(business_id)
+        .bind(business_unit_id)
+        .bind(delta)
+        .bind(transaction_id)
+        .bind(actor_id)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(())
 }
 
 pub async fn list_for_user(
