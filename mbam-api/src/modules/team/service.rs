@@ -414,6 +414,20 @@ fn dashboards_for_member(
     add_if_allowed(
         &mut dashboards,
         permissions,
+        "screen.stock",
+        dashboard(
+            "stock",
+            "Stock",
+            "Review and record stock movements where this role is permitted.",
+            "/stock",
+            "workflow",
+            Some("stock"),
+            false,
+        ),
+    );
+    add_if_allowed(
+        &mut dashboards,
+        permissions,
         "screen.reports",
         dashboard(
             "reports",
