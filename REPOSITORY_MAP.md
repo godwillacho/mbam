@@ -145,8 +145,7 @@ migration; add a new numbered migration.
 | `pages/auth/` | Login/signup, access bootstrap, invite/reset flows |
 | `pages/dashboard/` | Role baselines, routing, metrics, pending payments |
 | `pages/business/` | Business and unit structure |
-| `pages/products/` | Product catalogue, imports, revenue, inventory view, per-product stock policy |
-| `pages/stock/` | Stock movement ledger (filterable by product/shop) and manual record-movement form. Its own permission scope (`screen.stock`, `stock.movement.view`, `stock.movement.create`) lets the ledger view and the record-movement action be granted independently — see `routing/accessControl.ts`'s `routeAlternatePermission` and `pages/team/TeamAccessPage.tsx`'s split `stockView`/`stockCreate` toggles |
+| `pages/stock/` | Merged product + stock management, all at `/stock` (there is no more standalone `pages/products/` management page — `/products/manage` now redirects here). Combines the product catalogue (CRUD, CSV import, revenue table, per-product `stock_policy`) with the stock-movement ledger and manual record-movement form. Quantity is display-only in the product table now; the record-movement form is the only UI path that changes it, so every quantity change is audited and `stock_policy`-enforced. Reachable via either the `stock` or `products` route permission (`routing/ProtectedRoute.tsx`'s `altRouteKey`) so roles like cashier (which have `screen.products` but not `screen.stock`) keep product-management access; within the page, the product section, the ledger, and the record-movement form each gate independently — see `routing/accessControl.ts`'s `routeAlternatePermission` and `pages/team/TeamAccessPage.tsx`'s split `stockView`/`stockCreate` toggles |
 | `pages/team/` | Employee access, roles, permissions, invitations |
 | `pages/transactions/` | Entry, drafts, list, and invoices |
 | `pages/reports/` | Scoped reporting shell |

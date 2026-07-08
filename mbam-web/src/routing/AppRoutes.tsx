@@ -14,7 +14,6 @@ import {
 import DashboardMetricDetailPage from "../pages/dashboard/DashboardMetricDetailPage";
 import { BaselineDashboardRoute, DashboardRouter } from "../pages/dashboard/DashboardRouter";
 import PendingPaymentsPage from "../pages/dashboard/PendingPaymentsPage";
-import ProductRevenuePage from "../pages/products/ProductRevenuePage";
 import EntityReportDetailPage from "../pages/reports/EntityReportDetailPage";
 import ReportsPage from "../pages/reports/ReportsPage";
 import ScopedEntityReportPage from "../pages/reports/ScopedEntityReportPage";
@@ -58,9 +57,13 @@ export default function AppRoutes() {
         <Route path="/employees/manage" element={<ProtectedRoute routeKey="team"><TeamAccessPage /></ProtectedRoute>} />
         <Route path="/employees/:entityId" element={<ProtectedRoute routeKey="team"><EntityReportDetailPage kind="employees" /></ProtectedRoute>} />
         <Route path="/products" element={<ProtectedRoute routeKey="products"><ScopedEntityReportPage kind="products" /></ProtectedRoute>} />
-        <Route path="/products/manage" element={<ProtectedRoute routeKey="products"><ProductRevenuePage /></ProtectedRoute>} />
+        {/* Product management (catalog CRUD, CSV import, revenue table) moved
+            into StockPage.tsx -- see debug.log for why the two pages were
+            merged. Kept as a redirect rather than deleting the path outright
+            since it may be bookmarked. */}
+        <Route path="/products/manage" element={<Navigate to="/stock" replace />} />
         <Route path="/products/:entityId" element={<ProtectedRoute routeKey="products"><EntityReportDetailPage kind="products" /></ProtectedRoute>} />
-        <Route path="/stock" element={<ProtectedRoute routeKey="stock"><StockPage /></ProtectedRoute>} />
+        <Route path="/stock" element={<ProtectedRoute routeKey="stock" altRouteKey="products"><StockPage /></ProtectedRoute>} />
         <Route path="/transactions/new" element={<ProtectedRoute routeKey="recordTransaction"><TransactionRecordPage /></ProtectedRoute>} />
         <Route path="/transactions/drafts" element={<ProtectedRoute routeKey="transactionDrafts"><TransactionDraftsPage /></ProtectedRoute>} />
         <Route path="/transactions/:transactionId/invoice" element={<ProtectedRoute routeKey="transactions"><TransactionInvoicePage /></ProtectedRoute>} />
