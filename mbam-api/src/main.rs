@@ -3,6 +3,7 @@
 //! The backend exposes authenticated business, team, product, transaction, and
 //! synchronization APIs over PostgreSQL.
 
+mod auth;
 mod authentication;
 mod config;
 mod db;
@@ -22,15 +23,7 @@ use crate::{
     authentication::AuthenticationLayer, config::Config, db::pool::connect_database,
     state::AppState,
 };
-use axum::{
-    http::{header, HeaderName, HeaderValue, Method, Request},
-    Router,
-};
 use std::{io, net::SocketAddr};
-use tower_http::{
-    cors::{AllowOrigin, CorsLayer},
-    trace::TraceLayer,
-};
 /// Starts the Mbam API server.
 ///
 /// The entrypoint validates authentication configuration before accepting any
@@ -69,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if config.app_env == "development" {
         dev_demo_data::spawn_demo_traffic_worker(state.db.clone());
     }
-    let app = build_router(state);
+    let app = routes::app_router(state);
 
     let addr: SocketAddr = format!("{}:{}", config.api_host, config.api_port).parse()?;
     tracing::info!(%addr, auth_provider = %config.auth_provider, "starting Mbam API");
@@ -77,65 +70,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
     Ok(())
-}
-
-/// Builds the application router and attaches shared middleware.
-fn build_router(state: AppState) -> Router {
-    let web_origin = HeaderValue::from_str(&state.config.web_origin)
-        .expect("WEB_ORIGIN must be a valid HTTP origin");
-    let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::exact(web_origin))
-        .allow_credentials(true)
-        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
-        .allow_headers([
-            header::ACCEPT,
-            header::AUTHORIZATION,
-            HeaderName::from_static("baggage"),
-            header::CONTENT_TYPE,
-            HeaderName::from_static("sentry-trace"),
-            HeaderName::from_static("x-mbam-device-id"),
-            HeaderName::from_static("x-mbam-device-fingerprint"),
-            HeaderName::from_static("x-mbam-device-label"),
-        ]);
-    let business_router =
-        modules::businesses::routes::router().merge(modules::business_units::routes::router());
-    let auth_router = if state.config.auth_provider == "legacy" {
-        modules::auth::routes::router()
-    } else {
-        Router::new()
-    };
-
-    Router::new()
-        .merge(routes::router())
-        .nest("/api/v1/auth", auth_router)
-        .nest("/api/v1/me", modules::authorization::routes::router())
-        .nest("/api/v1/businesses", business_router)
-        .nest("/api/v1/products", modules::products::routes::router())
-        .nest("/api/v1/reports", modules::reports::routes::router())
-        .nest("/api/v1/stock", modules::stock::routes::router())
-        .nest("/api/v1/team-members", modules::team::routes::team_router())
-        .nest(
-            "/api/v1/keycloak-sync",
-            modules::keycloak_sync::routes::router(),
-        )
-        .nest(
-            "/api/v1/invites",
-            modules::team::routes::invitation_router(),
-        )
-        .nest("/api/v1/sync", modules::sync::routes::router())
-        .nest(
-            "/api/v1/transactions",
-            modules::transactions::routes::router(),
-        )
-        .layer(cors)
-        .layer(
-            TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
-                tracing::info_span!(
-                    "http.request",
-                    http.method = %request.method(),
-                    http.path = request.uri().path(),
-                )
-            }),
-        )
-        .with_state(state)
 }

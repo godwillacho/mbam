@@ -11,7 +11,7 @@ import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import CsvImportPanel, { type CsvFieldDef } from "../../components/csv/CsvImportPanel";
 import DevOnly from "../../components/app/DevOnly";
-import { getCurrentMember } from "../../security/accessControl";
+import { getCurrentMember } from "../../routing/accessControl";
 import { ApiClientError } from "../../services/apiClient";
 import {
   disableEmployee,
@@ -39,7 +39,17 @@ const screenAccessOptions = [
   { id: "businesses", permission: "screen.businesses", grants: ["screen.businesses", "business.view", "unit.view", "sync.pull"] },
   { id: "team", permission: "screen.team", grants: ["screen.team", "worker.view", "business.view", "unit.view", "sync.pull"] },
   { id: "products", permission: "screen.products", grants: ["screen.products", "product.view", "business.view", "unit.view", "sync.pull"] },
-  { id: "stock", permission: "screen.stock", grants: ["screen.stock", "stock.movement.create", "stock.movement.view", "product.view", "business.view", "unit.view", "sync.pull", "sync.push"] },
+  // Stock is split into two independently-grantable capabilities (rather
+  // than one bundled toggle) so a hybrid-role user -- e.g. a cashier who
+  // also restocks -- can be given just the ability to add stock without
+  // opening the full ledger, or just read access without write. See
+  // routing/accessControl.ts's canAccessRoute + the backend's
+  // authorized_routes()/dashboards_for_member(): the "stock" route/nav
+  // entry unlocks on EITHER permission, and StockPage.tsx itself shows the
+  // ledger only with view rights and the record-movement form only with
+  // create rights.
+  { id: "stockView", permission: "screen.stock", grants: ["screen.stock", "stock.movement.view", "product.view", "business.view", "unit.view", "sync.pull"] },
+  { id: "stockCreate", permission: "stock.movement.create", grants: ["stock.movement.create", "product.view", "business.view", "unit.view", "sync.pull", "sync.push"] },
   { id: "reports", permission: "screen.reports", grants: ["screen.reports", "report.view", "business.view", "unit.view", "sync.pull"] },
 ] as const;
 

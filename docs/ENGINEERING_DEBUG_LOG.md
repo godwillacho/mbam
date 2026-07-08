@@ -3636,3 +3636,143 @@ via the browser afterward.
   *consume* it) is very likely to recur for the next new screen unless
   these are consolidated into a single shared source of truth --
   flagging as a concrete candidate for a dedicated follow-up refactor.
+
+## 2026-07-08 - Routing/Auth Reorg, Stock Permission Scope Split, Hybrid-Access Fix
+
+**Related change:** Working tree pending commit at `2026-07-08T20:10:52Z`
+
+**Requested behavior:** "group the source code in a way that all routing
+code is in a folder, authentication code in its own folder now the stock
+pages should have thier own separate permission scope the should be
+intergrated into the current the already existing permisiion scope also
+include a way that admins can grant a user custom access to add stock in
+case where a user takes in a hybrid role." Clarified via `AskUserQuestion`:
+reorg covers "Both backend and frontend"; approach is a "Thin re-export
+layer" (facades/composition roots, no physical relocation of domain
+logic); the admin-grant mechanism is "Split the existing 'Stock' toggle
+into two" independent custom permissions.
+
+**Root cause / engineering reason:** Grepped both codebases first for an
+existing formal `PermissionScope` abstraction -- none exists in either;
+"permission scope" here just means a role's flat `permissions: string[]`
+array plus the several places that consume it (the design smell flagged
+in the prior two entries). So "stock's own permission scope, integrated
+with the existing system" meant keeping stock's three permission codes
+(`screen.stock`, `stock.movement.view`, `stock.movement.create`) as a
+clean, fully-wired, self-contained group across every consuming location,
+not inventing a new abstraction the rest of the codebase doesn't have.
+Separately, splitting the Stock toggle into two per the user's chosen
+option would have made `stock.movement.create` alone an unusable, dead
+grant -- `/stock` was gated solely on `screen.stock` everywhere -- so the
+route/dashboard gates needed relaxing to an OR of either permission before
+the split could actually work end-to-end; this gap was caught by design
+review, not a failing test.
+
+**Files changed:**
+
+- `mbam-api/src/routes/mod.rs` — now also hosts `app_router(state)`, the
+  full CORS/tracing/`.nest(...)` composition root, moved verbatim out of
+  `main.rs`'s old `build_router()`.
+- `mbam-api/src/main.rs` — calls `routes::app_router(state)`; no longer
+  builds the router itself.
+- `mbam-api/src/auth/mod.rs` (new), `mbam-api/src/auth/README.md` (new) —
+  thin facade re-exporting `crate::authentication::*` at its root,
+  `crate::security::password`/`tokens` under `tokens_and_passwords`, and
+  `crate::modules::auth::*` under `handlers`; points at the three real
+  locations rather than moving them.
+- `mbam-api/src/checklist_tests.rs` — calls `routes::app_router` instead
+  of the removed `build_router`.
+- `mbam-api/src/modules/authorization/service.rs` — `authorized_routes()`
+  now unlocks `"stock"` on `screen.stock` OR `stock.movement.create`
+  (still hard-blocked for Cashier); 2 new unit tests
+  (`hybrid_role_with_only_stock_create_permission_still_reaches_the_stock_route`,
+  `cashier_role_cannot_access_stock_via_the_create_permission_either`).
+- `mbam-api/src/modules/team/service.rs` — `dashboards_for_member()`
+  given the same OR-gate for its `"stock"` dashboard tile entry.
+- `mbam-web/src/App.tsx` — reduced to a shell mounting `<BrowserRouter>`
+  around new `mbam-web/src/routing/AppRoutes.tsx` (the full route tree,
+  extracted verbatim with import paths shifted one level).
+- `mbam-web/src/routing/` (new folder) — `AppRoutes.tsx`; `ProtectedRoute.tsx`
+  +`.test.tsx` (moved from `components/app/`); `accessControl.ts`+`.test.ts`
+  (moved from the deleted `security/` folder, plus the new
+  `routeAlternatePermission` OR-gate and 1 new test covering
+  view-only/create-only/neither for the Stock route); `README.md`.
+- `mbam-web/src/auth/index.ts` (new), `mbam-web/src/auth/README.md` (new)
+  — barrel re-exporting the 9 auth-related service modules (`authService`,
+  `authSessionStore`, `authSessionPersistence`, `authorizationService`,
+  `keycloakService`, `deviceBindingService`, `offlineVaultService`,
+  `offlineSessionService`, `offlineAuthorizationSnapshotService`) from one
+  place; verified no export-name collisions across the 9 files first.
+- 19 import sites updated from `security/accessControl` to
+  `routing/accessControl`: `services/workspaceService.ts`,
+  `pages/reports/ReportsPage.tsx`+`.test.tsx` (incl. its `vi.mock` string),
+  `pages/reports/ScopedEntityReportPage.tsx`+`.test.tsx` (incl. its
+  `vi.mock` string), `pages/stock/StockPage.tsx`,
+  `pages/team/TeamAccessPage.tsx`, `pages/products/ProductRevenuePage.tsx`,
+  `pages/auth/AccessBootstrapPage.tsx`,
+  `pages/transactions/TransactionRecordPage.tsx`+`TransactionsPage.tsx`,
+  `pages/dashboard/DashboardRouter.tsx`+`dashboardPermissions.ts`
+  +`PendingPaymentsPage.tsx`+`BaselineDashboards.tsx`,
+  `components/app/AppShell.tsx`. Final grep confirmed zero remaining
+  references to the old `security/`/`components/app/ProtectedRoute` paths.
+- `mbam-web/src/pages/team/TeamAccessPage.tsx` — split the single bundled
+  `"stock"` custom-access toggle into `stockView` (grants `screen.stock`+
+  `stock.movement.view`) and `stockCreate` (grants `stock.movement.create`
+  alone).
+- `mbam-web/src/pages/stock/StockPage.tsx` — computes `canViewLedger`/
+  `canCreateMovement` independently from `currentMember.permissions`;
+  conditionally renders the record-movement form and the filter-bar/ledger
+  table separately instead of an all-or-nothing page.
+- `mbam-web/src/i18n/cleanDashboardResources.ts` — en/fr `stock` label
+  split into separate `stockView`/`stockCreate` labels matching the new
+  toggle ids.
+- Deleted `mbam-web/src/security/accessControl.ts`+`.test.ts` and
+  `mbam-web/src/components/app/ProtectedRoute.tsx`+`.test.tsx`.
+- `REPOSITORY_MAP.md` — updated the runtime-overview diagram, backend
+  infra/domain tables, and frontend UI/security tables to reflect the new
+  `routing/`/`auth/` folders on both sides and the split stock permission
+  scope. `mbam-api/src/routes/README.md` updated to describe the
+  composition-root role (was stale, still described `routes/` as
+  health-check-only).
+
+**Debugging and verification performed:**
+
+- Frontend: `npx tsc --noEmit` clean, `npx eslint src` clean, `npx vitest
+  run` passed (77 tests, up from 76, across all touched/moved test files
+  with zero broken imports), `npm run build` succeeded.
+- Backend: no Rust toolchain in this sandbox (standing constraint) --
+  re-read every changed file in full, reasoning through Rust
+  module-privacy rules to confirm the new facades' re-exports are visible
+  from `main.rs`/`checklist_tests.rs` (a private `mod` declared at the
+  crate root is visible to all descendant modules of that root).
+- The underlying stock-permission-grant bugs this reorg builds on top of
+  were already live-verified earlier in this session via the Claude in
+  Chrome browser tools against the user's actual running app (see the two
+  prior entries); no new live-browser pass was done for the reorg itself
+  since it changes file organization/import wiring, not runtime
+  permission data.
+
+**Errors encountered:** None during the reorg itself -- all 19+
+import-site updates resolved cleanly on the first tsc/eslint/vitest pass.
+The hybrid-access dead-grant gap was caught by design review before it
+shipped, not by a failing test or user report.
+
+**Checks not run:** `cargo check`/`cargo build`/`cargo test` (no Rust
+toolchain in this sandbox) -- strongly recommend the user run `cargo
+test` locally before treating the backend half (facade re-exports, the
+`app_router` extraction, the two new `authorized_routes`/
+`dashboards_for_member` unit tests) as verified. No live-browser re-check
+of the reorg specifically (no runtime-visible behavior change expected
+from the file moves alone).
+
+**Remaining risks and follow-up checks:**
+
+- The "5+ independent hardcoded permission lists" design smell flagged in
+  the prior two entries is unchanged by this reorg -- explicitly out of
+  scope for this request (folder structure + the stock permission split,
+  not consolidating the list-of-truth problem) and remains a candidate
+  for a dedicated follow-up refactor.
+- The new `auth/`/`routing/` folders are thin facades over unmoved files
+  by deliberate choice (lower risk than physical relocation); a future
+  session could do the heavier physical move if desired, but every import
+  site would need re-auditing again at that point.

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
-import { getCurrentMember, getScopedTransactions } from "../../security/accessControl";
+import { getCurrentMember, getScopedTransactions } from "../../routing/accessControl";
 import { listBrowserDbTransactions, type TransactionBrowserRow } from "../../services/transactions/transactionBrowserDbService";
 import type { TransactionStatus } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";

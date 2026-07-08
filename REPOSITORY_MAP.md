@@ -8,18 +8,19 @@ historical/product references, not runtime modules.
 
 ```text
 React PWA
-  App.tsx routes
-    -> pages
-      -> security/accessControl.ts
-      -> services
-        -> HTTP API
-        -> encrypted IndexedDB/offline sync
+  App.tsx (mounts BrowserRouter only)
+    -> routing/AppRoutes.tsx (the route table)
+      -> routing/ProtectedRoute.tsx + routing/accessControl.ts
+      -> pages
+        -> services (see auth/ facade for the auth-related ones)
+          -> HTTP API
+          -> encrypted IndexedDB/offline sync
 
 Rust API
   main.rs
     -> configuration + observability + PostgreSQL
-    -> Axum routers
-      -> domain routes
+    -> routes::app_router() (the router composition root)
+      -> domain routes (see auth/ facade for the auth-related modules)
         -> services
           -> repositories
             -> PostgreSQL
@@ -70,7 +71,9 @@ Docker) versus what the Dockerfiles are staged for.
 | `src/db/pool.rs` | PostgreSQL connection pool |
 | `src/security/password.rs` | Argon2 password hashing and verification |
 | `src/security/tokens.rs` | Access tokens, opaque refresh tokens, offline grants |
+| `src/routes/mod.rs` | Composition root: builds `app_router()` (CORS, tracing, and every domain `.nest(...)`), consumed by `main.rs` and `checklist_tests.rs` |
 | `src/routes/health.rs` | Health endpoint |
+| `src/auth/` | Thin facade re-exporting `authentication/`, `security/password.rs`+`tokens.rs`, and `modules/auth/` from one place — see `src/auth/README.md`. Does not itself contain logic |
 | `src/dev_seed*.rs` | Development-only deterministic test fixture (used by `checklist_tests.rs`) |
 | `src/dev_demo_data.rs` | Development-only isolated demo business account: historical backfill plus a live-traffic background worker |
 
@@ -105,7 +108,9 @@ parallel modules.
 The active Keycloak provider boundary lives in `src/authentication/`. It
 validates tokens by confidential-client introspection, maps verified subjects
 to active local users, loads membership-scoped grants, rejects baseline-role
-conflicts, and provides the reusable request authorization context.
+conflicts, and provides the reusable request authorization context. `src/auth/`
+re-exports this module (plus `security/` and `modules/auth/`) as a single
+facade; it is not a separate implementation.
 
 ### Database
 
@@ -119,20 +124,22 @@ migration; add a new numbered migration.
 | Path | Responsibility |
 | --- | --- |
 | `src/main.tsx` | Observability initialization and React root |
-| `src/App.tsx` | Complete route table |
+| `src/App.tsx` | Thin shell: mounts `BrowserRouter` around `routing/AppRoutes.tsx` |
+| `src/routing/` | Composition root for the route table (`AppRoutes.tsx`), route guarding (`ProtectedRoute.tsx`), and navigation/display permission checks (`accessControl.ts`) — see `src/routing/README.md` |
+| `src/auth/index.ts` | Thin barrel re-exporting the auth-related services (`authService`, `authSessionStore`, `authorizationService`, `keycloakService`, `deviceBindingService`, offline auth/vault services) from one place — see `src/auth/README.md`. Does not itself contain logic |
 | `src/observability.ts` | Sentry scrubbing and frontend logger bootstrap |
 
 ### UI
 
 | Path | Responsibility |
 | --- | --- |
-| `components/app/` | Shell, route protection, language controls |
+| `components/app/` | Shell, language controls (route protection now lives in `routing/`) |
 | `components/auth/` | Authentication forms and layout |
 | `pages/auth/` | Login/signup, access bootstrap, invite/reset flows |
 | `pages/dashboard/` | Role baselines, routing, metrics, pending payments |
 | `pages/business/` | Business and unit structure |
 | `pages/products/` | Product catalogue, imports, revenue, inventory view, per-product stock policy |
-| `pages/stock/` | Stock movement ledger (filterable by product/shop) and manual record-movement form |
+| `pages/stock/` | Stock movement ledger (filterable by product/shop) and manual record-movement form. Its own permission scope (`screen.stock`, `stock.movement.view`, `stock.movement.create`) lets the ledger view and the record-movement action be granted independently — see `routing/accessControl.ts`'s `routeAlternatePermission` and `pages/team/TeamAccessPage.tsx`'s split `stockView`/`stockCreate` toggles |
 | `pages/team/` | Employee access, roles, permissions, invitations |
 | `pages/transactions/` | Entry, drafts, list, and invoices |
 | `pages/reports/` | Scoped reporting shell |
@@ -141,9 +148,9 @@ migration; add a new numbered migration.
 
 | Path | Responsibility |
 | --- | --- |
-| `security/accessControl.ts` | Client-side navigation/display restrictions |
+| `routing/accessControl.ts` | Client-side navigation/display restrictions (moved from the former `security/` folder) |
 | `services/apiClient.ts` | Authenticated HTTP, device headers, safe errors |
-| `services/auth*.ts` | Sessions and cloud/offline authentication |
+| `services/auth*.ts` | Sessions and cloud/offline authentication (re-exported as a group via `src/auth/index.ts`) |
 | `services/authorizationService.ts` | Sole online authorization bootstrap adapter |
 | `services/deviceBindingService.ts` | Browser device identity |
 | `services/encryptionService.ts` | Web Crypto encryption and key wrapping |

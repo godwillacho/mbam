@@ -7,7 +7,7 @@ import PrintButton from "../../components/app/PrintButton";
 import EntityMultiSelect from "../../components/reports/EntityMultiSelect";
 import ReportDetailTable from "./ReportDetailTable";
 import { workspace } from "../../data/mockWorkspace";
-import { getCurrentMember } from "../../security/accessControl";
+import { getCurrentMember } from "../../routing/accessControl";
 import {
   loadReport,
   type ReportDetailFilters,

@@ -411,11 +411,15 @@ fn dashboards_for_member(
             false,
         ),
     );
-    add_if_allowed(
-        &mut dashboards,
-        permissions,
-        "screen.stock",
-        dashboard(
+    // Stock unlocks on EITHER `screen.stock` or `stock.movement.create` --
+    // see the matching comment in modules/authorization/service.rs's
+    // authorized_routes(). A hybrid role granted only the "Add stock
+    // movements" custom permission still needs this tile to reach the page.
+    if !dashboards.iter().any(|item| item.id == "stock")
+        && (has_permission(permissions, "screen.stock")
+            || has_permission(permissions, "stock.movement.create"))
+    {
+        dashboards.push(dashboard(
             "stock",
             "Stock",
             "Review and record stock movements where this role is permitted.",
@@ -423,8 +427,8 @@ fn dashboards_for_member(
             "workflow",
             Some("stock"),
             false,
-        ),
-    );
+        ));
+    }
     add_if_allowed(
         &mut dashboards,
         permissions,

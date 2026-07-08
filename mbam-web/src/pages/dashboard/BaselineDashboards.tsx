@@ -7,7 +7,7 @@ import {
   canAccessRoute,
   getCurrentMember,
   type AppRouteKey,
-} from "../../security/accessControl";
+} from "../../routing/accessControl";
 import {
   loadDashboardSummary,
   type DashboardLeader,

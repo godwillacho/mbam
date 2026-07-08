@@ -91,6 +91,17 @@ const routePermission: Record<AppRouteKey, string> = {
   stock: "screen.stock",
 };
 
+// A few routes unlock on more than one permission. Stock is the only one
+// today: TeamAccessPage's "Add stock movements" custom toggle grants
+// `stock.movement.create` alone (no `screen.stock`), for hybrid roles that
+// should be able to record movements without full ledger/nav access --
+// without this, that permission would have no UI path to actually use it.
+// StockPage.tsx itself shows the ledger only with view rights and the
+// record-movement form only with create rights.
+const routeAlternatePermission: Partial<Record<AppRouteKey, string>> = {
+  stock: "stock.movement.create",
+};
+
 function baselineRoleId(roleId: string): string {
   if (roleId.startsWith("role-custom-member-business-admin-")) return "role-business-admin";
   if (roleId.startsWith("role-custom-member-shop-manager-")) return "role-shop-manager";
@@ -141,7 +152,11 @@ export function canAccessRoute(
     return member.authorizedRouteKeys.includes(routeKey);
   }
   if (member.permissions) {
-    return member.permissions.includes(routePermission[routeKey]);
+    const alternate = routeAlternatePermission[routeKey];
+    return (
+      member.permissions.includes(routePermission[routeKey]) ||
+      (alternate !== undefined && member.permissions.includes(alternate))
+    );
   }
   if (getActiveSession()) {
     return isValidatedMaster(member) && routeAccessByRole["role-master-owner"].includes(routeKey);

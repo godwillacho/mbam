@@ -1,5 +1,5 @@
 import { activateCloudWorkspace, updateCloudWorkspace, workspace } from "../data/mockWorkspace";
-import { setCurrentMemberId } from "../security/accessControl";
+import { setCurrentMemberId } from "../routing/accessControl";
 import type { PaymentMethod, ScopeLevel, TeamMember, TransactionStatus } from "../types/workspace";
 import { listBusinesses, listBusinessUnits } from "./businessService";
 import {

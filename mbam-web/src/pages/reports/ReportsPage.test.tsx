@@ -4,14 +4,14 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "../../services/apiClient";
-import { getCurrentMember } from "../../security/accessControl";
+import { getCurrentMember } from "../../routing/accessControl";
 import ReportsPage from "./ReportsPage";
 
 const { loadReport } = vi.hoisted(() => ({
   loadReport: vi.fn(),
 }));
 
-vi.mock("../../security/accessControl", () => ({
+vi.mock("../../routing/accessControl", () => ({
   getCurrentMember: vi.fn(() => ({
     roleId: "role-business-admin",
   })),

@@ -4,8 +4,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { updateCloudWorkspace } from "../../data/mockWorkspace";
-import { setCurrentMemberId } from "../../security/accessControl";
+import { updateCloudWorkspace } from "../data/mockWorkspace";
+import { setCurrentMemberId } from "./accessControl";
 import ProtectedRoute from "./ProtectedRoute";
 
 function renderRoute(root: Root, path: string) {

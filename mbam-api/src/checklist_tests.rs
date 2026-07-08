@@ -895,7 +895,7 @@ async fn test_app() -> TestApp {
     let state = AppState::new(config, db.clone(), authentication);
 
     TestApp {
-        app: super::build_router(state),
+        app: super::routes::app_router(state),
         db,
     }
 }
