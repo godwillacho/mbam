@@ -11,5 +11,6 @@ This folder contains PostgreSQL migration files.
 - `0010_authorization_versions.sql` adds durable per-user authorization versions and triggers that invalidate snapshots after membership, structural scope, role, or permission changes.
 - `0011_reporting_indexes.sql` adds reporting indexes and the cashier personal-report baseline.
 - `0012_keycloak_role_outbox.sql` adds transactional, retryable Keycloak baseline-role reconciliation state.
+- `0013_stock_movements.sql` adds a `stock_movements` audit ledger, a `stock_policy` column on `products`, and the `stock.movement.create`/`stock.movement.view` permissions.
 
 Migrations are run by the API on startup during development. In production, they should be run as part of a controlled deployment step.

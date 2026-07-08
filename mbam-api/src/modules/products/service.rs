@@ -147,6 +147,17 @@ fn normalize_and_validate(payload: &mut ProductWriteRequest) -> Result<(), ApiEr
             ));
         }
     }
+    if let Some(stock_policy) = &payload.stock_policy {
+        if !matches!(
+            stock_policy.as_str(),
+            "allow_negative" | "warn_when_low" | "block_when_empty"
+        ) {
+            return Err(ApiError::BadRequest(
+                "stock policy must be allow_negative, warn_when_low, or block_when_empty"
+                    .to_string(),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -181,6 +192,7 @@ mod tests {
             expiry_date: None,
             cost_price: Some(2.0),
             default_price: Some(3.0),
+            stock_policy: None,
         }
     }
 
@@ -188,5 +200,16 @@ mod tests {
     fn validates_products() {
         assert!(normalize_and_validate(&mut request("Coffee")).is_ok());
         assert!(normalize_and_validate(&mut request("x")).is_err());
+    }
+
+    #[test]
+    fn validates_stock_policy() {
+        let mut valid = request("Coffee");
+        valid.stock_policy = Some("block_when_empty".to_string());
+        assert!(normalize_and_validate(&mut valid).is_ok());
+
+        let mut invalid = request("Coffee");
+        invalid.stock_policy = Some("bogus_policy".to_string());
+        assert!(normalize_and_validate(&mut invalid).is_err());
     }
 }

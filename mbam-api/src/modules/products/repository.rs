@@ -9,7 +9,7 @@ const PRODUCT_COLUMNS: &str = r#"
   available_quantity::float8 as available_quantity,
   low_stock_threshold::float8 as low_stock_threshold,
   expiry_date, cost_price::float8 as cost_price,
-  default_price::float8 as default_price, status, created_at, updated_at
+  default_price::float8 as default_price, status, stock_policy, created_at, updated_at
 "#;
 
 const PRODUCT_SELECT_COLUMNS: &str = r#"
@@ -21,7 +21,7 @@ const PRODUCT_SELECT_COLUMNS: &str = r#"
   product.low_stock_threshold::float8 as low_stock_threshold,
   product.expiry_date, product.cost_price::float8 as cost_price,
   product.default_price::float8 as default_price, product.status,
-  product.created_at, product.updated_at
+  product.stock_policy, product.created_at, product.updated_at
 "#;
 
 pub async fn list_for_user(db: &PgPool, user_id: Uuid) -> Result<Vec<Product>, sqlx::Error> {
@@ -199,11 +199,11 @@ pub async fn create(
           id, business_account_id, business_id, business_unit_id, name, sku,
           category, manufacturer, brand, variant, package_size, unit_of_measure,
           barcode, available_quantity, low_stock_threshold, expiry_date,
-          cost_price, default_price
+          cost_price, default_price, stock_policy
         )
         values (
           coalesce($1, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9,
-          $10, $11, $12, $13, $14, $15, $16, $17, $18
+          $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
         )
         returning {PRODUCT_COLUMNS}
         "#
@@ -228,6 +228,7 @@ pub async fn create(
         .bind(payload.expiry_date)
         .bind(payload.cost_price)
         .bind(payload.default_price.unwrap_or(0.0))
+        .bind(payload.stock_policy.as_deref().unwrap_or("warn_when_low"))
         .fetch_one(&mut *tx)
         .await?;
     audit(&mut tx, actor_id, account_id, &product, "product.create").await?;
@@ -249,7 +250,7 @@ pub async fn update(
           manufacturer = $8, brand = $9, variant = $10, package_size = $11,
           unit_of_measure = $12, barcode = $13, available_quantity = $14,
           low_stock_threshold = $15, expiry_date = $16, cost_price = $17,
-          default_price = $18, updated_at = now()
+          default_price = $18, stock_policy = $19, updated_at = now()
         where id = $1 and business_account_id = $2 and business_id = $3
         returning {PRODUCT_COLUMNS}
         "#
@@ -274,6 +275,7 @@ pub async fn update(
         .bind(payload.expiry_date)
         .bind(payload.cost_price)
         .bind(payload.default_price.unwrap_or(0.0))
+        .bind(payload.stock_policy.as_deref().unwrap_or("warn_when_low"))
         .fetch_optional(&mut *tx)
         .await?;
     if let Some(product) = &product {

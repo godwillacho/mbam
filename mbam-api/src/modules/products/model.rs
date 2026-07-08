@@ -23,6 +23,11 @@ pub struct Product {
     pub cost_price: Option<f64>,
     pub default_price: f64,
     pub status: String,
+    /// How stock::repository::create / transactions::repository's
+    /// sale-driven deduction should treat this product going negative:
+    /// `allow_negative`, `warn_when_low`, or `block_when_empty`. Only
+    /// meaningful when `available_quantity` is tracked (non-null).
+    pub stock_policy: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -47,6 +52,7 @@ pub struct ProductWriteRequest {
     pub expiry_date: Option<NaiveDate>,
     pub cost_price: Option<f64>,
     pub default_price: Option<f64>,
+    pub stock_policy: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

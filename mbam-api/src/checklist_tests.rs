@@ -36,10 +36,14 @@ const PRODUCT_ONE_ID: &str = "10000000-0000-4000-8000-000000000501";
 const PRODUCT_TWO_ID: &str = "10000000-0000-4000-8000-000000000502";
 const PRODUCT_THREE_ID: &str = "10000000-0000-4000-8000-000000000503";
 const PRODUCT_CREATE_ID: &str = "10000000-0000-4000-8000-000000000504";
+const STOCK_PRODUCT_SCOPE_ID: &str = "10000000-0000-4000-8000-000000000505";
+const STOCK_PRODUCT_BLOCK_ID: &str = "10000000-0000-4000-8000-000000000506";
 const TRANSACTION_ONE_ID: &str = "10000000-0000-4000-8000-000000000601";
 const TRANSACTION_TWO_ID: &str = "10000000-0000-4000-8000-000000000602";
 const TRANSACTION_THREE_ID: &str = "10000000-0000-4000-8000-000000000603";
 const TRANSACTION_CREATE_ID: &str = "10000000-0000-4000-8000-000000000604";
+const STOCK_SALE_TRANSACTION_ID: &str = "10000000-0000-4000-8000-000000000605";
+const STOCK_SALE_BLOCKED_TRANSACTION_ID: &str = "10000000-0000-4000-8000-000000000606";
 const TEST_JWT_SECRET: &str = "integration_test_access_secret_1234567890";
 
 static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
@@ -551,6 +555,273 @@ async fn transaction_detail_report_supports_multi_entity_filters() {
     assert!(both_product_transaction_ids.contains(&TRANSACTION_TWO_ID.to_string()));
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn stock_movement_endpoints_are_role_gated_and_scoped() {
+    let _guard = test_guard();
+    let app = test_app().await;
+
+    let (status, _) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/products",
+            uuid(ADMIN_USER_ID),
+            Some(json!({
+                "id": STOCK_PRODUCT_SCOPE_ID,
+                "businessId": BUSINESS_ONE_ID,
+                "businessUnitId": UNIT_ONE_ID,
+                "name": "Stock Scope Test Product",
+                "sku": "TEST-STOCK-SCOPE",
+                "category": "Groceries",
+                "availableQuantity": 20.0,
+                "defaultPrice": 1000.0
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Cashiers can sell, but cannot record manual stock movements
+    // (purchases, adjustments, transfers) -- only sale.create's own
+    // deduction path touches stock for that role.
+    let (status, denied) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/stock/movements",
+            uuid(CASHIER_ONE_USER_ID),
+            Some(json!({
+                "productId": STOCK_PRODUCT_SCOPE_ID,
+                "movementType": "purchase",
+                "quantityDelta": 5.0
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(denied["error"], "forbidden");
+
+    // A shop manager scoped to the product's own unit can record one.
+    let (status, created) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/stock/movements",
+            uuid(MANAGER_ONE_USER_ID),
+            Some(json!({
+                "productId": STOCK_PRODUCT_SCOPE_ID,
+                "movementType": "purchase",
+                "quantityDelta": 5.0,
+                "note": "  restock from supplier  "
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(created["productId"], STOCK_PRODUCT_SCOPE_ID);
+    assert_eq!(created["movementType"], "purchase");
+    assert_eq!(created["quantityDelta"].as_f64(), Some(5.0));
+    assert_eq!(created["note"], "restock from supplier");
+    let movement_id = created["id"].as_str().expect("movement id").to_string();
+    assert!(audit_exists_for_resource(&app.db, "stock.movement.create", uuid(&movement_id)).await);
+
+    // The same manager cannot touch a product outside their assigned unit.
+    let (status, out_of_scope) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/stock/movements",
+            uuid(MANAGER_ONE_USER_ID),
+            Some(json!({
+                "productId": PRODUCT_TWO_ID,
+                "movementType": "purchase",
+                "quantityDelta": 5.0
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(out_of_scope["error"], "forbidden");
+
+    // "sale" is never a hand-recordable movement type -- only
+    // transactions::service::create is allowed to write one.
+    let (status, rejected) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/stock/movements",
+            uuid(MANAGER_ONE_USER_ID),
+            Some(json!({
+                "productId": STOCK_PRODUCT_SCOPE_ID,
+                "movementType": "sale",
+                "quantityDelta": -1.0
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(rejected["error"], "bad request: movement type is invalid or not recordable by hand");
+
+    // Listing is scoped the same way -- the manager sees their own
+    // movement but nothing from the other business's fixture product.
+    let (status, movements) = app
+        .request_json(
+            Method::GET,
+            &format!("/api/v1/stock/movements?product_id={STOCK_PRODUCT_SCOPE_ID}"),
+            uuid(MANAGER_ONE_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let movement_ids = ids(&movements);
+    assert_eq!(movement_ids, vec![movement_id]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn sale_creation_deducts_stock_and_blocks_when_policy_requires_it() {
+    let _guard = test_guard();
+    let app = test_app().await;
+
+    let (status, _) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/products",
+            uuid(ADMIN_USER_ID),
+            Some(json!({
+                "id": STOCK_PRODUCT_BLOCK_ID,
+                "businessId": BUSINESS_ONE_ID,
+                "businessUnitId": UNIT_ONE_ID,
+                "name": "Stock Block Test Product",
+                "sku": "TEST-STOCK-BLOCK",
+                "category": "Groceries",
+                "availableQuantity": 3.0,
+                "defaultPrice": 1000.0,
+                "stockPolicy": "block_when_empty"
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // A normal sale within available stock succeeds and deducts atomically.
+    let (status, sale) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/transactions",
+            uuid(CASHIER_ONE_USER_ID),
+            Some(json!({
+                "id": STOCK_SALE_TRANSACTION_ID,
+                "businessId": BUSINESS_ONE_ID,
+                "businessUnitId": UNIT_ONE_ID,
+                "customerName": "Stock Sale Customer",
+                "paymentMethod": "cash",
+                "paymentStatus": "paid",
+                "outstandingAmount": 0.0,
+                "idempotencyKey": "checklist-stock-sale",
+                "lines": [
+                    {
+                        "productId": STOCK_PRODUCT_BLOCK_ID,
+                        "productName": "Stock Block Test Product",
+                        "sku": "TEST-STOCK-BLOCK",
+                        "quantity": 2.0,
+                        "unitPrice": 1000.0
+                    }
+                ]
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(sale["id"], STOCK_SALE_TRANSACTION_ID);
+
+    let (status, products) = app
+        .request_json(Method::GET, "/api/v1/products", uuid(ADMIN_USER_ID), None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let after_first_sale = products
+        .as_array()
+        .expect("products array")
+        .iter()
+        .find(|product| product["id"] == STOCK_PRODUCT_BLOCK_ID)
+        .expect("stock block product")
+        .clone();
+    assert_eq!(after_first_sale["availableQuantity"].as_f64(), Some(1.0));
+
+    let (status, movements) = app
+        .request_json(
+            Method::GET,
+            &format!("/api/v1/stock/movements?product_id={STOCK_PRODUCT_BLOCK_ID}"),
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let movement_rows = movements.as_array().expect("movements array");
+    assert_eq!(movement_rows.len(), 1);
+    assert_eq!(movement_rows[0]["movementType"], "sale");
+    assert_eq!(movement_rows[0]["quantityDelta"].as_f64(), Some(-2.0));
+    assert_eq!(movement_rows[0]["sourceTransactionId"], STOCK_SALE_TRANSACTION_ID);
+
+    // A second sale for more than the single remaining unit is rejected
+    // outright by the block_when_empty policy -- and nothing about it is
+    // partially applied: no stock change, no extra ledger row, no
+    // transaction row left behind.
+    let (status, blocked) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/transactions",
+            uuid(CASHIER_ONE_USER_ID),
+            Some(json!({
+                "id": STOCK_SALE_BLOCKED_TRANSACTION_ID,
+                "businessId": BUSINESS_ONE_ID,
+                "businessUnitId": UNIT_ONE_ID,
+                "customerName": "Stock Sale Customer",
+                "paymentMethod": "cash",
+                "paymentStatus": "paid",
+                "outstandingAmount": 0.0,
+                "idempotencyKey": "checklist-stock-sale-blocked",
+                "lines": [
+                    {
+                        "productId": STOCK_PRODUCT_BLOCK_ID,
+                        "productName": "Stock Block Test Product",
+                        "sku": "TEST-STOCK-BLOCK",
+                        "quantity": 5.0,
+                        "unitPrice": 1000.0
+                    }
+                ]
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        blocked["error"],
+        format!("bad request: insufficient stock for product {STOCK_PRODUCT_BLOCK_ID}")
+    );
+
+    let (status, products_after_block) = app
+        .request_json(Method::GET, "/api/v1/products", uuid(ADMIN_USER_ID), None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let after_blocked_sale = products_after_block
+        .as_array()
+        .expect("products array")
+        .iter()
+        .find(|product| product["id"] == STOCK_PRODUCT_BLOCK_ID)
+        .expect("stock block product")
+        .clone();
+    assert_eq!(after_blocked_sale["availableQuantity"].as_f64(), Some(1.0));
+
+    let (status, movements_after_block) = app
+        .request_json(
+            Method::GET,
+            &format!("/api/v1/stock/movements?product_id={STOCK_PRODUCT_BLOCK_ID}"),
+            uuid(ADMIN_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(movements_after_block.as_array().expect("movements array").len(), 1);
+
+    let (status, transactions) = app
+        .request_json(
+            Method::GET,
+            "/api/v1/transactions",
+            uuid(CASHIER_ONE_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!ids(&transactions).contains(&STOCK_SALE_BLOCKED_TRANSACTION_ID.to_string()));
+}
+
 impl TestApp {
     async fn request_json(
         &self,
@@ -744,22 +1015,38 @@ async fn clear_checklist_fixture(db: &PgPool) -> Result<(), sqlx::Error> {
         uuid(UNIT_THREE_ID),
         uuid(PRODUCT_THREE_ID),
         uuid(PRODUCT_CREATE_ID),
+        uuid(STOCK_PRODUCT_SCOPE_ID),
+        uuid(STOCK_PRODUCT_BLOCK_ID),
         uuid(TRANSACTION_ONE_ID),
         uuid(TRANSACTION_TWO_ID),
         uuid(TRANSACTION_THREE_ID),
         uuid(TRANSACTION_CREATE_ID),
+        uuid(STOCK_SALE_TRANSACTION_ID),
+        uuid(STOCK_SALE_BLOCKED_TRANSACTION_ID),
         uuid(UNIT_TWO_ID),
     ])
     .bind(vec![uuid(MANAGER_ONE_USER_ID), uuid(CASHIER_ONE_USER_ID)])
     .execute(db)
     .await?;
 
+    sqlx::query("delete from stock_movements where product_id = any($1)")
+        .bind(vec![
+            uuid(PRODUCT_ONE_ID),
+            uuid(PRODUCT_TWO_ID),
+            uuid(PRODUCT_THREE_ID),
+            uuid(STOCK_PRODUCT_SCOPE_ID),
+            uuid(STOCK_PRODUCT_BLOCK_ID),
+        ])
+        .execute(db)
+        .await?;
     sqlx::query("delete from transaction_lines where transaction_id = any($1)")
         .bind(vec![
             uuid(TRANSACTION_ONE_ID),
             uuid(TRANSACTION_TWO_ID),
             uuid(TRANSACTION_THREE_ID),
             uuid(TRANSACTION_CREATE_ID),
+            uuid(STOCK_SALE_TRANSACTION_ID),
+            uuid(STOCK_SALE_BLOCKED_TRANSACTION_ID),
         ])
         .execute(db)
         .await?;
@@ -769,6 +1056,8 @@ async fn clear_checklist_fixture(db: &PgPool) -> Result<(), sqlx::Error> {
             uuid(TRANSACTION_TWO_ID),
             uuid(TRANSACTION_THREE_ID),
             uuid(TRANSACTION_CREATE_ID),
+            uuid(STOCK_SALE_TRANSACTION_ID),
+            uuid(STOCK_SALE_BLOCKED_TRANSACTION_ID),
         ])
         .execute(db)
         .await?;
@@ -776,6 +1065,8 @@ async fn clear_checklist_fixture(db: &PgPool) -> Result<(), sqlx::Error> {
         .bind(vec![
             uuid(PRODUCT_THREE_ID),
             uuid(PRODUCT_CREATE_ID),
+            uuid(STOCK_PRODUCT_SCOPE_ID),
+            uuid(STOCK_PRODUCT_BLOCK_ID),
         ])
         .execute(db)
         .await?;
