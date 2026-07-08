@@ -168,6 +168,14 @@ fn authorized_routes(
     add_route(
         &mut routes,
         permissions,
+        "screen.stock",
+        "stock",
+        "/stock",
+        role != BaselineRole::Cashier,
+    );
+    add_route(
+        &mut routes,
+        permissions,
         "screen.reports",
         "reports",
         "/reports",
@@ -243,5 +251,21 @@ mod tests {
     fn missing_screen_permission_fails_closed() {
         let route_keys = keys(BaselineRole::BusinessAdmin, &[]);
         assert_eq!(route_keys, vec!["dashboard".to_string()]);
+    }
+
+    #[test]
+    fn cashier_role_cannot_access_stock_even_with_the_permission() {
+        // Defense in depth, matching `team`'s test above: cashiers are never
+        // actually granted `screen.stock` (see dev_seed.rs/dev_demo_data.rs/
+        // team/repository.rs), but the route-key gate should fail closed on
+        // role alone even if a permission row existed anyway.
+        let route_keys = keys(BaselineRole::Cashier, &["screen.stock"]);
+        assert!(!route_keys.contains(&"stock".to_string()));
+    }
+
+    #[test]
+    fn shop_manager_with_stock_permission_gets_the_stock_route() {
+        let route_keys = keys(BaselineRole::ShopManager, &["screen.stock"]);
+        assert!(route_keys.contains(&"stock".to_string()));
     }
 }

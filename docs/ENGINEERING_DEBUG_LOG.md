@@ -3559,3 +3559,80 @@ sandbox) -- asking the user to rebuild and restart once more and confirm
   `team/repository.rs`, `dev_demo_data.rs`) must be kept in sync by hand
   for every future permission change -- a real design smell worth a
   follow-up consolidation, but out of scope for this fix.
+
+## 2026-07-08 - Fix: Stock Route Missing From Server-Computed authorized_routes/dashboards Lists
+
+**Related change:** Working tree pending commit at `2026-07-08T19:44:48Z`
+
+**Requested behavior:** After the prior fix (demo account reverting
+permissions), the user rebuilt again and reported the issue still
+persisted.
+
+**Root cause / engineering reason:** Live-checked the user's session and
+confirmed `screen.stock`/`stock.movement.create`/`stock.movement.view`
+were now correctly present in the raw `permissions` array (the prior fix
+worked). However, `mbam-web/src/security/accessControl.ts`'s
+`canAccessRoute` checks `member.authorizedRouteKeys` *first* and only
+falls back to raw `permissions` if that field is absent -- and
+`authorizedRouteKeys` comes from a separate, independently-computed
+server-side field (`authorized_routes`, built by
+`modules/authorization/service.rs`'s `authorized_routes()`) that maps
+permissions to route keys via its own hardcoded list, which did not yet
+have a `stock` entry. Granting the permission was necessary but not
+sufficient. While auditing for other copies of this pattern (grepped
+`screen.products`/`screen.reports` across all of `mbam-api/src`), also
+found `modules/team/service.rs`'s `dashboards_for_member()` (an
+employee-facing "available dashboards" list) missing the same entry.
+
+**Files changed:**
+
+- `mbam-api/src/modules/authorization/service.rs` -- added a `stock`
+  entry to `authorized_routes()`, gated on `screen.stock` and
+  `role != BaselineRole::Cashier` (matching the `team` entry's
+  convention); added two unit tests (cashier fails closed even given the
+  permission directly; shop_manager succeeds with the permission).
+- `mbam-api/src/modules/team/service.rs` -- added a matching `stock`
+  entry to `dashboards_for_member()`.
+- `mbam-api/src/checklist_tests.rs` -- extended the existing
+  `authorization_bootstrap_and_audit_events_cover_required_actions`
+  integration test with `manager_routes.contains("stock")` and
+  `!cashier_routes.contains("stock")` assertions against the real HTTP
+  endpoint.
+
+**Debugging and verification performed:**
+
+- Live-verified via the Claude in Chrome browser tools against the
+  user's actual running app: confirmed the permission grant from the
+  prior fix worked (raw `permissions` array now includes `screen.stock`
+  etc.), then confirmed `authorized_routes` in the same response still
+  lacked a `stock` key -- pinpointing this as a second, distinct gap
+  rather than the same bug recurring.
+- Grepped every `screen.products`/`screen.reports` occurrence across all
+  of `mbam-api/src` (5 files matched both) to confirm this is now the
+  complete set of backend locations needing a `stock` entry, with no
+  sixth location remaining.
+- No Rust toolchain in this sandbox (standing constraint) -- re-read
+  `add_route`/`dashboard`/`add_if_allowed`'s exact signatures and
+  compared the new call sites against every existing sibling call to
+  confirm argument order/types match exactly.
+
+**Errors encountered:** The root-cause bug above -- a second, distinct
+gap in this session's stock-permission rollout (route-key/dashboard-tile
+derivation, not the permission grant itself).
+
+**Checks not run:** `cargo build`/`cargo test` (no Rust toolchain in this
+sandbox) -- asking the user to rebuild once more and will re-verify live
+via the browser afterward.
+
+**Remaining risks and follow-up checks:**
+
+- There are now 5 independent hardcoded per-role/per-screen lists in the
+  backend (`dev_seed.rs`, `dev_demo_data.rs`, `team/repository.rs`,
+  `modules/authorization/service.rs`, `modules/team/service.rs`) plus 2
+  more on the frontend (`security/accessControl.ts`,
+  `TeamAccessPage.tsx`'s `screenAccessOptions`) that must all
+  independently agree for a new screen/permission to work end-to-end.
+  This exact bug (grant the permission, miss one of several places that
+  *consume* it) is very likely to recur for the next new screen unless
+  these are consolidated into a single shared source of truth --
+  flagging as a concrete candidate for a dedicated follow-up refactor.

@@ -217,6 +217,7 @@ async fn authorization_bootstrap_and_audit_events_cover_required_actions() {
     let manager_routes = route_keys(&manager_bootstrap);
     assert!(manager_routes.contains(&"team".to_string()));
     assert!(manager_routes.contains(&"products".to_string()));
+    assert!(manager_routes.contains(&"stock".to_string()));
     assert!(manager_routes.contains(&"reports".to_string()));
     assert!(manager_routes.contains(&"shops".to_string()));
     assert!(!manager_routes.contains(&"businesses".to_string()));
@@ -235,6 +236,7 @@ async fn authorization_bootstrap_and_audit_events_cover_required_actions() {
     assert!(cashier_routes.contains(&"reports".to_string()));
     assert!(!cashier_routes.contains(&"team".to_string()));
     assert!(!cashier_routes.contains(&"businesses".to_string()));
+    assert!(!cashier_routes.contains(&"stock".to_string()));
 
     let login_before = audit_count_for_actor(
         &app.db,
