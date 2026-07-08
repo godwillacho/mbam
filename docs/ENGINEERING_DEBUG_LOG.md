@@ -3490,3 +3490,72 @@ new Stock page (no Docker/Postgres/Keycloak stack in this sandbox).
   `stockService.ts`'s existing contract, which infers the unit
   server-side from the product's own `business_unit_id`, not a frontend
   gap.
+
+## 2026-07-08 - Fix: Demo Account Silently Reverting New Stock Permissions On Every Restart
+
+**Related change:** Working tree pending commit at `2026-07-08T19:34:37Z`
+
+**Requested behavior:** After the user rebuilt and restarted `mbam-api`
+per my earlier instructions, the Stock screen/nav item still didn't
+appear -- they reported "still same issue after rebuild."
+
+**Root cause / engineering reason:** `dev_demo_data.rs::seed_demo_account`
+runs on every server startup and calls `upsert_role()` for the demo
+account's four roles, which does `delete from role_permissions where
+role_id = $1` then re-inserts *only* from four hardcoded constants
+(`MASTER_PERMISSIONS`/`BUSINESS_ADMIN_PERMISSIONS`/
+`SHOP_MANAGER_PERMISSIONS`/`CASHIER_PERMISSIONS`) local to that file --
+a third, independent copy of the same per-role permission list already
+updated earlier this session in `dev_seed.rs` (test fixtures) and
+`team/repository.rs`'s `standard_roles()` (self-healing grants for real
+accounts), which I missed when adding the new stock permissions. Because
+the user was testing against the demo account ("Mbam Demo Retail
+Group"), every restart re-ran this reseed routine and silently deleted
+the migration's freshly-granted `screen.stock`/`stock.movement.create`/
+`stock.movement.view` permissions in the same startup that was supposed
+to add them -- the earlier migration-plus-rebuild instructions were
+correct, they just weren't durable against this specific account's own
+reset routine.
+
+**Files changed:**
+
+- `mbam-api/src/dev_demo_data.rs` -- added `stock.movement.create`,
+  `stock.movement.view`, `screen.stock` to `MASTER_PERMISSIONS`,
+  `BUSINESS_ADMIN_PERMISSIONS`, `SHOP_MANAGER_PERMISSIONS`
+  (`CASHIER_PERMISSIONS` intentionally untouched, matching every other
+  permission-list edit this session).
+- `mbam-api/src/modules/stock/routes.rs` -- removed an unused `post`
+  import (`routing::{get, post}` -> `routing::get`) flagged by a
+  `cargo build` warning the user pasted; the route already chains
+  `.get(list).post(create)`.
+
+**Debugging and verification performed:**
+
+- Live-checked the user's actual running app via the Claude in Chrome
+  browser tools: called the app's own `apiClient.getJson('/api/v1/me/
+  authorization')` from the page's real JS context (reusing the real
+  session token/device headers via Vite's dev server module graph) both
+  before and after the earlier rebuild instructions, confirming
+  `screen.stock` was still absent from the live permission list even
+  after a genuine recompile -- which is what pointed away from "the
+  migration didn't run" and toward "something is reverting the grant."
+- Grepped all of `mbam-api/src` for every `delete from role_permissions`
+  call site (found exactly 3: `dev_seed.rs`, `team/repository.rs`,
+  `dev_demo_data.rs`) and every `PERMISSIONS: &[&str]` constant, to
+  confirm all three are now in sync and no fourth site was missed.
+  Diffed the new `dev_demo_data.rs` entries character-for-character
+  against the already-correct `dev_seed.rs` list to rule out typos.
+
+**Errors encountered:** The root-cause bug above -- a real gap in this
+session's earlier stock-permission rollout, not a new regression.
+
+**Checks not run:** `cargo build`/`cargo test` (no Rust toolchain in this
+sandbox) -- asking the user to rebuild and restart once more and confirm
+`screen.stock` now appears in their session's live permissions.
+
+**Remaining risks and follow-up checks:**
+
+- Three independent hardcoded permission lists (`dev_seed.rs`,
+  `team/repository.rs`, `dev_demo_data.rs`) must be kept in sync by hand
+  for every future permission change -- a real design smell worth a
+  follow-up consolidation, but out of scope for this fix.

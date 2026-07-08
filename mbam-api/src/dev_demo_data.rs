@@ -162,25 +162,28 @@ const MASTER_PERMISSIONS: &[&str] = &[
     "role.create", "role.view", "role.update", "role.assign",
     "sale.create", "sale.view", "sale.refund",
     "product.create", "product.update", "product.view",
+    "stock.movement.create", "stock.movement.view",
     "report.view", "report.profit.view", "sync.pull", "sync.push",
     "screen.record_transaction", "screen.transaction_drafts", "screen.transactions",
-    "screen.businesses", "screen.team", "screen.products", "screen.reports",
+    "screen.businesses", "screen.team", "screen.products", "screen.stock", "screen.reports",
 ];
 const BUSINESS_ADMIN_PERMISSIONS: &[&str] = &[
     "business.view", "business.update", "unit.view", "unit.create", "unit.update",
     "worker.view", "worker.invite", "worker.update", "worker.disable", "role.assign",
     "sale.create", "sale.view", "sale.refund",
     "product.create", "product.update", "product.view",
+    "stock.movement.create", "stock.movement.view",
     "report.view", "report.profit.view", "sync.pull", "sync.push",
     "screen.record_transaction", "screen.transaction_drafts", "screen.transactions",
-    "screen.businesses", "screen.team", "screen.products", "screen.reports",
+    "screen.businesses", "screen.team", "screen.products", "screen.stock", "screen.reports",
 ];
 const SHOP_MANAGER_PERMISSIONS: &[&str] = &[
     "business.view", "unit.view", "worker.view", "worker.invite", "worker.update",
     "worker.disable", "role.assign", "sale.create", "sale.view", "sale.refund",
-    "product.create", "product.update", "product.view", "report.view",
+    "product.create", "product.update", "product.view",
+    "stock.movement.create", "stock.movement.view", "report.view",
     "sync.pull", "sync.push", "screen.record_transaction", "screen.transaction_drafts",
-    "screen.transactions", "screen.businesses", "screen.team", "screen.products", "screen.reports",
+    "screen.transactions", "screen.businesses", "screen.team", "screen.products", "screen.stock", "screen.reports",
 ];
 const CASHIER_PERMISSIONS: &[&str] = &[
     "business.view", "unit.view", "sale.create", "sale.view",
