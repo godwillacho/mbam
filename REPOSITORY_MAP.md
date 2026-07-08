@@ -151,6 +151,8 @@ migration; add a new numbered migration.
 | `services/offline*SnapshotService.ts` | Offline authorization/grant validation |
 | `services/customers/` | Scoped encrypted customer persistence |
 | `services/transactions/` | Scoped encrypted local transactions and merge |
+| `services/stock/` | Offline stock-movement queue groundwork (no backend module yet, see docs/future-stock-management.md) |
+| `services/receiptImport/` | Offline receipt-image queue groundwork (no backend module yet, see docs/future-receipt-import.md) |
 | `services/localSync/` | Role-policy metadata and browser cache records |
 | `services/logging/` | Redacted console, IndexedDB buffer, Sentry forwarding |
 

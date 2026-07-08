@@ -4,6 +4,8 @@ This document prepares the project for a future receipt import feature.
 
 The feature is intentionally not active yet. The goal is to prepare clean data contracts before adding image upload, OCR, or ChatGPT-powered extraction.
 
+**Status (2026-07-05):** `mbam-web/src/services/receiptImport/receiptImportLocalRepository.ts` now queues a captured receipt image (file size and MIME type validated locally, per the security rules below) through the same generic offline outbox transactions/customers/products already use, ready to push to `POST /api/v1/receipt-imports` once that endpoint exists. There is still no backend endpoint, no `receipt_import.create` permission for any real account to hold (so the queue function is reachable but will always fail closed today), no extraction service, and no UI. This is deliberately just the offline-layer slice ("the frontend stores the receipt draft locally while offline" from the intended flow below), not the feature itself.
+
 ## Intended flow
 
 1. User records a sale.
