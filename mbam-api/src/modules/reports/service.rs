@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    authentication::{AuthorizationContext, BaselineRole},
+    auth::{AuthorizationContext, BaselineRole},
     error::ApiError,
 };
 

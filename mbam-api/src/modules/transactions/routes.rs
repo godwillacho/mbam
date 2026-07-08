@@ -6,7 +6,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::{authentication::AuthorizationContext, error::ApiError, state::AppState};
+use crate::{auth::AuthorizationContext, error::ApiError, state::AppState};
 
 use super::{
     model::{CreateTransactionRequest, TransactionDraftPayload},

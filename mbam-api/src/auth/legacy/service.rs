@@ -9,9 +9,9 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    auth::{password, tokens},
     config::Config,
     error::ApiError,
-    security::{password, tokens},
 };
 
 use super::{
@@ -427,7 +427,7 @@ async fn build_auth_response(
         let baselines = scope
             .role_codes
             .iter()
-            .filter_map(|role| crate::authentication::BaselineRole::from_local_role_code(role))
+            .filter_map(|role| crate::auth::BaselineRole::from_local_role_code(role))
             .collect::<std::collections::BTreeSet<_>>();
         let baseline_role = baselines
             .iter()

@@ -2,11 +2,11 @@ import { type FormEvent, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthLayout from "../../components/auth/AuthLayout";
-import { completePasswordReset } from "../../services/authService";
+import { completePasswordReset } from "../../auth/authService";
 import {
   isKeycloakEnabled,
   recoverKeycloakAccount,
-} from "../../services/keycloakService";
+} from "../../auth/keycloakService";
 
 export default function ResetPasswordPage() {
   const { t } = useTranslation();

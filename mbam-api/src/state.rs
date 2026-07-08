@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-use crate::{authentication::AuthenticationLayer, config::Config};
+use crate::{auth::AuthenticationLayer, config::Config};
 
 /// Shared application state injected into route handlers by Axum.
 ///

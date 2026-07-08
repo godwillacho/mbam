@@ -1,7 +1,7 @@
 import { workspace } from "../../data/mockWorkspace";
 import type { CustomerProfile, TeamMember } from "../../types/workspace";
 import type { LocalCustomerRecord, LocalTransactionRecord } from "../localSync/localSyncStore";
-import { isOfflineVaultUnlocked } from "../offlineVaultService";
+import { isOfflineVaultUnlocked } from "../../auth/offlineVaultService";
 import { listLocalTransactions } from "../transactions/transactionLocalRepository";
 import {
   deleteLocalCustomers,

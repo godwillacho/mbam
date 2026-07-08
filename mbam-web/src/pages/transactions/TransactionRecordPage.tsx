@@ -4,10 +4,10 @@ import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember, getScopedUnits } from "../../routing/accessControl";
-import { listBusinesses, listBusinessUnits } from "../../services/businessService";
-import { getCurrentSession } from "../../services/authService";
+import { listBusinesses, listBusinessUnits } from "../../services/business/businessService";
+import { getCurrentSession } from "../../auth/authService";
 import { listBrowserDbCustomers, upsertBrowserDbCustomerFromTransaction } from "../../services/customers/customerBrowserDbService";
-import { listProducts } from "../../services/productService";
+import { listProducts } from "../../services/products/productService";
 import {
   createCloudTransaction,
   createTransactionDraft,
@@ -15,9 +15,9 @@ import {
   getTransactionDraft,
   updateTransactionDraft,
   type TransactionDraftInput,
-} from "../../services/transactionService";
+} from "../../services/transactions/transactionService";
 import { ApiClientError } from "../../services/apiClient";
-import { isOfflineVaultUnlocked } from "../../services/offlineVaultService";
+import { isOfflineVaultUnlocked } from "../../auth/offlineVaultService";
 import { createLocalTransaction } from "../../services/transactions/transactionLocalRepository";
 import type { CustomerProfile, PaymentMethod, ProductProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";

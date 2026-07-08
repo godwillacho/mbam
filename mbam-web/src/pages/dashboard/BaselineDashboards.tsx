@@ -12,12 +12,12 @@ import {
   loadDashboardSummary,
   type DashboardLeader,
   type DashboardSummary,
-} from "../../services/reportService";
+} from "../../services/reports/reportService";
 import { logger } from "../../services/logging/logger";
 import {
   listRecentCloudTransactions,
   type CloudTransaction,
-} from "../../services/transactionService";
+} from "../../services/transactions/transactionService";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import "./MasterDashboard.css";
 

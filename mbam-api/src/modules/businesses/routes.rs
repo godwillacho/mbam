@@ -7,7 +7,7 @@ use axum::{
 use uuid::Uuid;
 
 use crate::{
-    authentication::AuthorizationContext,
+    auth::AuthorizationContext,
     error::ApiError,
     modules::business_units::{
         model::{BusinessUnit, CreateBusinessUnitRequest},

@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::modules::products::{model::ProductWriteRequest, repository as product_repository};
 use crate::modules::transactions::model::{CreateTransactionLineRequest, CreateTransactionRequest};
 use crate::{
-    authentication::{AuthorizationContext, BaselineRole},
+    auth::{AuthorizationContext, BaselineRole},
     error::ApiError,
 };
 

@@ -1,7 +1,7 @@
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::authentication::BaselineRole;
+use crate::auth::BaselineRole;
 
 use super::model::{OutboxJob, SyncStatusResponse};
 

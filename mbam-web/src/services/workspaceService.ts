@@ -1,16 +1,16 @@
 import { activateCloudWorkspace, updateCloudWorkspace, workspace } from "../data/mockWorkspace";
 import { setCurrentMemberId } from "../routing/accessControl";
 import type { PaymentMethod, ScopeLevel, TeamMember, TransactionStatus } from "../types/workspace";
-import { listBusinesses, listBusinessUnits } from "./businessService";
+import { listBusinesses, listBusinessUnits } from "./business/businessService";
 import {
   authorizationBootstrapToTeamWorkspace,
   loadAuthorizationBootstrap,
-} from "./authorizationService";
-import { getCurrentSession } from "./authService";
-import { getValidOfflineAuthorizationSnapshot } from "./offlineAuthorizationSnapshotService";
-import { listProducts } from "./productService";
-import type { TeamEmployee, TeamWorkspace } from "./teamService";
-import { listCloudTransactions } from "./transactionService";
+} from "../auth/authorizationService";
+import { getCurrentSession } from "../auth/authService";
+import { getValidOfflineAuthorizationSnapshot } from "../auth/offlineAuthorizationSnapshotService";
+import { listProducts } from "./products/productService";
+import type { TeamEmployee, TeamWorkspace } from "./team/teamService";
+import { listCloudTransactions } from "./transactions/transactionService";
 
 function roleId(code: string): string {
   return `role-${code.replace(/_/g, "-")}`;

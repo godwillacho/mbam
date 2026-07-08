@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use sqlx::PgPool;
 
 use crate::{
-    authentication::{AuthorizationContext, BaselineRole},
+    auth::{AuthorizationContext, BaselineRole},
     error::ApiError,
 };
 
@@ -210,7 +210,7 @@ fn route(key: &str, path: &str) -> AuthorizedRouteResponse {
 
 #[cfg(test)]
 mod tests {
-    use crate::authentication::BaselineRole;
+    use crate::auth::BaselineRole;
 
     use super::authorized_routes;
 
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn cashier_role_cannot_access_stock_even_with_the_permission() {
         // Defense in depth, matching `team`'s test above: cashiers are never
-        // actually granted `screen.stock` (see dev_seed.rs/dev_demo_data.rs/
+        // actually granted `screen.stock` (see dev/seed.rs, dev/demo_data.rs,
         // team/repository.rs), but the route-key gate should fail closed on
         // role alone even if a permission row existed anyway.
         let route_keys = keys(BaselineRole::Cashier, &["screen.stock"]);

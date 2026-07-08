@@ -11,8 +11,8 @@ import "./i18n/reportsPageResources";
 import "./i18n/stockResources";
 import * as Sentry from "@sentry/react";
 import { initializeObservability } from "./observability";
-import { initializeKeycloak } from "./services/keycloakService";
-import { hydrateActiveSession } from "./services/authSessionStore";
+import { initializeKeycloak } from "./auth/keycloakService";
+import { hydrateActiveSession } from "./auth/authSessionStore";
 
 initializeObservability();
 

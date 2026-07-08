@@ -4,24 +4,19 @@
 //! synchronization APIs over PostgreSQL.
 
 mod auth;
-mod authentication;
 mod config;
 mod db;
-mod dev_demo_data;
-mod dev_seed;
-mod dev_seed_cleanup;
+mod dev;
 mod error;
 mod modules;
 mod observability;
 mod routes;
-mod security;
 mod state;
 #[cfg(test)]
 mod checklist_tests;
 
 use crate::{
-    authentication::AuthenticationLayer, config::Config, db::pool::connect_database,
-    state::AppState,
+    auth::AuthenticationLayer, config::Config, db::pool::connect_database, state::AppState,
 };
 use std::{io, net::SocketAddr};
 /// Starts the Mbam API server.
@@ -40,9 +35,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     if config.app_env == "development" {
-        match dev_seed_cleanup::cleanup_test_fixture(&pool).await {
+        match dev::seed_cleanup::cleanup_test_fixture(&pool).await {
             Ok(()) => {
-                if let Err(error) = dev_seed::seed_test_accounts(&pool).await {
+                if let Err(error) = dev::seed::seed_test_accounts(&pool).await {
                     tracing::warn!(?error, "development test account seed failed");
                 }
             }
@@ -52,7 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ),
         }
 
-        if let Err(error) = dev_demo_data::seed_demo_business(&pool).await {
+        if let Err(error) = dev::demo_data::seed_demo_business(&pool).await {
             tracing::warn!(?error, "development demo business seed failed");
         }
     }
@@ -60,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState::new(config.clone(), pool, authentication);
     modules::keycloak_sync::service::spawn_worker(state.db.clone(), config.clone());
     if config.app_env == "development" {
-        dev_demo_data::spawn_demo_traffic_worker(state.db.clone());
+        dev::demo_data::spawn_demo_traffic_worker(state.db.clone());
     }
     let app = routes::app_router(state);
 

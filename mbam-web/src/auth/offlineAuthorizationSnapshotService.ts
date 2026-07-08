@@ -1,13 +1,13 @@
 import type { AuthSession } from "../types/auth";
 import type { WorkspaceData } from "../types/workspace";
 import { workspace } from "../data/mockWorkspace";
-import type { DashboardProfile, TeamWorkspace } from "./teamService";
-import { decryptJson, encryptJson } from "./encryptionService";
+import type { DashboardProfile, TeamWorkspace } from "../services/team/teamService";
+import { decryptJson, encryptJson } from "../services/encryptionService";
 import {
   deleteAuthorizationSnapshotRecord,
   getAuthorizationSnapshotRecord,
   saveAuthorizationSnapshotRecord,
-} from "./offlineDatabase";
+} from "../services/offlineDatabase";
 import {
   isOfflineVaultUnlocked,
   requireOfflineDataKey,

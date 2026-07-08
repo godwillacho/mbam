@@ -5,7 +5,7 @@ import DevOnly from "../../components/app/DevOnly";
 import PrintButton from "../../components/app/PrintButton";
 import { workspace } from "../../data/mockWorkspace";
 import { getLocalTransactionInvoice } from "../../services/transactions/transactionLocalRepository";
-import { getCloudTransaction } from "../../services/transactionService";
+import { getCloudTransaction } from "../../services/transactions/transactionService";
 import type { PaymentMethod, TransactionStatus } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import "./TransactionsPage.css";

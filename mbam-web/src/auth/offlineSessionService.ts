@@ -3,12 +3,12 @@ import type {
   SignedOfflineGrant,
   VerifiedOfflineGrant,
 } from "../types/offline.types";
-import { decodeBase64, decryptJson, encryptJson } from "./encryptionService";
+import { decodeBase64, decryptJson, encryptJson } from "../services/encryptionService";
 import {
   deleteGrantRecord,
   getGrantRecord,
   saveGrantRecord,
-} from "./offlineDatabase";
+} from "../services/offlineDatabase";
 import {
   requireOfflineDataKey,
   requireOfflineVaultUserId,

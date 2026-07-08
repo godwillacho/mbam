@@ -13,10 +13,10 @@
 import type { ReceiptImageDraft } from "../../types/receiptImport";
 import { decryptJson } from "../encryptionService";
 import { getOutboxRecordsByStatus } from "../offlineDatabase";
-import { getValidOfflineGrant } from "../offlineSessionService";
+import { getValidOfflineGrant } from "../../auth/offlineSessionService";
 import { queueOfflineOperation } from "../offlineSyncService";
-import { getDeviceBinding } from "../deviceBindingService";
-import { requireOfflineDataKey } from "../offlineVaultService";
+import { getDeviceBinding } from "../../auth/deviceBindingService";
+import { requireOfflineDataKey } from "../../auth/offlineVaultService";
 
 /**
  * The permission this queue will require once a real backend

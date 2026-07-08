@@ -3,9 +3,9 @@ import { workspace } from "../../data/mockWorkspace";
 import type { ProductProfile, TeamMember, TransactionRecord } from "../../types/workspace";
 import { getProductSearchText } from "../../utils/productDisplay";
 import type { LocalTransactionLineRecord, LocalTransactionRecord } from "../localSync/localSyncStore";
-import { isOfflineVaultUnlocked } from "../offlineVaultService";
+import { isOfflineVaultUnlocked } from "../../auth/offlineVaultService";
 import { getLocalTransactionLines, listLocalTransactions } from "./transactionLocalRepository";
-import { listCloudTransactions, type CloudTransaction } from "../transactionService";
+import { listCloudTransactions, type CloudTransaction } from "./transactionService";
 
 export interface TransactionBrowserRow extends TransactionRecord {
   customerContact?: string;

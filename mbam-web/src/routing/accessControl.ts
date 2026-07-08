@@ -1,5 +1,5 @@
 import { workspace } from "../data/mockWorkspace";
-import { getActiveSession } from "../services/authSessionStore";
+import { getActiveSession } from "../auth/authSessionStore";
 import type {
   BusinessUnit,
   PendingPaymentRecord,

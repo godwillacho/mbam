@@ -3,10 +3,10 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
 import { profileBaselineDashboardPath } from "../dashboard/dashboardRoutes";
 import { setCurrentMemberId } from "../../routing/accessControl";
-import { getCurrentSession } from "../../services/authService";
-import { clearActiveSession } from "../../services/authSessionStore";
-import { saveOfflineAuthorizationSnapshot } from "../../services/offlineAuthorizationSnapshotService";
-import type { DashboardProfile } from "../../services/teamService";
+import { getCurrentSession } from "../../auth/authService";
+import { clearActiveSession } from "../../auth/authSessionStore";
+import { saveOfflineAuthorizationSnapshot } from "../../auth/offlineAuthorizationSnapshotService";
+import type { DashboardProfile } from "../../services/team/teamService";
 import { hydrateAuthorizationWorkspace } from "../../services/workspaceService";
 import { routePathname, safeNextPath } from "./authRedirect";
 

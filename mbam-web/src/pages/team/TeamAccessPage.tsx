@@ -23,7 +23,7 @@ import {
   type TeamEmployee,
   type TeamRole,
   type TeamWorkspace,
-} from "../../services/teamService";
+} from "../../services/team/teamService";
 import { markRolePolicyChanged } from "../../services/localSync/localSyncClient";
 import "./TeamAccessPage.css";
 

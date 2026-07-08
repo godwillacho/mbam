@@ -1,4 +1,4 @@
-import type { DashboardProfile } from "../../services/teamService";
+import type { DashboardProfile } from "../../services/team/teamService";
 import type { TeamMember } from "../../types/workspace";
 import type { DashboardView } from "./dashboardPermissions";
 

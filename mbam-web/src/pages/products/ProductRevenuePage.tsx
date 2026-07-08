@@ -5,13 +5,13 @@ import CsvImportPanel, { type CsvFieldDef } from "../../components/csv/CsvImport
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
 import { canManageProducts, getCurrentMember, getScopedUnits } from "../../routing/accessControl";
-import { listBusinesses } from "../../services/businessService";
+import { listBusinesses } from "../../services/business/businessService";
 import {
   createProducts,
   updateProduct,
   type ProductWritePayload,
-} from "../../services/productService";
-import { getProductRevenueReport, type ProductRevenueRow } from "../../services/productRevenueService";
+} from "../../services/products/productService";
+import { getProductRevenueReport, type ProductRevenueRow } from "../../services/products/productRevenueService";
 import type { ProductProfile } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
 import { getProductInventorySnapshot } from "../../utils/inventory";

@@ -1,4 +1,4 @@
-import { deleteJson, getJson, patchJson, postJson } from "./apiClient";
+import { deleteJson, getJson, patchJson, postJson } from "../apiClient";
 
 export interface TeamRole {
   id: string;

@@ -3,14 +3,14 @@ import { useTranslation } from "react-i18next";
 import DevOnly from "../../components/app/DevOnly";
 import { workspace } from "../../data/mockWorkspace";
 import { getCurrentMember, getScopedUnits } from "../../routing/accessControl";
-import { listProducts } from "../../services/productService";
+import { listProducts } from "../../services/products/productService";
 import {
   listStockMovements,
   MANUAL_STOCK_MOVEMENT_TYPES,
   recordStockMovement,
   type ManualStockMovementType,
   type StockMovement,
-} from "../../services/stockService";
+} from "../../services/stock/stockService";
 import type { ProductProfile } from "../../types/workspace";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import "./StockPage.css";

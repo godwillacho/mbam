@@ -19,15 +19,15 @@ vi.mock("../../routing/accessControl", () => ({
   getScopedUnits,
 }));
 
-vi.mock("../../services/authorizationService", () => ({
+vi.mock("../../auth/authorizationService", () => ({
   loadAuthorizationBootstrap,
 }));
 
-vi.mock("../../services/teamService", () => ({
+vi.mock("../../services/team/teamService", () => ({
   loadTeamWorkspace: vi.fn(),
 }));
 
-vi.mock("../../services/productService", () => ({
+vi.mock("../../services/products/productService", () => ({
   listAuthorizedProductsOnline: vi.fn(),
 }));
 

@@ -15,12 +15,12 @@ import {
   type ReportFilters,
   type ReportResponse,
   type ReportTimeframe,
-} from "../../services/reportService";
+} from "../../services/reports/reportService";
 import { logger } from "../../services/logging/logger";
 import { formatMoney } from "../../utils/formatters";
 import "./ReportsPage.css";
 
-// Live demo/test traffic (see mbam-api's dev_demo_data.rs) keeps inserting
+// Live demo/test traffic (see mbam-api's dev/demo_data.rs) keeps inserting
 // new transactions in the background, so poll for fresh report data
 // periodically instead of only fetching once per dimension/timeframe change.
 const REPORT_POLL_INTERVAL_MS = 30_000;

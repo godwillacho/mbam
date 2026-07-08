@@ -4,12 +4,12 @@ import { useTranslation } from "react-i18next";
 import { isDemoWorkspace, WORKSPACE_CHANGE_EVENT, workspace } from "../../data/mockWorkspace";
 import { authPath, currentProtectedPath, dashboardPickerPath } from "../../pages/auth/authRedirect";
 import { baselineDashboardPath } from "../../pages/dashboard/dashboardRoutes";
-import { getCurrentSession } from "../../services/authService";
+import { getCurrentSession } from "../../auth/authService";
 import { API_AUTH_LOCK_EVENT } from "../../services/apiClient";
-import { getAccessToken } from "../../services/authSessionStore";
-import { logoutFromKeycloak } from "../../services/keycloakService";
+import { getAccessToken } from "../../auth/authSessionStore";
+import { logoutFromKeycloak } from "../../auth/keycloakService";
 import { createApiSyncTransport, synchronizeOfflineChanges } from "../../services/offlineSyncService";
-import { isOfflineVaultUnlocked } from "../../services/offlineVaultService";
+import { isOfflineVaultUnlocked } from "../../auth/offlineVaultService";
 import { hydrateAuthorizationWorkspace, hydrateCloudWorkspace } from "../../services/workspaceService";
 import {
   canAccessRoute,

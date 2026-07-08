@@ -1,10 +1,10 @@
-import { getJson } from "./apiClient";
+import { getJson } from "../services/apiClient";
 import type {
   DashboardProfile,
   TeamEmployee,
   TeamRole,
   TeamWorkspace,
-} from "./teamService";
+} from "../services/team/teamService";
 
 export interface AuthorizationIdentity {
   user_id: string;

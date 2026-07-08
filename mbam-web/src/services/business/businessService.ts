@@ -1,14 +1,14 @@
-import type { Business, BusinessUnit, UnitType } from "../types/workspace";
-import { decryptJson, encryptJson } from "./encryptionService";
+import type { Business, BusinessUnit, UnitType } from "../../types/workspace";
+import { decryptJson, encryptJson } from "../encryptionService";
 import {
   getEncryptedEntitiesByType,
   putEncryptedEntity,
-} from "./offlineDatabase";
+} from "../offlineDatabase";
 import {
   isOfflineVaultUnlocked,
   requireOfflineDataKey,
-} from "./offlineVaultService";
-import { getJson, postJson } from "./apiClient";
+} from "../../auth/offlineVaultService";
+import { getJson, postJson } from "../apiClient";
 
 export const BUSINESS_WORKSPACE_CHANGE_EVENT = "mbam-business-workspace-change";
 

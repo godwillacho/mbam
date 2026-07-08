@@ -3776,3 +3776,156 @@ from the file moves alone).
   by deliberate choice (lower risk than physical relocation); a future
   session could do the heavier physical move if desired, but every import
   site would need re-auditing again at that point.
+
+## 2026-07-08 - Full Physical Reorg (Both Codebases) + Dead-Code Audit
+
+**Related change:** Working tree pending commit at `2026-07-08T21:29:37Z`
+
+**Requested behavior:** "refactor the code base delete all code in both the
+front end and back end that is not being used ... make the file directory
+for both the api and web folders easy to understand with everything
+properly grouped and name[d] .. we preparing this code base to be human
+debugable ... place the file directory map in the root directory so anyone
+who looks at it can use it to track files that might be causing [an] issue
+and reslove it." Clarified via `AskUserQuestion`: reorg approach is
+"Physical move" (supersedes the thin-facade approach from the entry
+immediately above -- actually relocate files, not just re-export); dead-code
+scope is "Conservative" (remove only code with zero references anywhere,
+confirmed via static analysis, not also strip documented future-groundwork
+or dev/demo-only paths).
+
+**Root cause / engineering reason:** The prior entry's facades
+(`crate::auth::*` on the backend, `auth/index.ts` on the frontend)
+deliberately left the real files scattered across `authentication/`,
+`security/`, `modules/auth/` (backend) and a flat `services/` folder
+(frontend) to minimize risk. That approach satisfied "one importable path"
+but not "properly grouped and named" -- the directory tree itself still
+didn't match reality. This entry finishes the job those facades were a
+stepping stone toward.
+
+**Files changed:**
+
+- Backend: consolidated `authentication/`, `security/`, `modules/auth/`,
+  and the prior `auth/` facade into one real `mbam-api/src/auth/` tree
+  (`context.rs`, `keycloak.rs`, `principal.rs`, `identity_repository.rs`
+  [renamed from `repository.rs` to avoid colliding with
+  `auth/legacy/repository.rs`], `password.rs`, `tokens.rs`, `legacy/`
+  [renamed from `modules/auth/`]). Deleted the three old folders. Updated
+  ~24 consumer files' `use crate::authentication::`/`crate::security::`/
+  `crate::modules::auth::` paths to `crate::auth::`/`crate::auth::legacy::`:
+  `main.rs`, `state.rs`, `routes/mod.rs`, `checklist_tests.rs`,
+  `dev_seed.rs`(now `dev/seed.rs`), `dev_demo_data.rs` (now
+  `dev/demo_data.rs`), and every domain module needing
+  `AuthorizationContext`/`BaselineRole`/`AuthenticatedPrincipal` (reports,
+  authorization, stock, sync, team, business_units, businesses, products,
+  transactions, keycloak_sync, audit).
+- Backend: grouped `dev_seed.rs`, `dev_seed_cleanup.rs`, `dev_demo_data.rs`
+  into a new `mbam-api/src/dev/` folder (`seed.rs`, `seed_cleanup.rs`,
+  `demo_data.rs`), updating `main.rs`'s `mod` declarations and call sites
+  (aliased in `checklist_tests.rs` so its many existing call sites didn't
+  need touching).
+- Backend docs: `src/auth/README.md` rewritten to fold in the full prior
+  `authentication/README.md` (ownership model, Keycloak config, request
+  flow, migration phases, validation scenarios) plus the new physical
+  layout; `src/dev/README.md` (new); `src/README.md`, `src/modules/README.md`,
+  `src/routes/README.md`, `mbam-api/README.md`,
+  `mbam-api/DEVELOPMENT_TEST_ACCOUNTS.md` updated for the new paths.
+- Frontend: moved the 9 auth-related services (`authService.ts`,
+  `authSessionStore.ts`, `authSessionPersistence.ts`,
+  `authorizationService.ts`, `keycloakService.ts`, `deviceBindingService.ts`,
+  `offlineVaultService.ts`, `offlineSessionService.ts`,
+  `offlineAuthorizationSnapshotService.ts`, plus `.test.ts` files) from
+  `services/` into `auth/`, replacing the prior `auth/index.ts` facade with
+  a genuine local barrel.
+- Frontend: grouped the remaining flat domain services to mirror `pages/`:
+  `businessService.ts` -> `services/business/`, `productService.ts`+
+  `productRevenueService.ts` -> `services/products/`, `reportService.ts` ->
+  `services/reports/`, `stockService.ts` -> `services/stock/` (alongside
+  the existing `stockLocalRepository.ts`), `teamService.ts` ->
+  `services/team/`, `transactionService.ts` -> `services/transactions/`
+  (alongside existing `transactionLocalRepository.ts`/
+  `transactionBrowserDbService.ts`). Left `entityDirectoryService.ts`/
+  `workspaceService.ts` flat (genuinely cross-domain) and
+  `apiClient.ts`/`encryptionService.ts`/`offlineDatabase.ts`/
+  `offlineSyncService.ts` flat (core infrastructure).
+- Updated ~30 consumer files across `pages/`, `components/`, `routing/`,
+  `services/` for the new import paths, including 8 `vi.mock(...)`
+  string-literal paths in test files that `tsc` does not type-check.
+- `REPOSITORY_MAP.md` fully rewritten (not patched) to describe the final
+  structure on both sides, explicitly framed as a tool for finding the
+  right file when debugging a symptom.
+
+**Debugging and verification performed:**
+
+- Frontend: used `npx tsc --noEmit` iteratively as the primary safety net
+  during both moves -- ran it after each batch of `git mv`s, which
+  surfaced every broken import as a hard "Cannot find module" error, fixed
+  each one, repeated until clean. Final full pass: `tsc --noEmit` clean,
+  `npx eslint src` clean (1 pre-existing unrelated warning), `npx vitest
+  run` passed (77 tests, unchanged count, zero regressions), `npm run
+  build` succeeded (same pre-existing >400kB vendor-charts chunk warning,
+  unrelated).
+- Backend: no Rust toolchain in this sandbox (standing constraint) -- read
+  every file fully before moving to plan exact internal-reference changes
+  (found internal cross-references were minimal: `identity_repository.rs`'s
+  one self-reference, `legacy/service.rs`'s two references), then re-read
+  every one of the ~24 consumer files' new import lines against the actual
+  new module layout. Ran a final repo-wide grep for every old path pattern
+  to confirm zero stray references remain outside intentionally-historical
+  mentions (this log's own past entries, and READMEs' explicit "moved from
+  the former X" notes).
+- Backend dead-code audit: no `cargo build`/`clippy` available, so used a
+  grep-based pass -- counted total name occurrences for every `pub fn`/
+  `pub struct`/`pub enum` across `mbam-api/src`; zero came back
+  single-occurrence (nothing found completely unreferenced). Confirmed
+  every `.rs` file is declared by a `mod` statement somewhere (no orphaned
+  files).
+- Frontend dead-code audit: `npx knip` crashed in this sandbox (oxc-parser
+  native binary hit `ArrayBuffer allocation failed` under the sandbox's
+  memory limits) -- fell back to `npx ts-prune` (pure JS, worked).
+  Cross-checked every flagged export by hand rather than trusting the tool
+  blindly.
+
+**Errors encountered:** None reached a committed state. `tsc --noEmit`
+caught every broken frontend import immediately, which is a materially
+lower-risk workflow than the backend side (no equivalent compiler feedback
+available in this sandbox). One near-miss caught by manual grep rather than
+any tool: 8 `vi.mock(...)` calls had string-literal paths `tsc` doesn't
+check, which would have silently stopped intercepting the real module and
+let a real network/IndexedDB call leak into a test instead of failing
+loudly.
+
+**Checks not run:** `cargo check`/`cargo build`/`cargo test`/`cargo clippy`
+(no Rust toolchain in this sandbox) -- this is the single highest-priority
+follow-up. The backend `auth/` consolidation touched module-privacy
+boundaries (private `mod` declarations, a renamed file) across roughly two
+dozen files with zero compiler feedback at any point. Strongly recommend
+running `cargo build` locally before treating this as verified, followed by
+`cargo test` to confirm `checklist_tests.rs` and the auth unit tests still
+pass.
+
+**Remaining risks and follow-up checks:**
+
+- The backend move is unverified by any compiler -- the main risk of this
+  whole change; see "Checks not run" above.
+- The "5+ independent hardcoded permission lists" design smell (flagged
+  before this reorg began) is still unconsolidated -- explicitly out of
+  scope for this request (physical file organization and dead-code
+  removal, not the permission-list-of-truth problem).
+- `types/stock.ts`'s `StockProfile` type is stale groundwork: it describes
+  a separate stock-profile table design that the real, shipped stock
+  backend didn't end up needing (`available_quantity` lives directly on
+  `products` instead). Left alone this pass per the conservative dead-code
+  policy, but worth deleting once someone builds the actual stock-counting
+  feature and confirms the real shape needed.
+- `services/team/teamService.ts`'s `registerInvitation` function has zero
+  frontend references but wraps a live, still-mounted backend endpoint
+  (`POST /api/v1/invites/register`). Flagging for the user's attention
+  rather than resolving unilaterally -- deleting it would sever a
+  currently-reachable backend route from having any frontend client, and
+  it may be intended for an "invite an unregistered user" flow that just
+  hasn't been wired to a page yet.
+- `auth/index.ts`'s barrel re-exports remain unconsumed (every call site
+  imports the specific file directly rather than through the barrel) --
+  kept as the folder's intentional public surface, consistent with how
+  `routing/`'s files are organized, not deleted as dead code.

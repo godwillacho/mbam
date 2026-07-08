@@ -1,7 +1,7 @@
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::security::password;
+use crate::auth::password;
 
 const ACCOUNT_ID: &str = "10000000-0000-4000-8000-000000000001";
 const MASTER_USER_ID: &str = "10000000-0000-4000-8000-000000000100";

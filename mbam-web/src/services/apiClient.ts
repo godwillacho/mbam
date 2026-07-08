@@ -1,6 +1,6 @@
-import { clearActiveSession, getAccessToken } from "./authSessionStore";
-import { getDeviceBinding } from "./deviceBindingService";
-import { refreshKeycloakTokenIfNeeded } from "./keycloakService";
+import { clearActiveSession, getAccessToken } from "../auth/authSessionStore";
+import { getDeviceBinding } from "../auth/deviceBindingService";
+import { refreshKeycloakTokenIfNeeded } from "../auth/keycloakService";
 import { logger } from "./logging/logger";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";

@@ -1,6 +1,6 @@
-import { loadAuthorizationBootstrap } from "./authorizationService";
-import { listAuthorizedProductsOnline } from "./productService";
-import { loadTeamWorkspace } from "./teamService";
+import { loadAuthorizationBootstrap } from "../auth/authorizationService";
+import { listAuthorizedProductsOnline } from "./products/productService";
+import { loadTeamWorkspace } from "./team/teamService";
 
 /**
  * The four reporting dimensions an entity picker can list and search across.

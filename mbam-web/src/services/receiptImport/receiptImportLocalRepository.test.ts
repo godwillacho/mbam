@@ -12,14 +12,14 @@ const {
   decryptJson: vi.fn(),
 }));
 
-vi.mock("../offlineSessionService", () => ({ getValidOfflineGrant }));
+vi.mock("../../auth/offlineSessionService", () => ({ getValidOfflineGrant }));
 vi.mock("../offlineSyncService", () => ({ queueOfflineOperation }));
 vi.mock("../offlineDatabase", () => ({ getOutboxRecordsByStatus }));
 vi.mock("../encryptionService", () => ({ decryptJson }));
-vi.mock("../offlineVaultService", () => ({
+vi.mock("../../auth/offlineVaultService", () => ({
   requireOfflineDataKey: vi.fn(() => "data-key"),
 }));
-vi.mock("../deviceBindingService", () => ({
+vi.mock("../../auth/deviceBindingService", () => ({
   getDeviceBinding: vi.fn(async () => ({ deviceId: "device-one", fingerprint: "fp" })),
 }));
 

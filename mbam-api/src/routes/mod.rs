@@ -7,7 +7,7 @@ use tower_http::{
     trace::TraceLayer,
 };
 
-use crate::{modules, state::AppState};
+use crate::{auth, modules, state::AppState};
 
 pub mod health;
 
@@ -47,7 +47,7 @@ pub fn app_router(state: AppState) -> Router {
     let business_router =
         modules::businesses::routes::router().merge(modules::business_units::routes::router());
     let auth_router = if state.config.auth_provider == "legacy" {
-        modules::auth::routes::router()
+        auth::legacy::routes::router()
     } else {
         Router::new()
     };

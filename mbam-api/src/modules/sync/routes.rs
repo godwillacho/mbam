@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{authentication::AuthorizationContext, error::ApiError, state::AppState};
+use crate::{auth::AuthorizationContext, error::ApiError, state::AppState};
 
 use super::{model::SyncPushRequest, service};
 

@@ -4,7 +4,7 @@ use axum::{
     Json, Router,
 };
 
-use crate::{authentication::AuthorizationContext, error::ApiError, state::AppState};
+use crate::{auth::AuthorizationContext, error::ApiError, state::AppState};
 
 use super::{model::AuthorizationBootstrapResponse, service};
 
@@ -58,8 +58,8 @@ async fn offline_grant(
         .offline_grant_private_key_pem
         .as_deref()
         .ok_or(ApiError::NotFound)?;
-    let token = crate::security::tokens::create_offline_grant(
-        crate::security::tokens::OfflineGrantSubject {
+    let token = crate::auth::tokens::create_offline_grant(
+        crate::auth::tokens::OfflineGrantSubject {
             user_id: authorization.user_id,
             display_name: authorization.full_name.clone(),
             email: authorization.email.clone(),

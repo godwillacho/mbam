@@ -38,7 +38,7 @@ vi.mock("../../components/charts/TimeframeControl", () => ({
   ),
 }));
 
-vi.mock("../../services/reportService", () => ({
+vi.mock("../../services/reports/reportService", () => ({
   loadReport,
 }));
 

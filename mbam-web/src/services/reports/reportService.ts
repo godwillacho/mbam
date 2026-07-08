@@ -1,4 +1,4 @@
-import { getJson } from "./apiClient";
+import { getJson } from "../apiClient";
 
 export type ReportTimeframe = "daily" | "weekly" | "monthly" | "yearly" | "custom";
 export type ReportDimension = "businesses" | "shops" | "employees" | "products";
