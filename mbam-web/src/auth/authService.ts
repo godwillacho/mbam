@@ -6,7 +6,7 @@ import type {
   SignupPayload,
 } from "../types/auth";
 import { validateLoginInput, validateSignupInput } from "../utils/validation";
-import { buildApiUrl, isApiConfigured, postJson } from "./apiClient";
+import { buildApiUrl, isApiConfigured, postJson } from "../services/apiClient";
 import {
   getActiveSession,
   setActiveSession,

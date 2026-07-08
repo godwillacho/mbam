@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { canManageProducts, getCurrentMember, getScopedUnits } from "../../routing/accessControl";
-import { loadAuthorizationBootstrap } from "../../services/authorizationService";
-import { listAuthorizedProductsOnline } from "../../services/productService";
-import { loadTeamWorkspace } from "../../services/teamService";
+import { loadAuthorizationBootstrap } from "../../auth/authorizationService";
+import { listAuthorizedProductsOnline } from "../../services/products/productService";
+import { loadTeamWorkspace } from "../../services/team/teamService";
 import "./ScopedEntityReportPage.css";
 
 type PageKind = "shops" | "employees" | "products";

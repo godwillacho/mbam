@@ -20,19 +20,19 @@ vi.mock("../../components/charts/TimeframeControl", () => ({
   default: () => <div>timeframe control</div>,
 }));
 
-vi.mock("../../services/authorizationService", () => ({
+vi.mock("../../auth/authorizationService", () => ({
   loadAuthorizationBootstrap,
 }));
 
-vi.mock("../../services/reportService", () => ({
+vi.mock("../../services/reports/reportService", () => ({
   loadReport,
 }));
 
-vi.mock("../../services/teamService", () => ({
+vi.mock("../../services/team/teamService", () => ({
   loadTeamWorkspace: vi.fn(),
 }));
 
-vi.mock("../../services/productService", () => ({
+vi.mock("../../services/products/productService", () => ({
   listAuthorizedProductsOnline: vi.fn(),
 }));
 

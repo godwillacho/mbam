@@ -16,11 +16,11 @@ import {
   createBusinessUnit,
   listBusinesses,
   listBusinessUnits,
-} from "../../services/businessService";
+} from "../../services/business/businessService";
 import {
   loadTeamWorkspace,
   type TeamWorkspace,
-} from "../../services/teamService";
+} from "../../services/team/teamService";
 import type { Business, BusinessUnit, UnitType } from "../../types/workspace";
 import { formatMoney } from "../../utils/formatters";
 import "./BusinessStructurePage.css";

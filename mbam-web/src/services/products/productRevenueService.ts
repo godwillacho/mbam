@@ -1,8 +1,8 @@
-import { workspace } from "../data/mockWorkspace";
-import type { TeamMember } from "../types/workspace";
-import { getProductDescriptor } from "../utils/productDisplay";
+import { workspace } from "../../data/mockWorkspace";
+import type { TeamMember } from "../../types/workspace";
+import { getProductDescriptor } from "../../utils/productDisplay";
 import { listAuthorizedProductsOnline } from "./productService";
-import { loadReport } from "./reportService";
+import { loadReport } from "../reports/reportService";
 
 interface ProductRevenuePricePoint {
   id: string;

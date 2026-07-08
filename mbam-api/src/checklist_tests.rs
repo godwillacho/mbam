@@ -12,12 +12,10 @@ use tower::util::ServiceExt;
 use uuid::Uuid;
 
 use crate::{
-    authentication::AuthenticationLayer,
+    auth::{tokens, AuthenticationLayer},
     config::Config,
     db::pool::connect_database,
-    dev_seed,
-    dev_seed_cleanup,
-    security::tokens,
+    dev::{seed as dev_seed, seed_cleanup as dev_seed_cleanup},
     state::AppState,
 };
 

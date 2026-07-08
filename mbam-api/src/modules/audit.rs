@@ -2,7 +2,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::authentication::AuthorizationContext;
+use crate::auth::AuthorizationContext;
 
 pub async fn record_authorization_event(
     db: &PgPool,

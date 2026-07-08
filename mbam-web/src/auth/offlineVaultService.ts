@@ -1,5 +1,5 @@
-import { createWrappedDataKey, unwrapDataKey } from "./encryptionService";
-import { getVaultRecord, saveVaultRecord } from "./offlineDatabase";
+import { createWrappedDataKey, unwrapDataKey } from "../services/encryptionService";
+import { getVaultRecord, saveVaultRecord } from "../services/offlineDatabase";
 
 let activeDataKey: CryptoKey | null = null;
 let activeUserId: string | null = null;

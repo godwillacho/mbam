@@ -6,7 +6,7 @@ import {
   getEncryptedEntity,
   putEncryptedEntity,
 } from "../offlineDatabase";
-import { requireOfflineDataKey } from "../offlineVaultService";
+import { requireOfflineDataKey } from "../../auth/offlineVaultService";
 import type {
   LocalCustomerRecord,
   LocalCustomerSource,

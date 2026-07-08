@@ -1,4 +1,4 @@
-import { getJson, postJson } from "./apiClient";
+import { getJson, postJson } from "../apiClient";
 
 /**
  * Movement types a caller may record by hand through this API. Mirrors

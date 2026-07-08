@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCurrentSession } from "./authService";
+import { getCurrentSession } from "../auth/authService";
 import {
   API_AUTH_LOCK_EVENT,
   getJson,
 } from "./apiClient";
-import { clearActiveSession, setActiveSession } from "./authSessionStore";
+import { clearActiveSession, setActiveSession } from "../auth/authSessionStore";
 
-vi.mock("./deviceBindingService", () => ({
+vi.mock("../auth/deviceBindingService", () => ({
   getDeviceBinding: vi.fn().mockRejectedValue(new Error("binding unavailable")),
 }));
 
-vi.mock("./keycloakService", () => ({
+vi.mock("../auth/keycloakService", () => ({
   refreshKeycloakTokenIfNeeded: vi.fn().mockResolvedValue(undefined),
 }));
 

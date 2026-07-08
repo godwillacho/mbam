@@ -5,11 +5,9 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{
-    authentication::{AuthorizationContext, BaselineRole},
+    auth::{legacy::mailer, password, AuthorizationContext, BaselineRole},
     config::Config,
     error::ApiError,
-    modules::auth::mailer,
-    security::password,
 };
 
 use super::{
@@ -829,7 +827,7 @@ fn hash_token(token: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::authentication::BaselineRole;
+    use crate::auth::BaselineRole;
 
     use super::can_customize_employee_roles;
 

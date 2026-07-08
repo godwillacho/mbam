@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::{
-    authentication::{AuthenticatedPrincipal, AuthorizationContext},
+    auth::{AuthenticatedPrincipal, AuthorizationContext},
     error::ApiError,
     state::AppState,
 };

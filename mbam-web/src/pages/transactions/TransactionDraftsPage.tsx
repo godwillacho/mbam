@@ -6,7 +6,7 @@ import {
   deleteTransactionDraft,
   listTransactionDrafts,
   type TransactionDraft,
-} from "../../services/transactionService";
+} from "../../services/transactions/transactionService";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import "./TransactionsPage.css";
 

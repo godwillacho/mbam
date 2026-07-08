@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { ReportPoint } from "../../services/reportService";
+import type { ReportPoint } from "../../services/reports/reportService";
 
 interface AuthorizedLineChartProps {
   points: ReportPoint[];

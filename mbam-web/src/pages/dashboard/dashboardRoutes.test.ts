@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DashboardProfile } from "../../services/teamService";
+import type { DashboardProfile } from "../../services/team/teamService";
 import type { TeamMember } from "../../types/workspace";
 import { baselineDashboardPath, profileBaselineDashboardPath } from "./dashboardRoutes";
 

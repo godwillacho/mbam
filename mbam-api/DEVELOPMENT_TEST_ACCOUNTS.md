@@ -13,7 +13,7 @@ sets of accounts.
 ## Important: these passwords do not work in the browser by themselves
 
 The password column below is the **Postgres** password for each seeded user
-(`dev_seed.rs` writes it as an Argon2 hash). It only matters if the API is
+(`src/dev/seed.rs` writes it as an Argon2 hash). It only matters if the API is
 running with `AUTH_PROVIDER=legacy`.
 
 With the supported runtime default, `AUTH_PROVIDER=keycloak`, **Keycloak owns
@@ -50,7 +50,7 @@ Repeat for each seeded email you want to sign in as through the browser.
    `KEYCLOAK_ALLOW_EMAIL_LINKING` back to `false` once every account you
    need is linked.
 
-See `mbam-api/src/authentication/README.md` for the full request flow and
+See `mbam-api/src/auth/README.md` for the full request flow and
 why linking is gated behind a verified email and an exact role match.
 
 ## Test Structure

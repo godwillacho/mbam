@@ -12,14 +12,14 @@ const keycloakService = vi.hoisted(() => ({
   recoverKeycloakAccount: vi.fn(),
 }));
 
-vi.mock("../../services/authService", () => ({
+vi.mock("../../auth/authService", () => ({
   enableOfflineAccess: vi.fn(),
   getCurrentSession: vi.fn(() => null),
   offlineAccessIsConfigured: vi.fn(async () => false),
   unlockOfflineSession: vi.fn(),
 }));
 
-vi.mock("../../services/keycloakService", () => keycloakService);
+vi.mock("../../auth/keycloakService", () => keycloakService);
 
 vi.mock("../../services/offlineSyncService", () => ({
   createApiSyncTransport: vi.fn(),

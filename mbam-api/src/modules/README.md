@@ -1,6 +1,9 @@
 # Active API Domains
 
-- `auth/` owns identity, sessions, OAuth, password reset, and offline grants.
+Identity, sessions, OAuth, password reset, and offline grants now live in
+`crate::auth` (`src/auth/`, one level up), not in a `modules/auth/` here --
+see `src/auth/README.md`.
+
 - `businesses/` owns account-scoped businesses.
 - `business_units/` owns shops, branches, warehouses, and desks.
 - `products/` owns scoped catalogue and inventory records.

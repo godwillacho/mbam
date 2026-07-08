@@ -22,14 +22,14 @@ const {
   deleteEncryptedEntity: vi.fn(),
 }));
 
-vi.mock("./deviceBindingService", () => ({
+vi.mock("../auth/deviceBindingService", () => ({
   getDeviceBinding: vi.fn(async () => ({
     deviceId: "device-one",
     fingerprint: "fingerprint-one",
   })),
 }));
 
-vi.mock("./offlineVaultService", () => ({
+vi.mock("../auth/offlineVaultService", () => ({
   requireOfflineDataKey: vi.fn(),
 }));
 
@@ -59,7 +59,7 @@ vi.mock("./localSync/localSyncStore", () => ({
   reconcileRoleScopedLocalData: vi.fn(async () => events.push("reconcile-role")),
 }));
 
-vi.mock("./businessService", () => ({
+vi.mock("./business/businessService", () => ({
   BUSINESS_WORKSPACE_CHANGE_EVENT: "workspace-change",
 }));
 

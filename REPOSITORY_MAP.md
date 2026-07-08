@@ -1,8 +1,11 @@
 # MBAM Repository Map
 
-This is the navigation map for the running MBAM codebase. It describes active
-modules only. Database migrations and future-planning documents remain
-historical/product references, not runtime modules.
+This is the navigation map for the running MBAM codebase. Use it to jump
+straight to the right file when tracking down a bug: find the layer the
+symptom is in (route/UI, service/business logic, or data), then the domain
+(auth, stock, team, etc.), and this map points at the exact folder. It
+describes active modules only. Database migrations and future-planning
+documents remain historical/product references, not runtime modules.
 
 ## Runtime overview
 
@@ -11,8 +14,8 @@ React PWA
   App.tsx (mounts BrowserRouter only)
     -> routing/AppRoutes.tsx (the route table)
       -> routing/ProtectedRoute.tsx + routing/accessControl.ts
-      -> pages
-        -> services (see auth/ facade for the auth-related ones)
+      -> pages/<domain>/
+        -> services/<domain>/ (or auth/ for anything session/identity-related)
           -> HTTP API
           -> encrypted IndexedDB/offline sync
 
@@ -20,9 +23,9 @@ Rust API
   main.rs
     -> configuration + observability + PostgreSQL
     -> routes::app_router() (the router composition root)
-      -> domain routes (see auth/ facade for the auth-related modules)
-        -> services
-          -> repositories
+      -> modules/<domain>/routes.rs (or auth/ for identity/session concerns)
+        -> service.rs
+          -> repository.rs
             -> PostgreSQL
 ```
 
@@ -63,26 +66,36 @@ Docker) versus what the Dockerfiles are staged for.
 
 | Path | Responsibility |
 | --- | --- |
-| `src/main.rs` | Process entrypoint, migrations, development seed, router |
+| `src/main.rs` | Process entrypoint: config, migrations, dev seeding, shared state, `routes::app_router()`, and `axum::serve` |
 | `src/config.rs` | Typed environment loading and production validation |
 | `src/state.rs` | Shared Axum state |
 | `src/error.rs` | Safe public API errors and server-error logging |
 | `src/observability.rs` | Console, rolling files, and optional Sentry |
 | `src/db/pool.rs` | PostgreSQL connection pool |
-| `src/security/password.rs` | Argon2 password hashing and verification |
-| `src/security/tokens.rs` | Access tokens, opaque refresh tokens, offline grants |
-| `src/routes/mod.rs` | Composition root: builds `app_router()` (CORS, tracing, and every domain `.nest(...)`), consumed by `main.rs` and `checklist_tests.rs` |
+| `src/routes/mod.rs` | Composition root: `app_router()` builds CORS, tracing, and every domain `.nest(...)`; consumed by `main.rs` and `checklist_tests.rs` |
 | `src/routes/health.rs` | Health endpoint |
-| `src/auth/` | Thin facade re-exporting `authentication/`, `security/password.rs`+`tokens.rs`, and `modules/auth/` from one place — see `src/auth/README.md`. Does not itself contain logic |
-| `src/dev_seed*.rs` | Development-only deterministic test fixture (used by `checklist_tests.rs`) |
-| `src/dev_demo_data.rs` | Development-only isolated demo business account: historical backfill plus a live-traffic background worker |
+| `src/auth/` | Everything about "who is calling": identity-provider authentication, password/token security, and the legacy (non-Keycloak) auth provider. See `src/auth/README.md` for the full breakdown and the Keycloak migration design |
+| `src/dev/` | Development-only fixtures and demo data (`seed.rs`, `seed_cleanup.rs`, `demo_data.rs`), gated on `app_env == "development"`. See `src/dev/README.md` |
 
 `mbam-api/docs/AUTHENTICATION_DESIGN.md` documents the auth/OAuth/invite
 design; `mbam-api/README.md` and `mbam-api/README_MAC_DEBUG.md` cover local
-setup; `mbam-api/DEVELOPMENT_TEST_ACCOUNTS.md` lists the `dev_seed.rs`
-dashboard-test credentials (the separate `dev_demo_data.rs` demo account's
+setup; `mbam-api/DEVELOPMENT_TEST_ACCOUNTS.md` lists the `dev/seed.rs`
+dashboard-test credentials (the separate `dev/demo_data.rs` demo account's
 credentials are documented in `debug.log`/`docs/ENGINEERING_DEBUG_LOG.md`'s
 2026-07-03 entry, not a standalone file).
+
+### `src/auth/` layout
+
+| Path | Responsibility |
+| --- | --- |
+| `auth/mod.rs` | `AuthenticationLayer` (selects Keycloak vs. legacy-JWT at startup) and the `authenticate()`/`authorize()` entry points every protected route uses |
+| `auth/context.rs` | `AuthorizationContext` (the `require_*` guard methods used by every domain route handler) and `BaselineRole` |
+| `auth/principal.rs` | `AuthenticatedPrincipal` for pre-membership flows (e.g. accepting an invitation) plus bearer-token extraction |
+| `auth/keycloak.rs` | `KeycloakAuthenticator`: confidential-client token introspection |
+| `auth/identity_repository.rs` | Resolves a verified Keycloak subject to a local user; loads authorization user/grants |
+| `auth/password.rs` | Argon2id password hashing and verification |
+| `auth/tokens.rs` | Access-token, opaque refresh-token, and signed offline-grant issuance/verification |
+| `auth/legacy/` | Non-Keycloak auth provider: signup/login/refresh/logout/OAuth/reset HTTP handlers, mounted at `/api/v1/auth` only when `AUTH_PROVIDER=legacy` |
 
 ### Active API domains
 
@@ -91,26 +104,20 @@ contains request/response/database contracts.
 
 | Module | Routes / ownership |
 | --- | --- |
-| `modules/auth/` | Signup, login, refresh, logout, OAuth, reset, offline grants |
 | `modules/authorization/` | Current-user authorization bootstrap and server-approved routes |
 | `modules/businesses/` | Scoped business listing and creation |
 | `modules/business_units/` | Scoped shop/unit listing, creation, update |
 | `modules/products/` | Scoped catalogue CRUD and product sync records |
-| `modules/stock/` | Manual stock-movement ledger (purchases/adjustments/transfers) plus `products.stock_policy`; sale-driven deductions are written by `modules/transactions/` instead. Fronted by `mbam-web`'s `/stock` page — see `pages/stock/` and `services/stockService.ts` below |
+| `modules/stock/` | Manual stock-movement ledger (purchases/adjustments/transfers) plus `products.stock_policy`; sale-driven deductions are written by `modules/transactions/` instead. Fronted by `mbam-web`'s `/stock` page — see `pages/stock/` and `services/stock/stockService.ts` below |
 | `modules/team/` | Employees, memberships, roles, permissions, invitations |
 | `modules/transactions/` | Transactions, drafts, details, invoices, sale-driven stock deduction |
 | `modules/sync/` | Device-bound offline push/pull and conflict validation |
+| `modules/keycloak_sync/` | Background worker that pushes local baseline-role changes toward Keycloak |
+| `modules/audit.rs` | Authorization/session audit-event recording |
 
 Users, business accounts, memberships, roles, and permissions are relational
 concepts handled by `auth/` and `team/`; they intentionally do not have empty
 parallel modules.
-
-The active Keycloak provider boundary lives in `src/authentication/`. It
-validates tokens by confidential-client introspection, maps verified subjects
-to active local users, loads membership-scoped grants, rejects baseline-role
-conflicts, and provides the reusable request authorization context. `src/auth/`
-re-exports this module (plus `security/` and `modules/auth/`) as a single
-facade; it is not a separate implementation.
 
 ### Database
 
@@ -126,14 +133,14 @@ migration; add a new numbered migration.
 | `src/main.tsx` | Observability initialization and React root |
 | `src/App.tsx` | Thin shell: mounts `BrowserRouter` around `routing/AppRoutes.tsx` |
 | `src/routing/` | Composition root for the route table (`AppRoutes.tsx`), route guarding (`ProtectedRoute.tsx`), and navigation/display permission checks (`accessControl.ts`) — see `src/routing/README.md` |
-| `src/auth/index.ts` | Thin barrel re-exporting the auth-related services (`authService`, `authSessionStore`, `authorizationService`, `keycloakService`, `deviceBindingService`, offline auth/vault services) from one place — see `src/auth/README.md`. Does not itself contain logic |
+| `src/auth/` | Everything about "who is calling": cloud/offline session lifecycle, Keycloak, device binding, offline vault/grants. See `src/auth/README.md` |
 | `src/observability.ts` | Sentry scrubbing and frontend logger bootstrap |
 
 ### UI
 
 | Path | Responsibility |
 | --- | --- |
-| `components/app/` | Shell, language controls (route protection now lives in `routing/`) |
+| `components/app/` | Shell, language controls (route protection lives in `routing/`) |
 | `components/auth/` | Authentication forms and layout |
 | `pages/auth/` | Login/signup, access bootstrap, invite/reset flows |
 | `pages/dashboard/` | Role baselines, routing, metrics, pending payments |
@@ -144,23 +151,44 @@ migration; add a new numbered migration.
 | `pages/transactions/` | Entry, drafts, list, and invoices |
 | `pages/reports/` | Scoped reporting shell |
 
-### Security and data
+### `src/auth/` layout
 
 | Path | Responsibility |
 | --- | --- |
-| `routing/accessControl.ts` | Client-side navigation/display restrictions (moved from the former `security/` folder) |
+| `auth/authService.ts` | Cloud session lifecycle: login/signup, offline-access enrollment, password reset, OAuth sign-in |
+| `auth/authSessionStore.ts` | In-memory active session store |
+| `auth/authSessionPersistence.ts` | Encrypted persistence of the active session across reloads |
+| `auth/authorizationService.ts` | The `/api/v1/me/authorization` bootstrap adapter |
+| `auth/keycloakService.ts` | Keycloak-hosted login/logout/token-refresh (supported runtime provider) |
+| `auth/deviceBindingService.ts` | Per-browser device identity |
+| `auth/offlineVaultService.ts` | Encrypted-at-rest offline vault |
+| `auth/offlineSessionService.ts` | Signed offline authorization grants |
+| `auth/offlineAuthorizationSnapshotService.ts` | Cached authorization snapshot for offline validation |
+| `auth/index.ts` | Local barrel re-exporting the above |
+
+### `services/` layout
+
+Domain services are grouped to mirror `pages/`; a handful of cross-domain and
+core-infrastructure files stay flat at `services/` root.
+
+| Path | Responsibility |
+| --- | --- |
 | `services/apiClient.ts` | Authenticated HTTP, device headers, safe errors |
-| `services/auth*.ts` | Sessions and cloud/offline authentication (re-exported as a group via `src/auth/index.ts`) |
-| `services/authorizationService.ts` | Sole online authorization bootstrap adapter |
-| `services/deviceBindingService.ts` | Browser device identity |
 | `services/encryptionService.ts` | Web Crypto encryption and key wrapping |
-| `services/offlineVaultService.ts` | In-memory unlocked data key |
 | `services/offlineDatabase.ts` | Primary encrypted IndexedDB schema |
-| `services/offlineSyncService.ts` | Scoped push/pull synchronization |
-| `services/offline*SnapshotService.ts` | Offline authorization/grant validation |
+| `services/offlineSyncService.ts` | Scoped push/pull synchronization engine |
+| `services/entityDirectoryService.ts` | Cross-domain entity search/listing for the reports entity picker (businesses/shops/employees/products) |
+| `services/workspaceService.ts` | Cross-domain workspace hydration (combines auth, business, product, team, transaction data for the UI) |
+| `services/business/businessService.ts` | Business/unit CRUD and cloud sync |
+| `services/products/productService.ts` | Product catalogue CRUD and cloud sync |
+| `services/products/productRevenueService.ts` | Product revenue reporting |
+| `services/reports/reportService.ts` | Aggregate and detail report fetching |
+| `services/stock/stockService.ts` | Cloud stock-movement ledger API client |
+| `services/stock/stockLocalRepository.ts` | Offline queue for manual stock movements recorded while offline; syncs against the `modules/stock/` ledger via the generic `stock_movement` entity type in `services/offlineSyncService.ts`/`modules/sync/` |
+| `services/team/teamService.ts` | Employees, roles, permissions, invitations |
+| `services/transactions/transactionService.ts` | Cloud transaction CRUD |
+| `services/transactions/transactionLocalRepository.ts`, `transactionBrowserDbService.ts` | Scoped encrypted local transactions and merge |
 | `services/customers/` | Scoped encrypted customer persistence |
-| `services/transactions/` | Scoped encrypted local transactions and merge |
-| `services/stock/` | Offline queue for manual stock movements recorded while offline; syncs against the `modules/stock/` ledger via the generic `stock_movement` entity type in `services/offlineSyncService.ts`/`modules/sync/` |
 | `services/receiptImport/` | Offline receipt-image queue groundwork (no backend module yet, see docs/future-receipt-import.md) |
 | `services/localSync/` | Role-policy metadata and browser cache records |
 | `services/logging/` | Redacted console, IndexedDB buffer, Sentry forwarding |

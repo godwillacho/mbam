@@ -1,23 +1,23 @@
-import type { ProductProfile } from "../types/workspace";
-import { decryptJson, encryptJson } from "./encryptionService";
+import type { ProductProfile } from "../../types/workspace";
+import { decryptJson, encryptJson } from "../encryptionService";
 import {
   getEncryptedEntitiesByType,
   putEncryptedEntity,
-} from "./offlineDatabase";
-import { getValidOfflineGrant } from "./offlineSessionService";
-import { queueOfflineOperation } from "./offlineSyncService";
-import { getDeviceBinding } from "./deviceBindingService";
+} from "../offlineDatabase";
+import { getValidOfflineGrant } from "../../auth/offlineSessionService";
+import { queueOfflineOperation } from "../offlineSyncService";
+import { getDeviceBinding } from "../../auth/deviceBindingService";
 import {
   isOfflineVaultUnlocked,
   requireOfflineDataKey,
-} from "./offlineVaultService";
+} from "../../auth/offlineVaultService";
 import {
   ApiClientError,
   getJson,
   isApiConfigured,
   patchJson,
   postJson,
-} from "./apiClient";
+} from "../apiClient";
 
 export interface ProductWritePayload {
   id?: string;

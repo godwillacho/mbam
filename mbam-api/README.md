@@ -15,10 +15,12 @@ The API is the security boundary between the React frontend and PostgreSQL. The 
 - `src/error.rs` centralizes API error responses.
 - `src/observability.rs` configures console, rolling-file, and Sentry logging.
 - `src/db/` contains database connection helpers.
-- `src/routes/` contains top-level API routes.
-- `src/security/` contains password hashing and token helpers.
-- `src/modules/` contains the active auth, authorization-bootstrap, business,
-  unit, product, team, transaction, and sync domains.
+- `src/routes/` is the router composition root (`app_router()` wires every
+  domain module's routes together).
+- `src/auth/` contains identity-provider authentication, password/token
+  security helpers, and the legacy auth provider (see `src/auth/README.md`).
+- `src/modules/` contains the active authorization-bootstrap, business, unit,
+  product, team, transaction, and sync domains.
 
 ## Local development with Docker PostgreSQL and Keycloak
 
@@ -97,7 +99,7 @@ Keycloak identity and role claims never replace Mbam's PostgreSQL scope checks.
 Each accepted Keycloak subject must map to an active local user with active
 memberships that resolve to exactly one matching baseline role. Permissions and
 resource scope are checked on the same membership grant. See
-[`src/authentication/README.md`](src/authentication/README.md) for provisioning
+[`src/auth/README.md`](src/auth/README.md) for provisioning
 and migration details.
 
 The frontend's sole online authorization bootstrap is:

@@ -1,6 +1,8 @@
 /// Active API domain modules.
+///
+/// The legacy (non-Keycloak) auth provider now lives under `crate::auth::legacy`
+/// alongside the rest of authentication -- see `src/auth/README.md`.
 pub mod audit;
-pub mod auth;
 pub mod authorization;
 pub mod business_units;
 pub mod businesses;

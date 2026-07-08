@@ -5,7 +5,7 @@ import {
   loadReportTransactionDetail,
   type ReportDetailFilters,
   type ReportDetailResponse,
-} from "../../services/reportService";
+} from "../../services/reports/reportService";
 import { logger } from "../../services/logging/logger";
 import { formatDateTime, formatMoney } from "../../utils/formatters";
 import "./ReportDetailTable.css";

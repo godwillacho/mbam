@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AuthLayout from "../../components/auth/AuthLayout";
-import { getCurrentSession } from "../../services/authService";
-import { isKeycloakEnabled, loginWithKeycloak } from "../../services/keycloakService";
+import { getCurrentSession } from "../../auth/authService";
+import { isKeycloakEnabled, loginWithKeycloak } from "../../auth/keycloakService";
 import {
   acceptInvitation,
   getInvitationDetails,
   type InvitationDetails,
-} from "../../services/teamService";
+} from "../../services/team/teamService";
 
 const AUTH_NEXT_KEY = "mbam-auth-next";
 

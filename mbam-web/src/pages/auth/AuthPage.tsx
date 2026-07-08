@@ -6,12 +6,12 @@ import {
   getCurrentSession,
   offlineAccessIsConfigured,
   unlockOfflineSession,
-} from "../../services/authService";
+} from "../../auth/authService";
 import {
   isKeycloakEnabled,
   loginWithKeycloak,
   recoverKeycloakAccount,
-} from "../../services/keycloakService";
+} from "../../auth/keycloakService";
 import { dashboardPickerPath, safeNextPath } from "./authRedirect";
 
 export type AuthMode = "login" | "signup";

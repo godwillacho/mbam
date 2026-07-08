@@ -22,11 +22,11 @@ import {
   setSyncCursor,
   type EncryptedOutboxRecord,
 } from "./offlineDatabase";
-import { requireOfflineDataKey } from "./offlineVaultService";
+import { requireOfflineDataKey } from "../auth/offlineVaultService";
 import { getJson, postJson } from "./apiClient";
-import { getDeviceBinding } from "./deviceBindingService";
+import { getDeviceBinding } from "../auth/deviceBindingService";
 import { reconcileRoleScopedLocalData } from "./localSync/localSyncStore";
-import { BUSINESS_WORKSPACE_CHANGE_EVENT } from "./businessService";
+import { BUSINESS_WORKSPACE_CHANGE_EVENT } from "./business/businessService";
 
 export interface QueueOperationInput<T> {
   deviceId?: string;

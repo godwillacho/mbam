@@ -1,5 +1,5 @@
-import { deleteJson, getJson, patchJson, postJson } from "./apiClient";
-import type { PaymentMethod, TransactionStatus } from "../types/workspace";
+import { deleteJson, getJson, patchJson, postJson } from "../apiClient";
+import type { PaymentMethod, TransactionStatus } from "../../types/workspace";
 
 interface TransactionLineInput {
   productId?: string;

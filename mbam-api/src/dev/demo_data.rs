@@ -1,7 +1,7 @@
 //! Development-only demo data: a fully separate, richly populated business
 //! account used to browse realistic dashboards while developing.
 //!
-//! This is deliberately isolated from `dev_seed.rs`'s minimal fixture, which
+//! This is deliberately isolated from `seed.rs`'s minimal fixture, which
 //! `checklist_tests.rs`'s Rust integration tests assert exact product and
 //! transaction lists against. Nothing in this module shares an ID, a
 //! business, a shop, or a user with that fixture, and nothing here is ever
@@ -27,7 +27,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::security::password;
+use crate::auth::password;
 
 const ACCOUNT_ID: &str = "30000000-0000-4000-8000-000000000001";
 const BUSINESS_ID: &str = "30000000-0000-4000-8000-000000000201";

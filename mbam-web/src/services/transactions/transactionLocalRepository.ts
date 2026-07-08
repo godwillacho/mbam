@@ -5,9 +5,9 @@ import {
   getEncryptedEntity,
   putEncryptedEntity,
 } from "../offlineDatabase";
-import { getValidOfflineGrant } from "../offlineSessionService";
+import { getValidOfflineGrant } from "../../auth/offlineSessionService";
 import { queueOfflineOperation } from "../offlineSyncService";
-import { requireOfflineDataKey } from "../offlineVaultService";
+import { requireOfflineDataKey } from "../../auth/offlineVaultService";
 import type {
   LocalTransactionLineRecord,
   LocalTransactionPaymentStatus,

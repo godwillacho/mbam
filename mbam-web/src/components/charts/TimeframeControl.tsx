@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { ReportTimeframe } from "../../services/reportService";
+import type { ReportTimeframe } from "../../services/reports/reportService";
 
 const timeframes: ReportTimeframe[] = [
   "daily",
