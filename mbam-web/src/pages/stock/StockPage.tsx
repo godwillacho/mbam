@@ -13,6 +13,7 @@ import {
 } from "../../services/products/productService";
 import { getProductRevenueReport, type ProductRevenueRow } from "../../services/products/productRevenueService";
 import {
+  listExpiringStockBatches,
   listStockMovements,
   MANUAL_STOCK_MOVEMENT_TYPES,
   recordStockMovement,
@@ -244,6 +245,14 @@ function productLabel(product: ProductProfile | undefined, fallbackId: string): 
   return product.sku ? `${product.name} (${product.sku})` : product.name;
 }
 
+/** Whole days between now and an ISO date string; negative once past. */
+function daysUntil(dateStr: string, now = new Date()): number {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const target = new Date(`${dateStr}T00:00:00`);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target.getTime() - today.getTime()) / msPerDay);
+}
+
 export default function StockPage() {
   const { t } = useTranslation();
   const currentMember = useMemo(() => getCurrentMember(), []);
@@ -255,6 +264,9 @@ export default function StockPage() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [isLoadingMovements, setIsLoadingMovements] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [expiringBatches, setExpiringBatches] = useState<StockMovement[]>([]);
+  const [isLoadingExpiring, setIsLoadingExpiring] = useState(true);
+  const [expiringLoadError, setExpiringLoadError] = useState("");
 
   const [filterProductId, setFilterProductId] = useState("");
   const [filterUnitId, setFilterUnitId] = useState("");
@@ -263,6 +275,7 @@ export default function StockPage() {
   const [movementType, setMovementType] = useState<ManualStockMovementType>("purchase");
   const [quantityDelta, setQuantityDelta] = useState("");
   const [unitCost, setUnitCost] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [formStatus, setFormStatus] = useState<"idle" | "saving" | "saved">("idle");
@@ -360,6 +373,32 @@ export default function StockPage() {
       })
       .finally(() => {
         if (active) setIsLoadingMovements(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [canViewLedger, filterProductId, filterUnitId, t]);
+
+  useEffect(() => {
+    if (!canViewLedger) {
+      setIsLoadingExpiring(false);
+      return;
+    }
+    let active = true;
+    setIsLoadingExpiring(true);
+    setExpiringLoadError("");
+    listExpiringStockBatches({
+      productId: filterProductId || undefined,
+      businessUnitId: filterUnitId || undefined,
+    })
+      .then((result) => {
+        if (active) setExpiringBatches(result);
+      })
+      .catch((fetchError: unknown) => {
+        if (active) setExpiringLoadError(fetchError instanceof Error ? fetchError.message : t("stock.loadError"));
+      })
+      .finally(() => {
+        if (active) setIsLoadingExpiring(false);
       });
     return () => {
       active = false;
@@ -576,6 +615,13 @@ export default function StockPage() {
     if (parsedUnitCost !== null && (!Number.isFinite(parsedUnitCost) || parsedUnitCost < 0)) {
       nextErrors.unitCost = t("stock.validation.unitCostInvalid");
     }
+    // Mirrors the backend's stock::service::validate rule -- an expiry date
+    // describes a batch arriving, so it only makes sense when quantity is
+    // increasing. Checked client-side too so the error surfaces immediately
+    // instead of round-tripping to the server first.
+    if (expiryDate.trim() !== "" && Number.isFinite(parsedQuantity) && parsedQuantity <= 0) {
+      nextErrors.expiryDate = t("stock.validation.expiryOnlyForIncoming");
+    }
     if (note.trim().length > 240) nextErrors.note = t("stock.validation.noteTooLong");
 
     return nextErrors;
@@ -595,10 +641,17 @@ export default function StockPage() {
         quantityDelta: Number(quantityDelta),
         unitCost: unitCost.trim() === "" ? undefined : Number(unitCost),
         note: note.trim() || undefined,
+        expiryDate: expiryDate.trim() || undefined,
       });
       setMovements((current) => [saved, ...current]);
+      if (saved.expiryDate) {
+        setExpiringBatches((current) =>
+          [saved, ...current].sort((a, b) => (a.expiryDate ?? "").localeCompare(b.expiryDate ?? "")),
+        );
+      }
       setQuantityDelta("");
       setUnitCost("");
+      setExpiryDate("");
       setNote("");
       setFormStatus("saved");
     } catch (saveError) {
@@ -888,6 +941,12 @@ export default function StockPage() {
               {errors.unitCost && <span className="field-error">{errors.unitCost}</span>}
             </div>
 
+            <div className="form-field">
+              <label htmlFor="stock-expiry-date">{t("stock.expiryDate")}</label>
+              <input id="stock-expiry-date" type="date" value={expiryDate} onChange={(event) => setExpiryDate(event.target.value)} />
+              {errors.expiryDate ? <span className="field-error">{errors.expiryDate}</span> : <DevOnly><span className="form-hint">{t("stock.expiryDateHint")}</span></DevOnly>}
+            </div>
+
             <div className="form-field full">
               <label htmlFor="stock-note">{t("stock.note")}</label>
               <textarea id="stock-note" maxLength={240} placeholder={t("stock.notePlaceholder")} value={note} onChange={(event) => setNote(event.target.value)} />
@@ -926,6 +985,56 @@ export default function StockPage() {
               </select>
             </div>
           </div>
+
+          <article className="table-card stock-expiring-card">
+            <header>
+              <h3>{t("stock.expiringTitle")}</h3>
+              <small>{t("stock.expiringHint")}</small>
+            </header>
+
+            {expiringLoadError && <p className="product-revenue-error">{expiringLoadError}</p>}
+
+            <table className="data-table stock-expiring-table">
+              <thead>
+                <tr>
+                  <th>{t("productRevenue.expiryDate")}</th>
+                  <th>{t("stock.product")}</th>
+                  <th>{t("stock.quantityReceived")}</th>
+                  <th>{t("stock.movementType")}</th>
+                  <th>{t("stock.date")}</th>
+                  <th>{t("stock.recordedBy")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!isLoadingExpiring && expiringBatches.length === 0 && (
+                  <tr><td colSpan={6}>{t("stock.expiringEmpty")}</td></tr>
+                )}
+                {expiringBatches.map((batch) => {
+                  const product = productOptions.find((item) => item.id === batch.productId);
+                  const remaining = batch.expiryDate ? daysUntil(batch.expiryDate) : undefined;
+                  return (
+                    <tr key={batch.id}>
+                      <td>
+                        <span className={`stock-quantity-cell ${remaining !== undefined && remaining < 0 ? "stock-status-out" : "stock-status-low"}`}>
+                          {batch.expiryDate}
+                          {typeof remaining === "number" && (
+                            <span className="stock-status-badge">
+                              {remaining < 0 ? t("stock.expiringAlready") : t("stock.expiringDaysLeft", { count: remaining })}
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td>{productLabel(product, batch.productId)}</td>
+                      <td className="stock-delta-positive">+{batch.quantityDelta}</td>
+                      <td>{t(`stock.movementTypes.${batch.movementType}`)}</td>
+                      <td>{formatDateTime(batch.createdAt)}</td>
+                      <td>{batch.createdByName}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </article>
 
           <article className="table-card stock-ledger-card">
             <header>

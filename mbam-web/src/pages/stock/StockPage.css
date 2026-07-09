@@ -61,12 +61,17 @@
   margin: 0;
 }
 
-.stock-ledger-card {
+.stock-ledger-card,
+.stock-expiring-card {
   overflow-x: auto;
 }
 
 .stock-ledger-table {
   min-width: 960px;
+}
+
+.stock-expiring-table {
+  min-width: 760px;
 }
 
 .stock-delta-positive {

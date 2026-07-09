@@ -44,6 +44,11 @@ export interface StockMovement {
   sourceTransactionId?: string;
   sourceReceiptImportId?: string;
   note?: string;
+  // Batch/lot expiry for this specific movement -- metadata only (see
+  // mbam-api's 0015_stock_movement_expiry.sql). Only ever set on movements
+  // that increase quantity; unrelated to products.expiryDate, which stays a
+  // separate, manually-edited, single-value field on the product itself.
+  expiryDate?: string;
   createdBy: string;
   createdByName: string;
   createdAt: string;
@@ -56,6 +61,7 @@ export interface StockMovementWritePayload {
   unitCost?: number;
   sourceReceiptImportId?: string;
   note?: string;
+  expiryDate?: string;
 }
 
 export interface StockMovementFilters {
@@ -63,15 +69,28 @@ export interface StockMovementFilters {
   businessUnitId?: string;
 }
 
-export async function listStockMovements(
-  filters: StockMovementFilters = {},
-): Promise<StockMovement[]> {
+function stockMovementQueryString(filters: StockMovementFilters): string {
   const params = new URLSearchParams();
   if (filters.productId) params.set("product_id", filters.productId);
   if (filters.businessUnitId) params.set("business_unit_id", filters.businessUnitId);
   const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+export async function listStockMovements(
+  filters: StockMovementFilters = {},
+): Promise<StockMovement[]> {
   return getJson<StockMovement[]>(
-    `/api/v1/stock/movements${query ? `?${query}` : ""}`,
+    `/api/v1/stock/movements${stockMovementQueryString(filters)}`,
+  );
+}
+
+/** Batches that recorded an expiry date, soonest-expiring first. */
+export async function listExpiringStockBatches(
+  filters: StockMovementFilters = {},
+): Promise<StockMovement[]> {
+  return getJson<StockMovement[]>(
+    `/api/v1/stock/movements/expiring${stockMovementQueryString(filters)}`,
   );
 }
 

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -18,6 +18,11 @@ pub struct StockMovement {
     pub source_transaction_id: Option<Uuid>,
     pub source_receipt_import_id: Option<Uuid>,
     pub note: Option<String>,
+    /// Batch/lot expiry for this specific movement -- metadata only, see
+    /// 0015_stock_movement_expiry.sql's doc comment. Only ever set on
+    /// incoming movements (purchase/opening_balance/transfer_in/returned/
+    /// sale_refund); `stock::service::validate` enforces that.
+    pub expiry_date: Option<NaiveDate>,
     pub created_by: Uuid,
     pub created_by_name: String,
     pub created_at: DateTime<Utc>,
@@ -38,4 +43,5 @@ pub struct StockMovementWriteRequest {
     pub unit_cost: Option<f64>,
     pub source_receipt_import_id: Option<Uuid>,
     pub note: Option<String>,
+    pub expiry_date: Option<NaiveDate>,
 }

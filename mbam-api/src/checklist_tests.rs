@@ -36,6 +36,7 @@ const PRODUCT_THREE_ID: &str = "10000000-0000-4000-8000-000000000503";
 const PRODUCT_CREATE_ID: &str = "10000000-0000-4000-8000-000000000504";
 const STOCK_PRODUCT_SCOPE_ID: &str = "10000000-0000-4000-8000-000000000505";
 const STOCK_PRODUCT_BLOCK_ID: &str = "10000000-0000-4000-8000-000000000506";
+const STOCK_PRODUCT_EXPIRY_ID: &str = "10000000-0000-4000-8000-000000000507";
 const TRANSACTION_ONE_ID: &str = "10000000-0000-4000-8000-000000000601";
 const TRANSACTION_TWO_ID: &str = "10000000-0000-4000-8000-000000000602";
 const TRANSACTION_THREE_ID: &str = "10000000-0000-4000-8000-000000000603";
@@ -668,6 +669,131 @@ async fn stock_movement_endpoints_are_role_gated_and_scoped() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn stock_movement_expiry_date_is_recorded_and_listed_soonest_first() {
+    let _guard = test_guard();
+    let app = test_app().await;
+
+    let (status, _) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/products",
+            uuid(ADMIN_USER_ID),
+            Some(json!({
+                "id": STOCK_PRODUCT_EXPIRY_ID,
+                "businessId": BUSINESS_ONE_ID,
+                "businessUnitId": UNIT_ONE_ID,
+                "name": "Stock Expiry Test Product",
+                "sku": "TEST-STOCK-EXPIRY",
+                "category": "Groceries",
+                "availableQuantity": 0.0,
+                "defaultPrice": 1000.0
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // A purchase can record the expiry date of the batch it just received.
+    let (status, later_batch) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/stock/movements",
+            uuid(MANAGER_ONE_USER_ID),
+            Some(json!({
+                "productId": STOCK_PRODUCT_EXPIRY_ID,
+                "movementType": "purchase",
+                "quantityDelta": 10.0,
+                "expiryDate": "2026-12-01"
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(later_batch["expiryDate"], "2026-12-01");
+
+    // A second, later purchase can record an earlier expiry (e.g. it was
+    // already closer to going out of date when received) -- listing must
+    // sort by expiry date, not by when the movement was created.
+    let (status, sooner_batch) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/stock/movements",
+            uuid(MANAGER_ONE_USER_ID),
+            Some(json!({
+                "productId": STOCK_PRODUCT_EXPIRY_ID,
+                "movementType": "purchase",
+                "quantityDelta": 5.0,
+                "expiryDate": "2026-08-15"
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let sooner_batch_id = sooner_batch["id"].as_str().expect("movement id").to_string();
+    let later_batch_id = later_batch["id"].as_str().expect("movement id").to_string();
+
+    // A movement that decreases quantity cannot carry an expiry date -- it
+    // isn't a batch arriving, it's stock leaving (damaged/write-off here).
+    let (status, rejected) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/stock/movements",
+            uuid(MANAGER_ONE_USER_ID),
+            Some(json!({
+                "productId": STOCK_PRODUCT_EXPIRY_ID,
+                "movementType": "damaged",
+                "quantityDelta": -1.0,
+                "expiryDate": "2026-08-15"
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        rejected["error"],
+        "bad request: expiry date can only be recorded for movements that increase quantity"
+    );
+
+    // A plain purchase with no expiry date is recorded fine and must not
+    // show up in the expiring-batches listing below.
+    let (status, undated) = app
+        .request_json(
+            Method::POST,
+            "/api/v1/stock/movements",
+            uuid(MANAGER_ONE_USER_ID),
+            Some(json!({
+                "productId": STOCK_PRODUCT_EXPIRY_ID,
+                "movementType": "purchase",
+                "quantityDelta": 2.0
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(undated["expiryDate"].is_null());
+
+    // The expiring-batches endpoint returns only the two dated movements,
+    // soonest-expiring first, regardless of creation order.
+    let (status, expiring) = app
+        .request_json(
+            Method::GET,
+            &format!("/api/v1/stock/movements/expiring?product_id={STOCK_PRODUCT_EXPIRY_ID}"),
+            uuid(MANAGER_ONE_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ids(&expiring), vec![sooner_batch_id, later_batch_id]);
+
+    // Cashiers (no stock.movement.view) cannot see the expiring list either.
+    let (status, denied) = app
+        .request_json(
+            Method::GET,
+            &format!("/api/v1/stock/movements/expiring?product_id={STOCK_PRODUCT_EXPIRY_ID}"),
+            uuid(CASHIER_ONE_USER_ID),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(ids(&denied).is_empty(), "cashier has no stock.movement.view permission, so the join should yield zero rows");
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn sale_creation_deducts_stock_and_blocks_when_policy_requires_it() {
     let _guard = test_guard();
     let app = test_app().await;
@@ -1017,6 +1143,7 @@ async fn clear_checklist_fixture(db: &PgPool) -> Result<(), sqlx::Error> {
         uuid(PRODUCT_CREATE_ID),
         uuid(STOCK_PRODUCT_SCOPE_ID),
         uuid(STOCK_PRODUCT_BLOCK_ID),
+        uuid(STOCK_PRODUCT_EXPIRY_ID),
         uuid(TRANSACTION_ONE_ID),
         uuid(TRANSACTION_TWO_ID),
         uuid(TRANSACTION_THREE_ID),
@@ -1036,6 +1163,7 @@ async fn clear_checklist_fixture(db: &PgPool) -> Result<(), sqlx::Error> {
             uuid(PRODUCT_THREE_ID),
             uuid(STOCK_PRODUCT_SCOPE_ID),
             uuid(STOCK_PRODUCT_BLOCK_ID),
+            uuid(STOCK_PRODUCT_EXPIRY_ID),
         ])
         .execute(db)
         .await?;
@@ -1067,6 +1195,7 @@ async fn clear_checklist_fixture(db: &PgPool) -> Result<(), sqlx::Error> {
             uuid(PRODUCT_CREATE_ID),
             uuid(STOCK_PRODUCT_SCOPE_ID),
             uuid(STOCK_PRODUCT_BLOCK_ID),
+            uuid(STOCK_PRODUCT_EXPIRY_ID),
         ])
         .execute(db)
         .await?;

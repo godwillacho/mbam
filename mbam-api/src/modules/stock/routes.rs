@@ -15,7 +15,9 @@ use super::{
 };
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/movements", get(list).post(create))
+    Router::new()
+        .route("/movements", get(list).post(create))
+        .route("/movements/expiring", get(list_expiring))
 }
 
 // Query strings in this API stay snake_case (matching
@@ -34,6 +36,25 @@ async fn list(
 ) -> Result<Json<Vec<StockMovement>>, ApiError> {
     Ok(Json(
         service::list(
+            &state.db,
+            authorization.user_id,
+            query.product_id,
+            query.business_unit_id,
+        )
+        .await?,
+    ))
+}
+
+/// Batches that recorded an expiry date, soonest-expiring first -- see
+/// service::list_expiring. Same `stock.movement.view` gate as `list` above
+/// (enforced inside repository::list_expiring_for_user's join, not here).
+async fn list_expiring(
+    State(state): State<AppState>,
+    authorization: AuthorizationContext,
+    Query(query): Query<ListStockMovementsQuery>,
+) -> Result<Json<Vec<StockMovement>>, ApiError> {
+    Ok(Json(
+        service::list_expiring(
             &state.db,
             authorization.user_id,
             query.product_id,

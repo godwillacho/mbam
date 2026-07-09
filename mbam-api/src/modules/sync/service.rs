@@ -331,6 +331,7 @@ struct OfflineStockMovementPayload {
     unit_cost: Option<f64>,
     source_receipt_import_id: Option<Uuid>,
     note: Option<String>,
+    expiry_date: Option<chrono::NaiveDate>,
 }
 
 /// Replays a queued offline stock movement (purchase/adjustment/transfer/
@@ -367,6 +368,7 @@ async fn apply_stock_movement_operation(
         unit_cost: payload.unit_cost,
         source_receipt_import_id: payload.source_receipt_import_id,
         note: payload.note,
+        expiry_date: payload.expiry_date,
     };
     match crate::modules::stock::service::create_movement_with_id(db, user_id, movement_id, request)
         .await
@@ -537,6 +539,7 @@ async fn build_snapshot(
             'quantityDelta', quantity_delta, 'unitCost', unit_cost,
             'sourceTransactionId', source_transaction_id,
             'sourceReceiptImportId', source_receipt_import_id, 'note', note,
+            'expiryDate', expiry_date,
             'createdBy', created_by, 'createdAt', created_at
           )
         from visible_stock_movements

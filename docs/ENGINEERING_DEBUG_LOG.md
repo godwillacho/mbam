@@ -18,6 +18,78 @@ Never record passwords, access tokens, refresh tokens, cookies, private keys,
 device fingerprints, customer data, or other sensitive values. Runtime logs must
 redact authorization headers and authentication material.
 
+## 2026-07-09 - Per-Batch Expiry Date On Stock Movements
+
+**Related change:** Working tree pending commit at `2026-07-09T14:04:07Z`
+
+**Requested behavior:** User reported "the stock management does not include
+expiry entry." Scoped via two rounds of `AskUserQuestion`: first, simple
+form field vs. per-batch/lot tracking vs. product-level-only (user chose
+per-batch/lot); second, since that has two very different shapes, full FEFO
+lot consumption vs. lightweight expiry metadata with no change to how sales
+deduct stock (user chose lightweight metadata).
+
+**Root cause / engineering reason:** The product catalog already has a
+single `expiry_date` column, but nothing let a specific incoming *movement*
+(a purchase, an opening balance, etc.) record its own batch expiry — there
+was no way to say "this delivery expires sooner than the last one."
+
+**Files changed:**
+
+- `mbam-api/migrations/0015_stock_movement_expiry.sql` — nullable
+  `expiry_date` column on `stock_movements` + partial index. Does not touch
+  `products.expiry_date`, which remains a separate, manually-edited field.
+- `mbam-api/src/modules/stock/model.rs` — `expiry_date: Option<NaiveDate>`
+  on `StockMovement` and `StockMovementWriteRequest`.
+- `mbam-api/src/modules/stock/repository.rs` — column added to
+  `STOCK_MOVEMENT_COLUMNS` and the `create()` INSERT; new
+  `list_expiring_for_user` (same visibility join as `list_for_user`,
+  filtered to non-null expiry, sorted soonest-first).
+- `mbam-api/src/modules/stock/service.rs` — new `list_expiring`; `validate()`
+  now rejects an expiry date on any movement with `quantity_delta <= 0.0`
+  (expiry describes a batch arriving, not stock leaving).
+- `mbam-api/src/modules/stock/routes.rs` — new
+  `GET /api/v1/stock/movements/expiring`.
+- `mbam-api/src/modules/sync/service.rs` — offline replay payload/struct and
+  the pull-snapshot's `stock_movement` JSON both carry `expiryDate` now.
+- `mbam-api/src/checklist_tests.rs` — new
+  `stock_movement_expiry_date_is_recorded_and_listed_soonest_first` test;
+  new `STOCK_PRODUCT_EXPIRY_ID` fixture wired into all three cleanup lists.
+- `mbam-web/src/services/stock/stockService.ts` — `expiryDate` on both the
+  read and write types; new `listExpiringStockBatches()`.
+- `mbam-web/src/pages/stock/StockPage.tsx` — expiry-date input on the
+  record-movement form (client-side validation mirrors the backend rule);
+  new "Batches expiring soon" table above the ledger.
+- `mbam-web/src/pages/stock/StockPage.css`, `i18n/stockResources.ts`
+  (en + fr), `REPOSITORY_MAP.md` updated.
+
+**Debugging and verification performed:** No Rust toolchain in this sandbox,
+so spawned an independent read-only review subagent to check bind-order
+correctness, `sqlx::FromRow` column-name matching, struct-literal
+completeness at both `StockMovementWriteRequest` construction sites, the new
+validation rule's logic, `NaiveDate` imports, route non-collision, and the
+new test's fixture cleanup. Zero bugs found (one cosmetic `if not exists`
+nit on the new index, fixed). Frontend: `tsc`, `eslint --max-warnings 0`,
+`vitest` (77/77), `vite build` all clean.
+
+**Errors encountered:** None this round.
+
+**Checks not run:** `cargo build`/`cargo test` — strongly recommend running
+locally before merge, especially the new expiry test and a re-run of the
+existing stock tests to confirm the new fixture product doesn't collide.
+Live-browser verification of the new UI is still pending the user's dev
+server details.
+
+**Remaining risks / follow-up:** This is metadata-only — the "expiring
+soon" list can't say exactly how many units of a batch remain once sales
+have drawn down the aggregate quantity, only that a batch with that expiry
+was received. Full FEFO consumption (declined this round) would fix that
+at the cost of rewriting the live sale-deduction path. The offline
+stock-movement queue (`stockLocalRepository.ts`) still doesn't carry
+`expiryDate` and isn't wired into the active UI, so it's unaffected either
+way. No dedicated frontend test added for the new form validation or table
+rendering, consistent with zero prior dedicated tests for this page.
+
 ## 2026-07-08 - Merge Product Management Into Stock Page (Fixes Unaudited Quantity Edits)
 
 **Related change:** Working tree pending commit at `2026-07-08T23:25:49Z`
