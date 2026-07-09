@@ -108,7 +108,7 @@ contains request/response/database contracts.
 | `modules/businesses/` | Scoped business listing and creation |
 | `modules/business_units/` | Scoped shop/unit listing, creation, update |
 | `modules/products/` | Scoped catalogue CRUD and product sync records |
-| `modules/stock/` | Manual stock-movement ledger (purchases/adjustments/transfers) plus `products.stock_policy`; sale-driven deductions are written by `modules/transactions/` instead. Fronted by `mbam-web`'s `/stock` page — see `pages/stock/` and `services/stock/stockService.ts` below |
+| `modules/stock/` | Manual stock-movement ledger (purchases/adjustments/transfers) plus `products.stock_policy`; sale-driven deductions are written by `modules/transactions/` instead. Movements that increase quantity may also record a batch `expiry_date` (metadata only — not full FEFO lot consumption; see 0015_stock_movement_expiry.sql), surfaced via `GET /api/v1/stock/movements/expiring`. Fronted by `mbam-web`'s `/stock` page — see `pages/stock/` and `services/stock/stockService.ts` below |
 | `modules/team/` | Employees, memberships, roles, permissions, invitations |
 | `modules/transactions/` | Transactions, drafts, details, invoices, sale-driven stock deduction |
 | `modules/sync/` | Device-bound offline push/pull and conflict validation |

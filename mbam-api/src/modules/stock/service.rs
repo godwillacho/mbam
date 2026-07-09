@@ -72,6 +72,17 @@ pub async fn list(
     Ok(repository::list_for_user(db, user_id, product_id, business_unit_id).await?)
 }
 
+/// Batches (movements that recorded an expiry date), soonest-expiring
+/// first -- see 0015_stock_movement_expiry.sql and repository::list_expiring_for_user.
+pub async fn list_expiring(
+    db: &PgPool,
+    user_id: Uuid,
+    product_id: Option<Uuid>,
+    business_unit_id: Option<Uuid>,
+) -> Result<Vec<StockMovement>, ApiError> {
+    Ok(repository::list_expiring_for_user(db, user_id, product_id, business_unit_id).await?)
+}
+
 fn validate(payload: &mut StockMovementWriteRequest) -> Result<(), ApiError> {
     if !MANUAL_MOVEMENT_TYPES.contains(&payload.movement_type.as_str()) {
         return Err(ApiError::BadRequest(
@@ -89,6 +100,15 @@ fn validate(payload: &mut StockMovementWriteRequest) -> Result<(), ApiError> {
                 "unit cost cannot be negative".to_string(),
             ));
         }
+    }
+    // Expiry date is metadata about a newly-received batch, so it only makes
+    // sense on movements that increase quantity (a positive manual_adjustment
+    // counts -- e.g. "found" stock -- but damaged/expired/transfer_out
+    // write-offs and negative adjustments don't represent a batch arriving).
+    if payload.expiry_date.is_some() && payload.quantity_delta <= 0.0 {
+        return Err(ApiError::BadRequest(
+            "expiry date can only be recorded for movements that increase quantity".to_string(),
+        ));
     }
     payload.note = payload
         .note
@@ -116,6 +136,7 @@ mod tests {
             unit_cost: None,
             source_receipt_import_id: None,
             note: None,
+            expiry_date: None,
         }
     }
 

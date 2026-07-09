@@ -9,6 +9,7 @@ const STOCK_MOVEMENT_COLUMNS: &str = r#"
   movement.quantity_delta::float8 as quantity_delta,
   movement.unit_cost::float8 as unit_cost,
   movement.source_transaction_id, movement.source_receipt_import_id, movement.note,
+  movement.expiry_date,
   movement.created_by, creator.full_name as created_by_name, movement.created_at
 "#;
 
@@ -129,8 +130,8 @@ pub async fn create(
         insert into stock_movements (
           id, product_id, business_account_id, business_id, business_unit_id,
           movement_type, quantity_delta, unit_cost, source_receipt_import_id,
-          note, created_by
-        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          note, expiry_date, created_by
+        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         "#,
     )
     .bind(movement_id)
@@ -143,6 +144,7 @@ pub async fn create(
     .bind(payload.unit_cost)
     .bind(payload.source_receipt_import_id)
     .bind(&payload.note)
+    .bind(payload.expiry_date)
     .bind(actor_id)
     .execute(&mut *tx)
     .await?;
@@ -229,6 +231,63 @@ pub async fn list_for_user(
             or unit_scope.business_unit_id is not null
           )
         order by movement.created_at desc
+        limit 500
+        "#
+    );
+    sqlx::query_as::<_, StockMovement>(&query)
+        .bind(user_id)
+        .bind(product_id)
+        .bind(business_unit_id)
+        .fetch_all(db)
+        .await
+}
+
+/// Same visibility scoping as `list_for_user`, but narrowed to movements
+/// that recorded a batch expiry date (see 0015_stock_movement_expiry.sql),
+/// ordered soonest-expiring first rather than most-recent-first. Includes
+/// already-past dates too (an unconsumed expired batch is still worth
+/// surfacing) -- the frontend is responsible for any "already expired"
+/// styling, same as it already does for `products.expiry_date` in
+/// `utils/inventory.ts`.
+pub async fn list_expiring_for_user(
+    db: &PgPool,
+    user_id: Uuid,
+    product_id: Option<Uuid>,
+    business_unit_id: Option<Uuid>,
+) -> Result<Vec<StockMovement>, sqlx::Error> {
+    let query = format!(
+        r#"
+        select distinct {STOCK_MOVEMENT_COLUMNS}
+        from stock_movements movement
+        join users creator on creator.id = movement.created_by
+        join memberships membership
+          on membership.business_account_id = movement.business_account_id
+        join role_permissions role_permission on role_permission.role_id = membership.role_id
+        join permissions permission
+          on permission.id = role_permission.permission_id
+         and permission.code = 'stock.movement.view'
+        left join membership_business_scopes business_scope
+          on business_scope.membership_id = membership.id
+         and business_scope.business_id = movement.business_id
+        left join membership_business_unit_scopes unit_scope
+          on unit_scope.membership_id = membership.id
+         and unit_scope.business_unit_id = movement.business_unit_id
+        where membership.user_id = $1
+          and membership.status = 'active'
+          and movement.expiry_date is not null
+          and ($2::uuid is null or movement.product_id = $2)
+          and ($3::uuid is null or movement.business_unit_id = $3)
+          and (
+            membership.business_id is null
+            or membership.business_id = movement.business_id
+            or business_scope.business_id is not null
+          )
+          and (
+            membership.business_unit_id is null
+            or membership.business_unit_id = movement.business_unit_id
+            or unit_scope.business_unit_id is not null
+          )
+        order by movement.expiry_date asc, movement.created_at desc
         limit 500
         "#
     );
